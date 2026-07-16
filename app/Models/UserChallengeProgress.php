@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ChallengeStatus;
 use Carbon\CarbonInterface;
+use Database\Factories\UserChallengeProgressFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -24,7 +25,7 @@ use Illuminate\Support\Collection;
 #[Fillable(['user_id', 'challenge_id', 'status', 'best_score', 'stars', 'last_code', 'attempts', 'completed_at'])]
 class UserChallengeProgress extends Model
 {
-    /** @use HasFactory<\Database\Factories\UserChallengeProgressFactory> */
+    /** @use HasFactory<UserChallengeProgressFactory> */
     use HasFactory;
 
     /**
@@ -66,14 +67,21 @@ class UserChallengeProgress extends Model
     /**
      * Completed-challenge counts for the given user, keyed by course id.
      *
+     * Only currently playable content counts (published challenge in a
+     * published course), so a count can never exceed the published-challenge
+     * total displayed beside it.
+     *
      * @return Collection<int, int>
      */
     public static function completedCountsByCourse(User $user): Collection
     {
         return static::query()
             ->join('challenges', 'challenges.id', '=', 'user_challenge_progress.challenge_id')
+            ->join('courses', 'courses.id', '=', 'challenges.course_id')
             ->where('user_challenge_progress.user_id', $user->id)
             ->where('user_challenge_progress.status', ChallengeStatus::Completed)
+            ->where('challenges.is_published', true)
+            ->where('courses.is_published', true)
             ->selectRaw('challenges.course_id as course_id, count(*) as completed')
             ->groupBy('challenges.course_id')
             ->pluck('completed', 'course_id');
@@ -82,14 +90,21 @@ class UserChallengeProgress extends Model
     /**
      * Aggregate completion stats for the given user, in a single query.
      *
+     * Scoped to currently playable content, matching the per-course counts
+     * shown alongside these totals.
+     *
      * @return array{completed: int, stars: int}
      */
     public static function statsFor(User $user): array
     {
         $row = static::query()
-            ->where('user_id', $user->id)
+            ->join('challenges', 'challenges.id', '=', 'user_challenge_progress.challenge_id')
+            ->join('courses', 'courses.id', '=', 'challenges.course_id')
+            ->where('user_challenge_progress.user_id', $user->id)
+            ->where('challenges.is_published', true)
+            ->where('courses.is_published', true)
             ->selectRaw(
-                'count(case when status = ? then 1 end) as completed, coalesce(sum(stars), 0) as stars',
+                'count(case when user_challenge_progress.status = ? then 1 end) as completed, coalesce(sum(user_challenge_progress.stars), 0) as stars',
                 [ChallengeStatus::Completed->value],
             )
             ->first();

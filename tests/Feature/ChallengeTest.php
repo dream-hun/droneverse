@@ -102,6 +102,46 @@ class ChallengeTest extends TestCase
         ]);
     }
 
+    public function test_attempts_on_an_unpublished_challenge_are_rejected(): void
+    {
+        $user = User::factory()->create();
+        $course = Course::factory()->create();
+        $challenge = Challenge::factory()->for($course)->unpublished()->create();
+
+        $response = $this->actingAs($user)->post(route('challenges.attempts.store', [$course, $challenge]), [
+            'score' => 50,
+            'stars' => 1,
+            'completed' => true,
+            'code' => 'async function main(drone) {}',
+        ]);
+
+        $response->assertNotFound();
+        $this->assertDatabaseMissing('user_challenge_progress', [
+            'user_id' => $user->id,
+            'challenge_id' => $challenge->id,
+        ]);
+    }
+
+    public function test_attempts_on_a_challenge_in_an_unpublished_course_are_rejected(): void
+    {
+        $user = User::factory()->create();
+        $course = Course::factory()->unpublished()->create();
+        $challenge = Challenge::factory()->for($course)->create();
+
+        $response = $this->actingAs($user)->post(route('challenges.attempts.store', [$course, $challenge]), [
+            'score' => 50,
+            'stars' => 1,
+            'completed' => true,
+            'code' => 'async function main(drone) {}',
+        ]);
+
+        $response->assertNotFound();
+        $this->assertDatabaseMissing('user_challenge_progress', [
+            'user_id' => $user->id,
+            'challenge_id' => $challenge->id,
+        ]);
+    }
+
     public function test_an_incomplete_first_attempt_marks_the_challenge_in_progress(): void
     {
         $user = User::factory()->create();

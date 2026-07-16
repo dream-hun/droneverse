@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ChallengeStatus;
 use App\Models\Challenge;
 use App\Models\Course;
 use App\Models\User;
@@ -50,5 +51,92 @@ class DashboardTest extends TestCase
             ->where('courses.0.completedCount', 1)
             ->where('stats.completed', 1)
             ->where('stats.stars', 3));
+    }
+
+    public function test_continue_skips_challenges_that_are_no_longer_published()
+    {
+        $user = User::factory()->create();
+        $course = Course::factory()->create();
+        $publishedChallenge = Challenge::factory()->for($course)->create();
+        $unpublishedChallenge = Challenge::factory()->for($course)->unpublished()->create();
+
+        UserChallengeProgress::factory()->create([
+            'user_id' => $user->id,
+            'challenge_id' => $publishedChallenge->id,
+            'status' => ChallengeStatus::InProgress,
+            'updated_at' => now()->subDay(),
+        ]);
+        UserChallengeProgress::factory()->create([
+            'user_id' => $user->id,
+            'challenge_id' => $unpublishedChallenge->id,
+            'status' => ChallengeStatus::InProgress,
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($user)->get(route('dashboard'));
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('continue.challengeSlug', $publishedChallenge->slug));
+    }
+
+    public function test_continue_is_empty_when_the_started_challenge_is_in_an_unpublished_course()
+    {
+        $user = User::factory()->create();
+        $course = Course::factory()->unpublished()->create();
+        $challenge = Challenge::factory()->for($course)->create();
+
+        UserChallengeProgress::factory()->create([
+            'user_id' => $user->id,
+            'challenge_id' => $challenge->id,
+            'status' => ChallengeStatus::InProgress,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('dashboard'));
+
+        $response->assertInertia(fn ($page) => $page->where('continue', null));
+    }
+
+    public function test_progress_counts_exclude_unpublished_challenges()
+    {
+        $user = User::factory()->create();
+        $course = Course::factory()->create();
+        $publishedChallenge = Challenge::factory()->for($course)->create();
+        $unpublishedChallenge = Challenge::factory()->for($course)->unpublished()->create();
+
+        UserChallengeProgress::factory()->completed()->create([
+            'user_id' => $user->id,
+            'challenge_id' => $publishedChallenge->id,
+        ]);
+        UserChallengeProgress::factory()->completed()->create([
+            'user_id' => $user->id,
+            'challenge_id' => $unpublishedChallenge->id,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('dashboard'));
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('courses.0.challengesCount', 1)
+            ->where('courses.0.completedCount', 1)
+            ->where('stats.completed', 1)
+            ->where('stats.stars', 3));
+    }
+
+    public function test_progress_counts_exclude_challenges_in_unpublished_courses()
+    {
+        $user = User::factory()->create();
+        $course = Course::factory()->unpublished()->create();
+        $challenge = Challenge::factory()->for($course)->create();
+
+        UserChallengeProgress::factory()->completed()->create([
+            'user_id' => $user->id,
+            'challenge_id' => $challenge->id,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('dashboard'));
+
+        $response->assertInertia(fn ($page) => $page
+            ->has('courses', 0)
+            ->where('stats.completed', 0)
+            ->where('stats.stars', 0));
     }
 }

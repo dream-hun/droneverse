@@ -61,6 +61,7 @@ class ChallengeController extends Controller
         Challenge $challenge,
         RecordChallengeAttempt $recordAttempt,
     ): JsonResponse {
+        abort_unless($course->is_published && $challenge->is_published, 404);
         abort_unless($challenge->course_id === $course->id, 404);
 
         $progress = $recordAttempt->handle($request->user(), $challenge, $request->attempt());

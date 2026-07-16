@@ -21,9 +21,13 @@ class DashboardController extends Controller
         $courses = Course::catalog()->get();
         $completedByCourse = UserChallengeProgress::completedCountsByCourse($user);
 
+        // The continue card must never link to content that challenges.show
+        // would 404: only a published challenge in a published course counts.
         $continue = $user->challengeProgress()
             ->with('challenge.course')
             ->where('status', '!=', ChallengeStatus::Completed)
+            ->whereRelation('challenge', 'is_published', true)
+            ->whereRelation('challenge.course', 'is_published', true)
             ->latest('updated_at')
             ->first();
 

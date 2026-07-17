@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+import { StarRating } from '@/components/star-rating';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -15,7 +17,7 @@ type ResultModalProps = {
     onRetry: () => void;
 };
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value }: { label: string; value: ReactNode }) {
     return (
         <div className="rounded-md border p-3">
             <div className="text-xs text-muted-foreground">{label}</div>
@@ -55,7 +57,9 @@ export function ResultModal({ result, onClose, onRetry }: ResultModalProps) {
                         <Stat label="Score" value={`${result.score}`} />
                         <Stat
                             label="Stars"
-                            value={'★'.repeat(result.stars) || '—'}
+                            value={
+                                <StarRating value={result.stars} size="lg" />
+                            }
                         />
                         <Stat
                             label="Waypoints"

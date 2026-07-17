@@ -1,8 +1,15 @@
 import { Head, Link } from '@inertiajs/react';
-import { ArrowRight, Star, Trophy } from 'lucide-react';
+import { ArrowRight, Compass, Star, Trophy } from 'lucide-react';
 import { CourseCard } from '@/components/course-card';
+import { StatCard } from '@/components/stat-card';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    EmptyState,
+    EmptyStateDescription,
+    EmptyStateIcon,
+    EmptyStateTitle,
+} from '@/components/ui/empty-state';
 import { dashboard } from '@/routes';
 import { show as showChallenge } from '@/routes/challenges';
 import { index as coursesIndex } from '@/routes/courses';
@@ -31,28 +38,16 @@ export default function Dashboard({
 
             <div className="flex h-full flex-1 flex-col gap-6 p-4">
                 <div className="grid gap-4 sm:grid-cols-3">
-                    <Card>
-                        <CardHeader className="flex-row items-center gap-3 space-y-0">
-                            <Trophy className="size-5 text-muted-foreground" />
-                            <CardTitle className="text-base">
-                                Challenges completed
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="text-2xl font-semibold">
-                            {stats.completed}
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader className="flex-row items-center gap-3 space-y-0">
-                            <Star className="size-5 text-muted-foreground" />
-                            <CardTitle className="text-base">
-                                Stars earned
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="text-2xl font-semibold">
-                            {stats.stars}
-                        </CardContent>
-                    </Card>
+                    <StatCard
+                        label="Challenges completed"
+                        value={stats.completed}
+                        icon={Trophy}
+                    />
+                    <StatCard
+                        label="Stars earned"
+                        value={stats.stars}
+                        icon={Star}
+                    />
                     <Card>
                         <CardHeader className="space-y-0">
                             <CardTitle className="text-base">
@@ -61,23 +56,23 @@ export default function Dashboard({
                         </CardHeader>
                         <CardContent>
                             {continueChallenge ? (
-                                <Link
-                                    href={showChallenge([
-                                        continueChallenge.courseSlug,
-                                        continueChallenge.challengeSlug,
-                                    ])}
-                                >
-                                    <Button size="sm">
+                                <Button asChild size="sm">
+                                    <Link
+                                        href={showChallenge([
+                                            continueChallenge.courseSlug,
+                                            continueChallenge.challengeSlug,
+                                        ])}
+                                    >
                                         {continueChallenge.challengeTitle}{' '}
                                         <ArrowRight />
-                                    </Button>
-                                </Link>
+                                    </Link>
+                                </Button>
                             ) : (
-                                <Link href={coursesIndex()}>
-                                    <Button size="sm">
+                                <Button asChild size="sm">
+                                    <Link href={coursesIndex()}>
                                         Browse courses <ArrowRight />
-                                    </Button>
-                                </Link>
+                                    </Link>
+                                </Button>
                             )}
                         </CardContent>
                     </Card>
@@ -85,11 +80,26 @@ export default function Dashboard({
 
                 <div>
                     <h2 className="mb-3 text-lg font-semibold">Courses</h2>
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                        {courses.map((course) => (
-                            <CourseCard key={course.slug} course={course} />
-                        ))}
-                    </div>
+                    {courses.length > 0 ? (
+                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                            {courses.map((course) => (
+                                <CourseCard key={course.slug} course={course} />
+                            ))}
+                        </div>
+                    ) : (
+                        <EmptyState>
+                            <EmptyStateIcon>
+                                <Compass />
+                            </EmptyStateIcon>
+                            <EmptyStateTitle>
+                                No courses available yet
+                            </EmptyStateTitle>
+                            <EmptyStateDescription>
+                                New flight courses are on the way. Check back
+                                soon.
+                            </EmptyStateDescription>
+                        </EmptyState>
+                    )}
                 </div>
             </div>
         </>

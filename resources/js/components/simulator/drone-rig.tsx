@@ -41,16 +41,11 @@ export function DroneRig({
             linearDamping={4}
             angularDamping={4}
             enabledRotations={[false, true, false]}
-            position={[
-                environment.start.x,
-                REST_HEIGHT,
-                environment.start.z,
-            ]}
+            position={[environment.start.x, REST_HEIGHT, environment.start.z]}
             userData={{ kind: 'drone' }}
             onCollisionEnter={({ other }) =>
                 handleCollision(
-                    other.rigidBodyObject?.userData?.kind as
-                        string | undefined,
+                    other.rigidBodyObject?.userData?.kind as string | undefined,
                 )
             }
         >

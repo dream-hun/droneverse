@@ -107,6 +107,8 @@ export function useSimulatorLogs(session: SimulatorSession): ConsoleLine[] {
     return useSyncExternalStore(session.subscribe, session.logs);
 }
 
-export function useSimulatorResult(session: SimulatorSession): RunResult | null {
+export function useSimulatorResult(
+    session: SimulatorSession,
+): RunResult | null {
     return useSyncExternalStore(session.subscribe, session.result);
 }

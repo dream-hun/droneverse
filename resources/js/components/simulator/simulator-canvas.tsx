@@ -16,7 +16,10 @@ type SimulatorCanvasProps = {
     attemptUrl: string;
 };
 
-export function SimulatorCanvas({ environment, ...props }: SimulatorCanvasProps) {
+export function SimulatorCanvas({
+    environment,
+    ...props
+}: SimulatorCanvasProps) {
     const span = Math.max(environment.bounds.width, environment.bounds.depth);
     const containerRef = useRef<HTMLDivElement>(null);
     useCanvasResizeFix(containerRef);

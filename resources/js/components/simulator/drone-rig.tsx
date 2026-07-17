@@ -1,13 +1,16 @@
 import { RigidBody } from '@react-three/rapier';
 import type { RapierRigidBody } from '@react-three/rapier';
-import { useRef } from 'react';
+import type { RefObject } from 'react';
 import { DroneModel } from '@/components/simulator/drone-model';
 import { useDroneSimulation } from '@/hooks/use-drone-simulation';
+import type { FlightVisualState } from '@/lib/simulator/flight-state';
 import { REST_HEIGHT } from '@/lib/simulator/physics';
 import type { SimulatorSession } from '@/lib/simulator/session';
 import type { EnvironmentConfig, SuccessCriteria } from '@/types/simulator';
 
 type DroneRigProps = {
+    rigidBodyRef: RefObject<RapierRigidBody | null>;
+    flightState: FlightVisualState;
     session: SimulatorSession;
     environment: EnvironmentConfig;
     successCriteria: SuccessCriteria;
@@ -16,13 +19,14 @@ type DroneRigProps = {
 };
 
 export function DroneRig({
+    rigidBodyRef,
+    flightState,
     session,
     environment,
     successCriteria,
     maxScore,
     attemptUrl,
 }: DroneRigProps) {
-    const rigidBodyRef = useRef<RapierRigidBody>(null);
     const { handleCollision } = useDroneSimulation({
         rigidBodyRef,
         session,
@@ -30,6 +34,7 @@ export function DroneRig({
         successCriteria,
         maxScore,
         attemptUrl,
+        flightState,
     });
 
     return (
@@ -49,7 +54,7 @@ export function DroneRig({
                 )
             }
         >
-            <DroneModel />
+            <DroneModel flightState={flightState} />
         </RigidBody>
     );
 }

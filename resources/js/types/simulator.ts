@@ -34,6 +34,8 @@ export type EnvironmentConfig = {
     gates: GateConfig[];
     waypoints: WaypointConfig[];
     goal: { x: number; z: number; radius: number };
+    /** Optional ambient wind; challenges without it get a gentle default breeze. */
+    wind?: { speed?: number; directionDeg?: number };
 };
 
 export type SuccessCriteria = {

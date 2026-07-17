@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Tests\Feature;
 
 use App\Enums\ChallengeStatus;
@@ -10,7 +12,7 @@ use App\Models\UserChallengeProgress;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-class CourseTest extends TestCase
+final class CourseTest extends TestCase
 {
     use RefreshDatabase;
 

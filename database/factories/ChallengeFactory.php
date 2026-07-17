@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Database\Factories;
 
 use App\Models\Challenge;
@@ -9,7 +11,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 /**
  * @extends Factory<Challenge>
  */
-class ChallengeFactory extends Factory
+final class ChallengeFactory extends Factory
 {
     /**
      * Define the model's default state.
@@ -48,7 +50,7 @@ class ChallengeFactory extends Factory
 
     public function unpublished(): static
     {
-        return $this->state(fn (array $attributes) => [
+        return $this->state(fn (array $attributes): array => [
             'is_published' => false,
         ]);
     }

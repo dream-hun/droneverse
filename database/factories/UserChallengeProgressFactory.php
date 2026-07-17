@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Database\Factories;
 
 use App\Enums\ChallengeStatus;
@@ -11,7 +13,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 /**
  * @extends Factory<UserChallengeProgress>
  */
-class UserChallengeProgressFactory extends Factory
+final class UserChallengeProgressFactory extends Factory
 {
     /**
      * Define the model's default state.
@@ -34,7 +36,7 @@ class UserChallengeProgressFactory extends Factory
 
     public function completed(): static
     {
-        return $this->state(fn (array $attributes) => [
+        return $this->state(fn (array $attributes): array => [
             'status' => ChallengeStatus::Completed,
             'best_score' => 100,
             'stars' => 3,

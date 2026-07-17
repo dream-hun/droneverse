@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
 use App\Enums\ChallengeStatus;
@@ -10,7 +12,7 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
-class CourseController extends Controller
+final class CourseController extends Controller
 {
     /**
      * Display a listing of the published courses.
@@ -24,7 +26,7 @@ class CourseController extends Controller
             : collect();
 
         return Inertia::render('courses/index', [
-            'courses' => $courses->map(fn (Course $course) => [
+            'courses' => $courses->map(fn (Course $course): array => [
                 'title' => $course->title,
                 'slug' => $course->slug,
                 'description' => $course->description,
@@ -60,7 +62,7 @@ class CourseController extends Controller
                 'description' => $course->description,
                 'difficulty' => $course->difficulty,
             ],
-            'challenges' => $challenges->map(function (Challenge $challenge) use ($progressByChallenge) {
+            'challenges' => $challenges->map(function (Challenge $challenge) use ($progressByChallenge): array {
                 $progress = $progressByChallenge->get($challenge->id);
 
                 return [

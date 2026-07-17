@@ -1,7 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
+use Database\Factories\CourseFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
@@ -20,21 +23,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read int|null $challenges_count
  */
 #[Fillable(['title', 'slug', 'description', 'difficulty', 'order', 'is_published'])]
-class Course extends Model
+final class Course extends Model
 {
-    /** @use HasFactory<\Database\Factories\CourseFactory> */
+    /** @use HasFactory<CourseFactory> */
     use HasFactory;
-
-    /**
-     * @return array<string, string>
-     */
-    protected function casts(): array
-    {
-        return [
-            'is_published' => 'boolean',
-            'order' => 'integer',
-        ];
-    }
 
     public function getRouteKeyName(): string
     {
@@ -47,6 +39,17 @@ class Course extends Model
     public function challenges(): HasMany
     {
         return $this->hasMany(Challenge::class)->orderBy('order');
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'is_published' => 'boolean',
+            'order' => 'integer',
+        ];
     }
 
     /**

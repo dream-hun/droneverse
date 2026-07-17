@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Tests\Feature;
 
 use App\Enums\ChallengeStatus;
@@ -10,17 +12,17 @@ use App\Models\UserChallengeProgress;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-class DashboardTest extends TestCase
+final class DashboardTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_guests_are_redirected_to_the_login_page()
+    public function test_guests_are_redirected_to_the_login_page(): void
     {
         $response = $this->get(route('dashboard'));
         $response->assertRedirect(route('login'));
     }
 
-    public function test_authenticated_users_can_visit_the_dashboard()
+    public function test_authenticated_users_can_visit_the_dashboard(): void
     {
         $user = User::factory()->create();
         $this->actingAs($user);
@@ -29,7 +31,7 @@ class DashboardTest extends TestCase
         $response->assertOk();
     }
 
-    public function test_dashboard_reports_course_progress_and_stats()
+    public function test_dashboard_reports_course_progress_and_stats(): void
     {
         $user = User::factory()->create();
         $course = Course::factory()->create(['title' => 'Drone Basics']);
@@ -53,7 +55,7 @@ class DashboardTest extends TestCase
             ->where('stats.stars', 3));
     }
 
-    public function test_continue_skips_challenges_that_are_no_longer_published()
+    public function test_continue_skips_challenges_that_are_no_longer_published(): void
     {
         $user = User::factory()->create();
         $course = Course::factory()->create();
@@ -79,7 +81,7 @@ class DashboardTest extends TestCase
             ->where('continue.challengeSlug', $publishedChallenge->slug));
     }
 
-    public function test_continue_is_empty_when_the_started_challenge_is_in_an_unpublished_course()
+    public function test_continue_is_empty_when_the_started_challenge_is_in_an_unpublished_course(): void
     {
         $user = User::factory()->create();
         $course = Course::factory()->unpublished()->create();
@@ -96,7 +98,7 @@ class DashboardTest extends TestCase
         $response->assertInertia(fn ($page) => $page->where('continue', null));
     }
 
-    public function test_progress_counts_exclude_unpublished_challenges()
+    public function test_progress_counts_exclude_unpublished_challenges(): void
     {
         $user = User::factory()->create();
         $course = Course::factory()->create();
@@ -121,7 +123,7 @@ class DashboardTest extends TestCase
             ->where('stats.stars', 3));
     }
 
-    public function test_progress_counts_exclude_challenges_in_unpublished_courses()
+    public function test_progress_counts_exclude_challenges_in_unpublished_courses(): void
     {
         $user = User::factory()->create();
         $course = Course::factory()->unpublished()->create();

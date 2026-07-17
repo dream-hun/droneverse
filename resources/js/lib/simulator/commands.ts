@@ -6,9 +6,11 @@ export type DroneCommand =
     | { type: 'turn'; degrees: number }
     | { type: 'hover'; seconds: number }
     | { type: 'setAltitude'; altitude: number }
+    | { type: 'setSpeed'; speed: number }
     | { type: 'getPosition' }
     | { type: 'getHeading' }
     | { type: 'getAltitude' }
+    | { type: 'getBattery' }
     | { type: 'getDistanceAhead' };
 
 /** Messages sent from the sandboxed worker to the main thread. */

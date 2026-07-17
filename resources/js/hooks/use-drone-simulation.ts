@@ -5,13 +5,26 @@ import { useCallback, useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
 import { postJson } from '@/lib/http';
 import { createBridge } from '@/lib/simulator/commands';
+import type { ActiveCommand, Vector3 } from '@/lib/simulator/commands';
+import type { FlightVisualState } from '@/lib/simulator/flight-state';
+import { resetFlightVisualState } from '@/lib/simulator/flight-state';
 import { gradeRun } from '@/lib/simulator/grader';
 import {
     beginCommand,
     computeControlStep,
+    computeHoldStep,
+    createControlState,
+    createWindField,
+    DRAG_TILT_COEFFICIENT,
     forwardVector,
+    GRAVITY,
+    MAX_CLIMB_RATE,
+    MAX_TILT,
+    quaternionYaw,
     REST_HEIGHT,
+    SPOOL_SECONDS,
 } from '@/lib/simulator/physics';
+import type { ControlState, WindField } from '@/lib/simulator/physics';
 import type { SimulatorSession } from '@/lib/simulator/session';
 import {
     advanceTelemetry,
@@ -27,12 +40,50 @@ type UseDroneSimulationArgs = {
     successCriteria: SuccessCriteria;
     maxScore: number;
     attemptUrl: string;
+    flightState: FlightVisualState;
 };
 
-function currentYaw(body: RapierRigidBody): number {
-    const rotation = body.rotation();
+const ROTOR_VISUAL_MAX_SPEED = 82; // rad/s at full throttle
+const ROTOR_SLEW_RATE = 110; // rad/s^2 spool feel
+const TILT_SMOOTHING_TAU = 0.22; // seconds
+const BATTERY_IDLE_DRAIN = 0.04; // %/s with motors idle
+const BATTERY_THROTTLE_DRAIN = 0.22; // additional %/s at full throttle
 
-    return 2 * Math.atan2(rotation.y, rotation.w);
+function clamp(value: number, min: number, max: number): number {
+    return Math.min(max, Math.max(min, value));
+}
+
+function compassDegrees(radians: number): number {
+    return ((((-radians * 180) / Math.PI) % 360) + 360) % 360;
+}
+
+function modeLabel(
+    active: ActiveCommand | null,
+    control: ControlState,
+    previous: string,
+): string {
+    if (!active) {
+        return control.airborne ? 'HOLD' : previous;
+    }
+
+    switch (active.command.type) {
+        case 'takeoff':
+            return !control.airborne && active.elapsed < SPOOL_SECONDS
+                ? 'SPOOL UP'
+                : 'TAKEOFF';
+        case 'land':
+            return 'LANDING';
+        case 'hover':
+            return 'HOVER';
+        case 'turn':
+            return 'TURN';
+        case 'moveForward':
+        case 'moveTo':
+        case 'setAltitude':
+            return 'ENROUTE';
+        default:
+            return previous;
+    }
 }
 
 /**
@@ -42,7 +93,9 @@ function currentYaw(body: RapierRigidBody): number {
  * physics step → resolve, so user code only advances when the drone has
  * physically finished each command. All UI-visible state is written to the
  * SimulatorSession store, which the page subscribes to from outside the
- * Canvas.
+ * Canvas; per-frame flight data goes to the mutable FlightVisualState read
+ * by the drone model, camera rig, and HUD (accessed through a ref because
+ * it is written outside React's render cycle).
  */
 export function useDroneSimulation({
     rigidBodyRef,
@@ -51,10 +104,15 @@ export function useDroneSimulation({
     successCriteria,
     maxScore,
     attemptUrl,
+    flightState,
 }: UseDroneSimulationArgs) {
     const { world, rapier } = useRapier();
     const clientRef = useRef<SimulationWorkerClient | null>(null);
     const bridgeRef = useRef(createBridge(successCriteria.waypoints.length));
+    const controlRef = useRef(createControlState());
+    const windRef = useRef<WindField | null>(null);
+    const previousVelocityRef = useRef<Vector3>({ x: 0, y: 0, z: 0 });
+    const flightStateRef = useRef(flightState);
     const codeRef = useRef('');
 
     const appendLog = useCallback(
@@ -73,6 +131,8 @@ export function useDroneSimulation({
         clientRef.current?.terminate();
         clientRef.current = null;
         bridgeRef.current.active = null;
+        flightStateRef.current.armed = false;
+        flightStateRef.current.mode = 'STANDBY';
         session.markStopped();
     }, [session]);
 
@@ -88,6 +148,7 @@ export function useDroneSimulation({
             clientRef.current = null;
             bridgeRef.current.active = null;
             bridgeRef.current.telemetry.timedOut = timedOut;
+            flightStateRef.current.armed = false;
 
             const grade = gradeRun(
                 bridgeRef.current.telemetry,
@@ -145,6 +206,15 @@ export function useDroneSimulation({
 
             codeRef.current = code;
             bridgeRef.current = createBridge(successCriteria.waypoints.length);
+            controlRef.current = createControlState();
+            windRef.current = createWindField(
+                environment.wind?.speed ?? 1.8,
+                environment.wind?.directionDeg !== undefined
+                    ? (environment.wind.directionDeg * Math.PI) / 180
+                    : undefined,
+            );
+            previousVelocityRef.current = { x: 0, y: 0, z: 0 };
+            resetFlightVisualState(flightStateRef.current);
             resetDrone(body);
 
             const client = new SimulationWorkerClient({
@@ -159,7 +229,7 @@ export function useDroneSimulation({
                         ...beginCommand(
                             command,
                             currentBody.translation(),
-                            currentYaw(currentBody),
+                            quaternionYaw(currentBody.rotation()),
                         ),
                         resolve: (result: unknown) =>
                             client.resolveCommand(id, result),
@@ -179,6 +249,7 @@ export function useDroneSimulation({
         },
         [
             appendLog,
+            environment.wind,
             finishRun,
             resetDrone,
             rigidBodyRef,
@@ -211,12 +282,32 @@ export function useDroneSimulation({
 
     useFrame((_, dt) => {
         const body = rigidBodyRef.current;
+        const fs = flightStateRef.current;
 
-        if (!body || !session.isRunning()) {
+        if (!body || dt <= 0) {
+            return;
+        }
+
+        if (!session.isRunning()) {
+            // Idle: spool the rotors down (or keep them turning if the run
+            // was aborted mid-air) and relax the visual tilt.
+            const idleTarget = fs.airborne ? 38 : 0;
+            const rotorDelta = idleTarget - fs.rotorSpeed;
+            fs.rotorSpeed +=
+                Math.sign(rotorDelta) *
+                Math.min(Math.abs(rotorDelta), ROTOR_SLEW_RATE * dt);
+            const decay = 1 - Math.exp(-dt / TILT_SMOOTHING_TAU);
+            fs.pitch -= fs.pitch * decay;
+            fs.roll -= fs.roll * decay;
+            fs.groundSpeed = 0;
+            fs.verticalSpeed = 0;
+
             return;
         }
 
         const bridge = bridgeRef.current;
+        const control = controlRef.current;
+        const wind = windRef.current;
         const position = body.translation();
 
         advanceTelemetry(bridge, position, dt, successCriteria.waypoints);
@@ -227,15 +318,118 @@ export function useDroneSimulation({
             return;
         }
 
+        const yaw = quaternionYaw(body.rotation());
+        const step = bridge.active
+            ? computeControlStep(bridge.active, position, yaw, dt, control)
+            : computeHoldStep(control, position, dt);
+
+        // Gusts push the airborne drone around; the position loop above
+        // constantly corrects, producing realistic station-keeping wander.
+        const elapsed = bridge.telemetry.elapsedSeconds;
+        const gust =
+            control.airborne && wind
+                ? wind.gust(elapsed)
+                : { x: 0, y: 0, z: 0 };
+        const applied = {
+            x: step.linvel.x + gust.x,
+            y: step.linvel.y + gust.y,
+            z: step.linvel.z + gust.z,
+        };
+
+        body.setLinvel(applied, true);
+        body.setAngvel({ x: 0, y: step.angvel, z: 0 }, true);
+
+        // --- Visual flight state: tilt, throttle, rotors, battery, HUD ---
+        const previous = previousVelocityRef.current;
+        const accelX = (control.velocity.x - previous.x) / dt;
+        const accelZ = (control.velocity.z - previous.z) / dt;
+        previousVelocityRef.current = { ...control.velocity };
+
+        const forward = forwardVector(yaw);
+        const right = { x: -forward.z, z: forward.x };
+        const forwardAccel =
+            accelX * forward.x +
+            accelZ * forward.z +
+            DRAG_TILT_COEFFICIENT *
+                (control.velocity.x * forward.x +
+                    control.velocity.z * forward.z);
+        const rightAccel =
+            accelX * right.x +
+            accelZ * right.z +
+            DRAG_TILT_COEFFICIENT *
+                (control.velocity.x * right.x + control.velocity.z * right.z);
+
+        const targetPitch = clamp(
+            -Math.atan2(forwardAccel, GRAVITY),
+            -MAX_TILT,
+            MAX_TILT,
+        );
+        const targetRoll = clamp(
+            -Math.atan2(rightAccel, GRAVITY),
+            -MAX_TILT,
+            MAX_TILT,
+        );
+        const smoothing = 1 - Math.exp(-dt / TILT_SMOOTHING_TAU);
+        fs.pitch += (targetPitch - fs.pitch) * smoothing;
+        fs.roll += (targetRoll - fs.roll) * smoothing;
+
+        const tiltMagnitude = Math.hypot(fs.pitch, fs.roll);
+        let throttle: number;
+
+        if (bridge.active?.command.type === 'takeoff' && !control.airborne) {
+            throttle =
+                0.15 +
+                0.45 * Math.min(1, bridge.active.elapsed / SPOOL_SECONDS);
+        } else if (control.airborne) {
+            throttle = clamp(
+                0.55 +
+                    0.28 * clamp(control.velocity.y / MAX_CLIMB_RATE, -1, 1) +
+                    0.18 * (tiltMagnitude / MAX_TILT),
+                0.15,
+                1,
+            );
+        } else {
+            throttle = 0.16;
+        }
+
+        fs.throttle = throttle;
+        const rotorTarget = throttle * ROTOR_VISUAL_MAX_SPEED;
+        const rotorDelta = rotorTarget - fs.rotorSpeed;
+        fs.rotorSpeed +=
+            Math.sign(rotorDelta) *
+            Math.min(Math.abs(rotorDelta), ROTOR_SLEW_RATE * dt);
+
+        fs.batteryPct = Math.max(
+            0,
+            fs.batteryPct -
+                (BATTERY_IDLE_DRAIN + BATTERY_THROTTLE_DRAIN * throttle) * dt,
+        );
+
+        fs.armed = true;
+        fs.airborne = control.airborne;
+        fs.altitude = Math.max(0, position.y - REST_HEIGHT);
+        fs.groundSpeed = Math.hypot(applied.x, applied.z);
+        fs.verticalSpeed = applied.y;
+        fs.headingDeg = compassDegrees(yaw);
+        fs.mode = modeLabel(bridge.active, control, fs.mode);
+
+        if (wind) {
+            const along = {
+                x: Math.sin(wind.directionRad),
+                z: -Math.cos(wind.directionRad),
+            };
+            fs.windSpeed = Math.hypot(
+                along.x * wind.meanSpeed + gust.x,
+                along.z * wind.meanSpeed + gust.z,
+            );
+            fs.windHeadingDeg =
+                ((((wind.directionRad * 180) / Math.PI) % 360) + 360) % 360;
+        }
+
         if (!bridge.active) {
             return;
         }
 
-        const yaw = currentYaw(body);
-        const step = computeControlStep(bridge.active, position, yaw, dt);
-
-        body.setLinvel(step.linvel, true);
-        body.setAngvel({ x: 0, y: step.angvel, z: 0 }, true);
         bridge.active.elapsed += dt;
 
         if (!step.done) {
@@ -247,14 +441,16 @@ export function useDroneSimulation({
 
         if (finishedCommand.type === 'land') {
             bridge.telemetry.landed = true;
+            fs.mode = 'LANDED';
         } else if (finishedCommand.type === 'getPosition') {
             queryResult = { x: position.x, y: position.y, z: position.z };
         } else if (finishedCommand.type === 'getHeading') {
             queryResult = (yaw * 180) / Math.PI;
         } else if (finishedCommand.type === 'getAltitude') {
             queryResult = position.y;
+        } else if (finishedCommand.type === 'getBattery') {
+            queryResult = Math.round(fs.batteryPct);
         } else if (finishedCommand.type === 'getDistanceAhead') {
-            const forward = forwardVector(yaw);
             const ray = new rapier.Ray(
                 { x: position.x, y: position.y, z: position.z },
                 { x: forward.x, y: 0, z: forward.z },

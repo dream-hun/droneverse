@@ -51,9 +51,11 @@ const drone = {
     hover: (seconds: number) => sendCommand({ type: 'hover', seconds }),
     setAltitude: (altitude: number) =>
         sendCommand({ type: 'setAltitude', altitude }),
+    setSpeed: (speed: number) => sendCommand({ type: 'setSpeed', speed }),
     getPosition: () => sendCommand({ type: 'getPosition' }),
     getHeading: () => sendCommand({ type: 'getHeading' }),
     getAltitude: () => sendCommand({ type: 'getAltitude' }),
+    getBattery: () => sendCommand({ type: 'getBattery' }),
     getDistanceAhead: () => sendCommand({ type: 'getDistanceAhead' }),
 };
 

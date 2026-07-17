@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Actions;
 
 use App\Enums\ChallengeStatus;
@@ -8,9 +10,9 @@ use App\Models\User;
 use App\Models\UserChallengeProgress;
 use Illuminate\Support\Facades\DB;
 
-class RecordChallengeAttempt
+final class RecordChallengeAttempt
 {
-    private const MAX_STARS = 3;
+    private const int MAX_STARS = 3;
 
     /**
      * Merge a simulator run into the user's per-challenge progress.

@@ -1,7 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
+use Database\Factories\ChallengeFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
@@ -25,24 +28,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property bool $is_published
  */
 #[Fillable(['course_id', 'title', 'slug', 'briefing', 'order', 'difficulty', 'starter_code', 'environment', 'success_criteria', 'max_score', 'is_published'])]
-class Challenge extends Model
+final class Challenge extends Model
 {
-    /** @use HasFactory<\Database\Factories\ChallengeFactory> */
+    /** @use HasFactory<ChallengeFactory> */
     use HasFactory;
-
-    /**
-     * @return array<string, string>
-     */
-    protected function casts(): array
-    {
-        return [
-            'environment' => 'array',
-            'success_criteria' => 'array',
-            'is_published' => 'boolean',
-            'order' => 'integer',
-            'max_score' => 'integer',
-        ];
-    }
 
     public function getRouteKeyName(): string
     {
@@ -63,6 +52,20 @@ class Challenge extends Model
     public function progress(): HasMany
     {
         return $this->hasMany(UserChallengeProgress::class);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'environment' => 'array',
+            'success_criteria' => 'array',
+            'is_published' => 'boolean',
+            'order' => 'integer',
+            'max_score' => 'integer',
+        ];
     }
 
     /**

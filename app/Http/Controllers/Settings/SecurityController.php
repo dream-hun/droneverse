@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
@@ -11,7 +13,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 use Laravel\Fortify\Features;
 
-class SecurityController extends Controller
+final class SecurityController extends Controller
 {
     /**
      * Show the user's security settings page.
@@ -27,7 +29,7 @@ class SecurityController extends Controller
                     ->select(['id', 'name', 'credential', 'created_at', 'last_used_at'])
                     ->latest()
                     ->get()
-                    ->map(fn ($passkey) => [
+                    ->map(fn ($passkey): array => [
                         'id' => $passkey->id,
                         'name' => $passkey->name,
                         'authenticator' => $passkey->authenticator,

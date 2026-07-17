@@ -1,11 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 use App\Enums\ChallengeStatus;
 use Carbon\CarbonInterface;
 use Database\Factories\UserChallengeProgressFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -23,46 +26,11 @@ use Illuminate\Support\Collection;
  * @property CarbonInterface|null $completed_at
  */
 #[Fillable(['user_id', 'challenge_id', 'status', 'best_score', 'stars', 'last_code', 'attempts', 'completed_at'])]
-class UserChallengeProgress extends Model
+#[Table(name: 'user_challenge_progress')]
+final class UserChallengeProgress extends Model
 {
     /** @use HasFactory<UserChallengeProgressFactory> */
     use HasFactory;
-
-    /**
-     * "progress" is uncountable, so the inflected table name happens to be
-     * correct — declared explicitly so nobody has to reason about that.
-     */
-    protected $table = 'user_challenge_progress';
-
-    /**
-     * @return array<string, string>
-     */
-    protected function casts(): array
-    {
-        return [
-            'status' => ChallengeStatus::class,
-            'best_score' => 'integer',
-            'stars' => 'integer',
-            'attempts' => 'integer',
-            'completed_at' => 'datetime',
-        ];
-    }
-
-    /**
-     * @return BelongsTo<User, $this>
-     */
-    public function user(): BelongsTo
-    {
-        return $this->belongsTo(User::class);
-    }
-
-    /**
-     * @return BelongsTo<Challenge, $this>
-     */
-    public function challenge(): BelongsTo
-    {
-        return $this->belongsTo(Challenge::class);
-    }
 
     /**
      * Completed-challenge counts for the given user, keyed by course id.
@@ -75,7 +43,7 @@ class UserChallengeProgress extends Model
      */
     public static function completedCountsByCourse(User $user): Collection
     {
-        return static::query()
+        return self::query()
             ->join('challenges', 'challenges.id', '=', 'user_challenge_progress.challenge_id')
             ->join('courses', 'courses.id', '=', 'challenges.course_id')
             ->where('user_challenge_progress.user_id', $user->id)
@@ -97,7 +65,7 @@ class UserChallengeProgress extends Model
      */
     public static function statsFor(User $user): array
     {
-        $row = static::query()
+        $row = self::query()
             ->join('challenges', 'challenges.id', '=', 'user_challenge_progress.challenge_id')
             ->join('courses', 'courses.id', '=', 'challenges.course_id')
             ->where('user_challenge_progress.user_id', $user->id)
@@ -112,6 +80,36 @@ class UserChallengeProgress extends Model
         return [
             'completed' => (int) ($row->completed ?? 0),
             'stars' => (int) ($row->stars ?? 0),
+        ];
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    /**
+     * @return BelongsTo<Challenge, $this>
+     */
+    public function challenge(): BelongsTo
+    {
+        return $this->belongsTo(Challenge::class);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'status' => ChallengeStatus::class,
+            'best_score' => 'integer',
+            'stars' => 'integer',
+            'attempts' => 'integer',
+            'completed_at' => 'datetime',
         ];
     }
 }

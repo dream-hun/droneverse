@@ -6,6 +6,7 @@ import type { RefObject } from 'react';
 import { postJson } from '@/lib/http';
 import { createBridge } from '@/lib/simulator/commands';
 import type { ActiveCommand, Vector3 } from '@/lib/simulator/commands';
+import { droneEngine } from '@/lib/simulator/engine-audio';
 import type { FlightVisualState } from '@/lib/simulator/flight-state';
 import { resetFlightVisualState } from '@/lib/simulator/flight-state';
 import { gradeRun } from '@/lib/simulator/grader';
@@ -134,6 +135,7 @@ export function useDroneSimulation({
         bridgeRef.current.active = null;
         flightStateRef.current.armed = false;
         flightStateRef.current.mode = 'STANDBY';
+        droneEngine.stop();
         droneVoice.cancel();
         droneVoice.announceEvent('aborted');
         session.markStopped();
@@ -147,6 +149,7 @@ export function useDroneSimulation({
                 return;
             }
 
+            droneEngine.stop();
             droneVoice.announceEvent(faulted ? 'fault' : 'complete');
 
             clientRef.current?.terminate();
@@ -251,6 +254,7 @@ export function useDroneSimulation({
             });
 
             clientRef.current = client;
+            droneEngine.start();
             droneVoice.cancel();
             droneVoice.announceEvent('armed');
             session.begin();
@@ -272,11 +276,13 @@ export function useDroneSimulation({
         [run, session, stop],
     );
 
-    // Navigating away mid-run must not leave the sandbox worker alive.
+    // Navigating away mid-run must not leave the sandbox worker (or the audio
+    // graph) alive.
     useEffect(
         () => () => {
             clientRef.current?.terminate();
             clientRef.current = null;
+            droneEngine.release();
         },
         [],
     );
@@ -310,6 +316,11 @@ export function useDroneSimulation({
             fs.roll -= fs.roll * decay;
             fs.groundSpeed = 0;
             fs.verticalSpeed = 0;
+            droneEngine.setState(
+                fs.rotorSpeed / ROTOR_VISUAL_MAX_SPEED,
+                fs.rotorSpeed,
+                0,
+            );
 
             return;
         }
@@ -421,6 +432,8 @@ export function useDroneSimulation({
         fs.verticalSpeed = applied.y;
         fs.headingDeg = compassDegrees(yaw);
         fs.mode = modeLabel(bridge.active, control, fs.mode);
+
+        droneEngine.setState(fs.throttle, fs.rotorSpeed, fs.groundSpeed);
 
         if (wind) {
             const along = {

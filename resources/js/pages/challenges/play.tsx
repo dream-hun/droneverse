@@ -1,5 +1,6 @@
 import { Head, setLayoutProps } from '@inertiajs/react';
 import {
+    Fan,
     Play as PlayIcon,
     RotateCcw,
     Square,
@@ -14,6 +15,7 @@ import { ResultModal } from '@/components/simulator/result-modal';
 import { SimulatorCanvas } from '@/components/simulator/simulator-canvas';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { droneEngine } from '@/lib/simulator/engine-audio';
 import {
     SimulatorSession,
     useSimulatorResult,
@@ -53,6 +55,11 @@ export default function Play({ course, challenge, progress }: PlayProps) {
         droneVoice.subscribe,
         droneVoice.isEnabled,
         droneVoice.isEnabled,
+    );
+    const engineEnabled = useSyncExternalStore(
+        droneEngine.subscribe,
+        droneEngine.isEnabled,
+        droneEngine.isEnabled,
     );
 
     const attemptUrl = storeAttempt.url([course.slug, challenge.slug]);
@@ -106,16 +113,39 @@ export default function Play({ course, challenge, progress }: PlayProps) {
                         >
                             <RotateCcw /> Reset code
                         </Button>
-                        {droneVoice.isSupported() && (
+                        {droneEngine.isSupported() && (
                             <Button
                                 size="sm"
                                 variant="ghost"
                                 className="ml-auto"
+                                aria-pressed={engineEnabled}
+                                title={
+                                    engineEnabled
+                                        ? 'Mute motor sound'
+                                        : 'Unmute motor sound'
+                                }
+                                onClick={() => droneEngine.toggle()}
+                            >
+                                <Fan
+                                    className={
+                                        engineEnabled ? '' : 'opacity-40'
+                                    }
+                                />
+                                Motor
+                            </Button>
+                        )}
+                        {droneVoice.isSupported() && (
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                className={
+                                    droneEngine.isSupported() ? '' : 'ml-auto'
+                                }
                                 aria-pressed={voiceEnabled}
                                 title={
                                     voiceEnabled
-                                        ? 'Mute drone voice'
-                                        : 'Unmute drone voice'
+                                        ? 'Mute cockpit callouts'
+                                        : 'Unmute cockpit callouts'
                                 }
                                 onClick={() => droneVoice.toggle()}
                             >

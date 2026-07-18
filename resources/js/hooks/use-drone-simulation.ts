@@ -30,6 +30,7 @@ import {
     advanceTelemetry,
     hasExceededTimeLimit,
 } from '@/lib/simulator/telemetry';
+import { droneVoice } from '@/lib/simulator/voice';
 import { SimulationWorkerClient } from '@/lib/simulator/worker-client';
 import type { EnvironmentConfig, SuccessCriteria } from '@/types/simulator';
 
@@ -133,16 +134,20 @@ export function useDroneSimulation({
         bridgeRef.current.active = null;
         flightStateRef.current.armed = false;
         flightStateRef.current.mode = 'STANDBY';
+        droneVoice.cancel();
+        droneVoice.announceEvent('aborted');
         session.markStopped();
     }, [session]);
 
     const finishRun = useCallback(
-        (timedOut: boolean) => {
+        (timedOut: boolean, faulted = false) => {
             // The time limit and the worker's "finished" message can land in
-            // the same frame; only the first one may grade and submit.
+            // the same frame; only the first one may grade, submit, and speak.
             if (!session.isRunning()) {
                 return;
             }
+
+            droneVoice.announceEvent(faulted ? 'fault' : 'complete');
 
             clientRef.current?.terminate();
             clientRef.current = null;
@@ -225,6 +230,8 @@ export function useDroneSimulation({
                         return;
                     }
 
+                    droneVoice.announceCommand(command);
+
                     bridgeRef.current.active = {
                         ...beginCommand(
                             command,
@@ -239,11 +246,13 @@ export function useDroneSimulation({
                 onFinished: () => finishRun(false),
                 onError: (message) => {
                     appendLog('error', [message]);
-                    finishRun(false);
+                    finishRun(false, true);
                 },
             });
 
             clientRef.current = client;
+            droneVoice.cancel();
+            droneVoice.announceEvent('armed');
             session.begin();
             client.start(code);
         },

@@ -1,6 +1,12 @@
 import { Head, setLayoutProps } from '@inertiajs/react';
-import { Play as PlayIcon, RotateCcw, Square } from 'lucide-react';
-import { useState } from 'react';
+import {
+    Play as PlayIcon,
+    RotateCcw,
+    Square,
+    Volume2,
+    VolumeX,
+} from 'lucide-react';
+import { useState, useSyncExternalStore } from 'react';
 import { BriefingPanel } from '@/components/simulator/briefing-panel';
 import { CodeEditor } from '@/components/simulator/code-editor';
 import { ConsolePanel } from '@/components/simulator/console-panel';
@@ -13,6 +19,7 @@ import {
     useSimulatorResult,
     useSimulatorRunning,
 } from '@/lib/simulator/session';
+import { droneVoice } from '@/lib/simulator/voice';
 import { store as storeAttempt } from '@/routes/challenges/attempts';
 import { show as showCourse } from '@/routes/courses';
 import type {
@@ -42,6 +49,11 @@ export default function Play({ course, challenge, progress }: PlayProps) {
     const [session] = useState(() => new SimulatorSession());
     const isRunning = useSimulatorRunning(session);
     const result = useSimulatorResult(session);
+    const voiceEnabled = useSyncExternalStore(
+        droneVoice.subscribe,
+        droneVoice.isEnabled,
+        droneVoice.isEnabled,
+    );
 
     const attemptUrl = storeAttempt.url([course.slug, challenge.slug]);
 
@@ -94,6 +106,23 @@ export default function Play({ course, challenge, progress }: PlayProps) {
                         >
                             <RotateCcw /> Reset code
                         </Button>
+                        {droneVoice.isSupported() && (
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                className="ml-auto"
+                                aria-pressed={voiceEnabled}
+                                title={
+                                    voiceEnabled
+                                        ? 'Mute drone voice'
+                                        : 'Unmute drone voice'
+                                }
+                                onClick={() => droneVoice.toggle()}
+                            >
+                                {voiceEnabled ? <Volume2 /> : <VolumeX />}
+                                Voice
+                            </Button>
+                        )}
                     </div>
 
                     <div className="min-h-0 flex-1 overflow-hidden rounded-xl border">

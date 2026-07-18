@@ -79,6 +79,13 @@ final class CourseSeeder extends Seeder
                 'difficulty' => 'advanced',
                 'challenges' => $this->deliveryOpsChallenges(),
             ],
+            [
+                'slug' => 'city-operations',
+                'title' => 'City Operations',
+                'description' => 'The graduation exam. One sprawling downtown scenario that demands everything at once: 3D route planning, rooftop climbs, sensor-guided corners, and collision-free lines under the clock.',
+                'difficulty' => 'advanced',
+                'challenges' => $this->cityOperationsChallenges(),
+            ],
         ];
     }
 
@@ -767,6 +774,76 @@ final class CourseSeeder extends Seeder
                     ],
                     'avoid_collisions' => true,
                     'max_time_seconds' => 75,
+                    'landing_required' => true,
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function cityOperationsChallenges(): array
+    {
+        return [
+            [
+                'slug' => 'downtown-gauntlet',
+                'title' => 'Downtown Gauntlet',
+                'difficulty' => 'advanced',
+                'briefing' => "The graduation run. Four downtown towers box in a central avenue, and the manifest has stops at three heights: a street-level pickup in the avenue, a rooftop drop on the low block, and a curb-side delivery on the far service street — then home to the depot at the south end.\n\nNo single trick clears this. Plan the vertical profile (`setAltitude` / `moveTo` with a real y), climb above 8 m to clear the rooftop, feel your way around blind corners with `getDistanceAhead()`, and stay off the concrete — every clip costs a star. Push the pace with `setSpeed(speed)` (1–8 m/s) if you want the speed star, but the towers don't forgive a sloppy line.",
+                'starter_code' => <<<'JS'
+                    async function main(drone) {
+                        await drone.takeoff(2);
+
+                        // Stop 1 — pickup in the avenue mouth, between the first two towers.
+                        await drone.moveTo(0, 2, -6);
+
+                        // Stop 2 — rooftop drop on the low NE block. Climb ABOVE the
+                        // roof before you slide over it, then settle on the marker.
+                        await drone.setAltitude(9);
+                        // await drone.moveTo(8, 9, -8);
+
+                        // Stop 3 — curb delivery on the east service street. Drop back
+                        // to street level only once you're clear of the tower.
+                        // Tip: probe with `await drone.getDistanceAhead()` before you commit.
+
+                        // Home — thread back to the central avenue and run south to the depot.
+
+                        await drone.land();
+                    }
+                    JS,
+                'environment' => [
+                    'start' => ['x' => 0, 'y' => 0, 'z' => 0, 'yaw' => 0],
+                    'bounds' => ['width' => 40, 'depth' => 64, 'height' => 20],
+                    'obstacles' => [
+                        // NW tower (tall) and NE block (low) flank the avenue entrance.
+                        ['type' => 'box', 'x' => -8, 'y' => 7, 'z' => -8, 'sx' => 8, 'sy' => 14, 'sz' => 8],
+                        ['type' => 'box', 'x' => 8, 'y' => 4, 'z' => -8, 'sx' => 8, 'sy' => 8, 'sz' => 8],
+                        // SW mid-rise and SE tower box in the far end of the avenue.
+                        ['type' => 'box', 'x' => -8, 'y' => 5, 'z' => -24, 'sx' => 8, 'sy' => 10, 'sz' => 8],
+                        ['type' => 'box', 'x' => 8, 'y' => 8, 'z' => -24, 'sx' => 8, 'sy' => 16, 'sz' => 8],
+                    ],
+                    'gates' => [],
+                    'waypoints' => [
+                        ['x' => 0, 'y' => 2, 'z' => -6, 'radius' => 1.5],
+                        ['x' => 8, 'y' => 9, 'z' => -8, 'radius' => 1.8],
+                        ['x' => 14, 'y' => 1.6, 'z' => -18, 'radius' => 1.8],
+                        ['x' => 0, 'y' => 1.5, 'z' => -30, 'radius' => 1.6],
+                    ],
+                    'goal' => ['x' => 0, 'z' => -30, 'radius' => 1.6],
+                    'wind' => ['speed' => 3.2, 'directionDeg' => 45],
+                ],
+                'success_criteria' => [
+                    'type' => 'waypoints',
+                    'waypoints' => [
+                        ['x' => 0, 'y' => 2, 'z' => -6, 'radius' => 1.5],
+                        ['x' => 8, 'y' => 9, 'z' => -8, 'radius' => 1.8],
+                        ['x' => 14, 'y' => 1.6, 'z' => -18, 'radius' => 1.8],
+                        ['x' => 0, 'y' => 1.5, 'z' => -30, 'radius' => 1.6],
+                    ],
+                    'min_altitude' => 8.0,
+                    'avoid_collisions' => true,
+                    'max_time_seconds' => 120,
                     'landing_required' => true,
                 ],
             ],

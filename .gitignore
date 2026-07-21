@@ -5,6 +5,7 @@
 /public/fonts-manifest.dev.json
 /public/hot
 /public/storage
+/pnpm-lock.yaml
 /storage/*.key
 /storage/pail
 /resources/js/actions

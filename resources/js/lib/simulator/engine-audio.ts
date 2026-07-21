@@ -136,11 +136,7 @@ class DroneEngineAudio {
         // transition smooth through spool-up and spool-down.
         const base = 72 + thr * 168 + audible * 14;
         nodes.motors.forEach((motor, i) => {
-            motor.frequency.setTargetAtTime(
-                base * MOTOR_RATIOS[i],
-                now,
-                0.05,
-            );
+            motor.frequency.setTargetAtTime(base * MOTOR_RATIOS[i], now, 0.05);
         });
 
         // Open the lowpass as the motors work harder — more bite under load.
@@ -157,11 +153,7 @@ class DroneEngineAudio {
         // Prop wash / air rush swells with throttle and forward speed.
         const wash = 0.02 + thr * 0.1 + clamp(groundSpeed / 8, 0, 1) * 0.06;
         nodes.noiseGain.gain.setTargetAtTime(wash * audible, now, 0.08);
-        nodes.noiseFilter.frequency.setTargetAtTime(
-            600 + thr * 1400,
-            now,
-            0.1,
-        );
+        nodes.noiseFilter.frequency.setTargetAtTime(600 + thr * 1400, now, 0.1);
 
         const target = this.running ? audible * 0.42 : 0;
         nodes.master.gain.setTargetAtTime(target, now, 0.09);

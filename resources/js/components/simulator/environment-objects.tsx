@@ -25,7 +25,8 @@ import type {
     WaypointConfig,
 } from '@/types/simulator';
 
-type ObstacleKind = 'building' | 'crate' | 'pylon' | 'wall' | 'cylinder' | 'block';
+type ObstacleKind =
+    'building' | 'crate' | 'pylon' | 'wall' | 'cylinder' | 'block';
 
 /**
  * Decides how a raw collision box should look. Sizes come straight from the
@@ -292,7 +293,11 @@ function BuildingVisual({
                 <planeGeometry args={[sx, sy]} />
                 <meshStandardMaterial map={facadeWide} roughness={0.35} />
             </mesh>
-            <mesh position={[0, 0, -hz - 0.02]} rotation={[0, Math.PI, 0]} receiveShadow>
+            <mesh
+                position={[0, 0, -hz - 0.02]}
+                rotation={[0, Math.PI, 0]}
+                receiveShadow
+            >
                 <planeGeometry args={[sx, sy]} />
                 <meshStandardMaterial map={facadeWide} roughness={0.35} />
             </mesh>
@@ -326,15 +331,30 @@ function BuildingVisual({
             {/* Parapet wall around the roof edge. */}
             {(
                 [
-                    [[0, hy + 0.2, hz], [sx, 0.42, 0.16]],
-                    [[0, hy + 0.2, -hz], [sx, 0.42, 0.16]],
-                    [[hx, hy + 0.2, 0], [0.16, 0.42, sz]],
-                    [[-hx, hy + 0.2, 0], [0.16, 0.42, sz]],
+                    [
+                        [0, hy + 0.2, hz],
+                        [sx, 0.42, 0.16],
+                    ],
+                    [
+                        [0, hy + 0.2, -hz],
+                        [sx, 0.42, 0.16],
+                    ],
+                    [
+                        [hx, hy + 0.2, 0],
+                        [0.16, 0.42, sz],
+                    ],
+                    [
+                        [-hx, hy + 0.2, 0],
+                        [0.16, 0.42, sz],
+                    ],
                 ] as [[number, number, number], [number, number, number]][]
             ).map(([position, size], i) => (
                 <mesh key={i} position={position} castShadow>
                     <boxGeometry args={size} />
-                    <meshStandardMaterial color={PARAPET_COLOR} roughness={0.85} />
+                    <meshStandardMaterial
+                        color={PARAPET_COLOR}
+                        roughness={0.85}
+                    />
                 </mesh>
             ))}
 

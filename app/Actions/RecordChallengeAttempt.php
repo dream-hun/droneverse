@@ -29,10 +29,6 @@ final class RecordChallengeAttempt
         $score = max(0, min($attempt['score'], $challenge->max_score));
         $stars = max(0, min($attempt['stars'], self::MAX_STARS));
 
-        // Ensure the row exists before locking: a SELECT ... FOR UPDATE has no
-        // row to lock on a user's first attempt, so two concurrent first
-        // attempts would otherwise both insert and one would hit the unique
-        // constraint. firstOrCreate() absorbs that race via createOrFirst().
         UserChallengeProgress::query()->firstOrCreate([
             'user_id' => $user->id,
             'challenge_id' => $challenge->id,

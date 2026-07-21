@@ -258,7 +258,8 @@ export function createFacadeTexture(
         throw new Error('2D canvas is unavailable');
     }
 
-    const concrete = FACADE_CONCRETE[Math.floor(rng() * FACADE_CONCRETE.length)];
+    const concrete =
+        FACADE_CONCRETE[Math.floor(rng() * FACADE_CONCRETE.length)];
     context.fillStyle = concrete;
     context.fillRect(0, 0, canvas.width, canvas.height);
 

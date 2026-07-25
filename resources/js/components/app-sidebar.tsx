@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { BookOpen, FolderGit2, LayoutGrid, Rocket } from 'lucide-react';
+import { BookOpen, Camera, FolderGit2, LayoutGrid, Rocket } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
 import { index as coursesIndex } from '@/routes/courses';
+import { index as photosIndex } from '@/routes/photos';
 import type { NavItem } from '@/types';
 
 const mainNavItems: NavItem[] = [
@@ -27,6 +28,11 @@ const mainNavItems: NavItem[] = [
         title: 'Courses',
         href: coursesIndex(),
         icon: Rocket,
+    },
+    {
+        title: 'Photo Log',
+        href: photosIndex(),
+        icon: Camera,
     },
 ];
 
@@ -45,7 +51,7 @@ const footerNavItems: NavItem[] = [
 
 export function AppSidebar() {
     return (
-        <Sidebar collapsible="icon" variant="inset">
+        <Sidebar collapsible="icon" variant="sidebar">
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>

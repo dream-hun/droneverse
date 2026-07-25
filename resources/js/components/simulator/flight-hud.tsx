@@ -11,6 +11,7 @@ type HudSnapshot = {
     batteryPct: number;
     windSpeed: number;
     windHeadingDeg: number;
+    photosTaken: number;
 };
 
 function takeSnapshot(flightState: FlightVisualState): HudSnapshot {
@@ -23,6 +24,7 @@ function takeSnapshot(flightState: FlightVisualState): HudSnapshot {
         batteryPct: flightState.batteryPct,
         windSpeed: flightState.windSpeed,
         windHeadingDeg: flightState.windHeadingDeg,
+        photosTaken: flightState.photosTaken,
     };
 }
 
@@ -107,6 +109,11 @@ export function FlightHud({ flightState }: { flightState: FlightVisualState }) {
                     ↑
                 </span>
             </span>
+            {snapshot.photosTaken > 0 && (
+                <span className={cn(chip, 'text-cyan-300')}>
+                    CAM {snapshot.photosTaken}
+                </span>
+            )}
             <span className={cn(chip, 'ml-auto flex items-center gap-1.5')}>
                 BAT {Math.round(snapshot.batteryPct)}%
                 <span className="inline-block h-1.5 w-10 overflow-hidden rounded-full bg-slate-700">

@@ -9,6 +9,34 @@ export type ObstacleConfig = {
     radius?: number;
     height?: number;
     rotationY?: number;
+    /** Optional callsign surfaced by `drone.scan()` (e.g. "north-tower"). */
+    label?: string;
+};
+
+/** Street-level scenery that is solid, collidable, and scannable. */
+export type PropConfig = {
+    kind: 'car' | 'van' | 'tree';
+    x: number;
+    z: number;
+    rotationY?: number;
+    /** Body paint for vehicles; ignored by trees. */
+    color?: string;
+    /** Optional callsign surfaced by `drone.scan()` (e.g. "delivery-van"). */
+    label?: string;
+};
+
+/** Drive-through wash tunnel; the drone must fly in one end and out the other. */
+export type CarwashConfig = {
+    x: number;
+    z: number;
+    rotationY?: number;
+    /** Interior opening width in meters. */
+    width?: number;
+    /** Interior opening height in meters. */
+    height?: number;
+    /** Tunnel length along its local -Z axis in meters. */
+    length?: number;
+    label?: string;
 };
 
 export type GateConfig = {
@@ -36,6 +64,18 @@ export type EnvironmentConfig = {
     goal: { x: number; z: number; radius: number };
     /** Optional ambient wind; challenges without it get a gentle default breeze. */
     wind?: { speed?: number; directionDeg?: number };
+    /** Optional city scenery: parked vehicles and street trees. */
+    props?: PropConfig[];
+    /** Optional drone wash tunnel. */
+    carwash?: CarwashConfig;
+};
+
+/** A spot that must appear in at least one captured photo (2D match). */
+export type PhotoTargetConfig = {
+    x: number;
+    z: number;
+    radius: number;
+    label?: string;
 };
 
 export type SuccessCriteria = {
@@ -45,6 +85,12 @@ export type SuccessCriteria = {
     max_time_seconds: number;
     landing_required: boolean;
     min_altitude?: number;
+    /** Require at least this many photos captured during the run. */
+    min_photos?: number;
+    /** Each target needs one photo taken within its radius. */
+    photo_targets?: PhotoTargetConfig[];
+    /** Require a full pass through the wash tunnel. */
+    wash_required?: boolean;
 };
 
 export type ChallengeStatus = 'not_started' | 'in_progress' | 'completed';
@@ -105,4 +151,23 @@ export type RunResult = {
     landed: boolean;
     elapsedSeconds: number;
     timedOut: boolean;
+    photosTaken: number;
+    photoTargetsHit: number;
+    photoTargetsTotal: number;
+    /** Photos still needed to satisfy `min_photos` (0 when met or unset). */
+    photosMissing: number;
+    washRequired: boolean;
+    washed: boolean;
+};
+
+/** A saved drone photo as serialized for the photo log page. */
+export type DronePhotoSummary = {
+    id: number;
+    url: string;
+    label: string | null;
+    challengeTitle: string | null;
+    courseSlug: string | null;
+    challengeSlug: string | null;
+    position: { x: number; y: number; z: number; headingDeg: number } | null;
+    takenAt: string;
 };

@@ -43,18 +43,30 @@ function phraseFor(command: DroneCommand): string | null {
             return `Adjusting altitude to ${round(command.altitude)} meters.`;
         case 'setSpeed':
             return `Cruise speed set to ${round(command.speed)}.`;
+        case 'scan':
+            return 'Scanning for objects.';
+        case 'takePhoto':
+            return command.label
+                ? `Capturing photo: ${command.label}.`
+                : 'Capturing photo.';
         default:
             return null;
     }
 }
 
-export type DroneVoiceEvent = 'armed' | 'complete' | 'aborted' | 'fault';
+export type DroneVoiceEvent =
+    | 'armed'
+    | 'complete'
+    | 'aborted'
+    | 'fault'
+    | 'washed';
 
 const EVENT_PHRASES: Record<DroneVoiceEvent, string> = {
     armed: 'Systems online. Ready for flight.',
     complete: 'Mission complete.',
     aborted: 'Flight aborted.',
     fault: 'Fault detected. Holding.',
+    washed: 'Wash cycle complete.',
 };
 
 class DroneVoice {

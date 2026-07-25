@@ -11,7 +11,22 @@ export type DroneCommand =
     | { type: 'getHeading' }
     | { type: 'getAltitude' }
     | { type: 'getBattery' }
-    | { type: 'getDistanceAhead' };
+    | { type: 'getDistanceAhead' }
+    | { type: 'scan'; range?: number }
+    | { type: 'takePhoto'; label?: string };
+
+/** One object reported by `drone.scan()`, sorted nearest-first. */
+export type ScanContact = {
+    kind: string;
+    label: string | null;
+    x: number;
+    y: number;
+    z: number;
+    /** 3D distance from the drone in meters. */
+    distance: number;
+    /** Bearing relative to the drone's heading: 0 = dead ahead, + = right. */
+    bearingDeg: number;
+};
 
 /** Messages sent from the sandboxed worker to the main thread. */
 export type WorkerToMainMessage =
@@ -48,6 +63,11 @@ export type RunTelemetry = {
     landed: boolean;
     elapsedSeconds: number;
     timedOut: boolean;
+    /** Where each photo was captured, for photo-target grading. */
+    photoPositions: Vector3[];
+    /** Wash beams tripped at either mouth of the tunnel; both = full pass. */
+    washEntryHit: boolean;
+    washExitHit: boolean;
 };
 
 /** Mutable state shared between the React hook and the per-frame physics step. */
@@ -69,6 +89,9 @@ export function createBridge(waypointsTotal: number): SimulationBridge {
             landed: false,
             elapsedSeconds: 0,
             timedOut: false,
+            photoPositions: [],
+            washEntryHit: false,
+            washExitHit: false,
         },
     };
 }

@@ -69,6 +69,35 @@ export function ResultModal({ result, onClose, onRetry }: ResultModalProps) {
                             label="Collisions"
                             value={`${result.collisions}`}
                         />
+                        {result.photoTargetsTotal > 0 && (
+                            <Stat
+                                label="Photo targets"
+                                value={`${result.photoTargetsHit}/${result.photoTargetsTotal}`}
+                            />
+                        )}
+                        {result.photoTargetsTotal === 0 &&
+                            result.photosMissing > 0 && (
+                                <Stat
+                                    label="Photos"
+                                    value={`${result.photosTaken} (${result.photosMissing} more needed)`}
+                                />
+                            )}
+                        {result.photoTargetsTotal === 0 &&
+                            result.photosMissing === 0 &&
+                            result.photosTaken > 0 && (
+                                <Stat
+                                    label="Photos"
+                                    value={`${result.photosTaken}`}
+                                />
+                            )}
+                        {result.washRequired && (
+                            <Stat
+                                label="Drone wash"
+                                value={
+                                    result.washed ? 'Complete' : 'Skipped'
+                                }
+                            />
+                        )}
                     </div>
                 )}
 

@@ -23,6 +23,7 @@ import {
 } from '@/lib/simulator/session';
 import { droneVoice } from '@/lib/simulator/voice';
 import { store as storeAttempt } from '@/routes/challenges/attempts';
+import { store as storePhoto } from '@/routes/challenges/photos';
 import { show as showCourse } from '@/routes/courses';
 import type {
     ChallengeDetail,
@@ -63,6 +64,7 @@ export default function Play({ course, challenge, progress }: PlayProps) {
     );
 
     const attemptUrl = storeAttempt.url([course.slug, challenge.slug]);
+    const photoUrl = storePhoto.url([course.slug, challenge.slug]);
 
     return (
         <>
@@ -175,6 +177,7 @@ export default function Play({ course, challenge, progress }: PlayProps) {
                         successCriteria={challenge.successCriteria}
                         maxScore={challenge.maxScore}
                         attemptUrl={attemptUrl}
+                        photoUrl={photoUrl}
                     />
                 </div>
             </div>

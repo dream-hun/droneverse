@@ -466,6 +466,59 @@ export function createConcreteTexture(): CanvasTexture {
     return texture;
 }
 
+/** Illuminated "DRONE WASH" board mounted over the wash tunnel mouths. */
+export function createCarwashSignTexture(): CanvasTexture {
+    const width = 512;
+    const height = 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+        throw new Error('2D canvas is unavailable');
+    }
+
+    const backdrop = context.createLinearGradient(0, 0, 0, height);
+    backdrop.addColorStop(0, '#0b3050');
+    backdrop.addColorStop(1, '#082238');
+    context.fillStyle = backdrop;
+    context.fillRect(0, 0, width, height);
+
+    context.strokeStyle = '#38bdf8';
+    context.lineWidth = 6;
+    context.strokeRect(5, 5, width - 10, height - 10);
+
+    // A few soap bubbles drifting behind the lettering.
+    const bubbles: [number, number, number][] = [
+        [52, 38, 15],
+        [80, 84, 9],
+        [438, 42, 12],
+        [462, 88, 17],
+        [415, 92, 7],
+    ];
+
+    for (const [x, y, radius] of bubbles) {
+        context.beginPath();
+        context.arc(x, y, radius, 0, Math.PI * 2);
+        context.strokeStyle = 'rgba(125, 211, 252, 0.7)';
+        context.lineWidth = 3;
+        context.stroke();
+    }
+
+    context.font = 'bold 58px system-ui, sans-serif';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillStyle = '#e0f2fe';
+    context.shadowColor = '#38bdf8';
+    context.shadowBlur = 18;
+    context.fillText('DRONE WASH', width / 2, height / 2 + 2);
+    context.shadowBlur = 0;
+
+    return finishTexture(canvas);
+}
+
 /** Diagonal orange/white hazard stripes for tall pylon obstacles. */
 export function createHazardTexture(): CanvasTexture {
     const size = 128;

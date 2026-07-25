@@ -24,6 +24,8 @@ export type FlightVisualState = {
     batteryPct: number;
     windSpeed: number;
     windHeadingDeg: number;
+    /** Photos captured this run, shown as a HUD counter. */
+    photosTaken: number;
     /** Short status label for the HUD (STANDBY, SPOOL UP, ENROUTE, ...). */
     mode: string;
 };
@@ -43,6 +45,7 @@ export function createFlightVisualState(): FlightVisualState {
         batteryPct: 100,
         windSpeed: 0,
         windHeadingDeg: 0,
+        photosTaken: 0,
         mode: 'STANDBY',
     };
 }
@@ -58,5 +61,6 @@ export function resetFlightVisualState(state: FlightVisualState): void {
     state.groundSpeed = 0;
     state.verticalSpeed = 0;
     state.batteryPct = 100 - Math.random() * 3;
+    state.photosTaken = 0;
     state.mode = 'ARMED';
 }

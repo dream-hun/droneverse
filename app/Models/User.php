@@ -51,6 +51,14 @@ final class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * @return HasMany<DronePhoto, $this>
+     */
+    public function dronePhotos(): HasMany
+    {
+        return $this->hasMany(DronePhoto::class);
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>

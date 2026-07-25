@@ -57,6 +57,19 @@ const drone = {
     getAltitude: () => sendCommand({ type: 'getAltitude' }),
     getBattery: () => sendCommand({ type: 'getBattery' }),
     getDistanceAhead: () => sendCommand({ type: 'getDistanceAhead' }),
+    scan: (range?: number) =>
+        sendCommand({
+            type: 'scan',
+            range: typeof range === 'number' ? range : undefined,
+        }),
+    takePhoto: (label?: string) =>
+        sendCommand({
+            type: 'takePhoto',
+            label:
+                label === undefined || label === null
+                    ? undefined
+                    : String(label).slice(0, 60),
+        }),
 };
 
 function toSafeArgs(args: unknown[]): unknown[] {

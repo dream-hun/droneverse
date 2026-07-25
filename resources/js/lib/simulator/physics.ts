@@ -46,6 +46,7 @@ export const LANDING_EPSILON = 0.05; // meters above rest height
 export const REST_HEIGHT = 0.15; // meters, drone center height when landed
 export const DEFAULT_TAKEOFF_ALTITUDE = 1.5;
 export const SPOOL_SECONDS = 0.6; // motor spool-up before the takeoff climb
+export const PHOTO_STABILIZE_SECONDS = 0.4; // hold steady before the shutter fires
 export const FLARE_ALTITUDE = 0.7; // slow the descent below this height
 export const FLARE_DESCENT_RATE = 0.5; // m/s final approach
 
@@ -209,6 +210,14 @@ export function beginCommand(
                 ...base,
                 targetPosition: position,
                 hoverSeconds: command.seconds,
+            };
+        case 'takePhoto':
+            // The airframe holds still for a beat so the shot isn't blurred;
+            // the capture itself happens the frame this command completes.
+            return {
+                ...base,
+                targetPosition: position,
+                hoverSeconds: PHOTO_STABILIZE_SECONDS,
             };
         default:
             // Instant commands (sensor queries, setSpeed) resolve on the same
@@ -419,7 +428,7 @@ export function computeControlStep(
         };
     }
 
-    if (command.type === 'hover') {
+    if (command.type === 'hover' || command.type === 'takePhoto') {
         const done = active.elapsed + dt >= (active.hoverSeconds ?? 0);
         const linvel = holdVelocity(
             control,

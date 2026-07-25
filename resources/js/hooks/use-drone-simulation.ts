@@ -1,4 +1,4 @@
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { useRapier } from '@react-three/rapier';
 import type { RapierRigidBody } from '@react-three/rapier';
 import { useCallback, useEffect, useRef } from 'react';
@@ -6,10 +6,12 @@ import type { RefObject } from 'react';
 import { postJson } from '@/lib/http';
 import { createBridge } from '@/lib/simulator/commands';
 import type { ActiveCommand, Vector3 } from '@/lib/simulator/commands';
+import { scanEnvironment } from '@/lib/simulator/detection';
 import { droneEngine } from '@/lib/simulator/engine-audio';
 import type { FlightVisualState } from '@/lib/simulator/flight-state';
 import { resetFlightVisualState } from '@/lib/simulator/flight-state';
 import { gradeRun } from '@/lib/simulator/grader';
+import { DronePhotoCamera } from '@/lib/simulator/photo';
 import {
     beginCommand,
     computeControlStep,
@@ -42,6 +44,7 @@ type UseDroneSimulationArgs = {
     successCriteria: SuccessCriteria;
     maxScore: number;
     attemptUrl: string;
+    photoUrl: string;
     flightState: FlightVisualState;
 };
 
@@ -83,6 +86,8 @@ function modeLabel(
         case 'moveTo':
         case 'setAltitude':
             return 'ENROUTE';
+        case 'takePhoto':
+            return 'PHOTO';
         default:
             return previous;
     }
@@ -106,9 +111,12 @@ export function useDroneSimulation({
     successCriteria,
     maxScore,
     attemptUrl,
+    photoUrl,
     flightState,
 }: UseDroneSimulationArgs) {
     const { world, rapier } = useRapier();
+    const gl = useThree((state) => state.gl);
+    const scene = useThree((state) => state.scene);
     const clientRef = useRef<SimulationWorkerClient | null>(null);
     const bridgeRef = useRef(createBridge(successCriteria.waypoints.length));
     const controlRef = useRef(createControlState());
@@ -116,6 +124,8 @@ export function useDroneSimulation({
     const previousVelocityRef = useRef<Vector3>({ x: 0, y: 0, z: 0 });
     const flightStateRef = useRef(flightState);
     const codeRef = useRef('');
+    const photoCameraRef = useRef<DronePhotoCamera | null>(null);
+    const washAnnouncedRef = useRef(false);
 
     const appendLog = useCallback(
         (level: 'log' | 'warn' | 'error', args: unknown[]) => {
@@ -127,6 +137,78 @@ export function useDroneSimulation({
             session.appendLog({ level, text });
         },
         [session],
+    );
+
+    /**
+     * Fires the stills camera at the drone's current pose. The capture is
+     * synchronous (it happens inside the frame the takePhoto command
+     * completes); the upload to the pilot's photo log runs in the
+     * background so the flight never stalls on the network.
+     */
+    const capturePhoto = useCallback(
+        (label: string | undefined, position: Vector3, yaw: number) => {
+            const span = Math.max(
+                environment.bounds.width,
+                environment.bounds.depth,
+            );
+            photoCameraRef.current ??= new DronePhotoCamera();
+
+            const shot = photoCameraRef.current.capture(
+                gl,
+                scene,
+                position,
+                yaw,
+                span * 12,
+            );
+            const capturedAt = {
+                x: position.x,
+                y: position.y,
+                z: position.z,
+            };
+
+            if (!shot) {
+                appendLog('warn', [
+                    'Camera fault: the photo could not be captured.',
+                ]);
+
+                return { captured: false, label: label ?? null };
+            }
+
+            bridgeRef.current.telemetry.photoPositions.push(capturedAt);
+            const index = bridgeRef.current.telemetry.photoPositions.length;
+            flightStateRef.current.photosTaken = index;
+
+            appendLog('log', [
+                `Photo ${index} captured${label ? ` — "${label}"` : ''}.`,
+            ]);
+
+            postJson(photoUrl, {
+                image: shot.dataUrl,
+                label: label ?? null,
+                x: capturedAt.x,
+                y: capturedAt.y,
+                z: capturedAt.z,
+                heading: compassDegrees(yaw),
+            })
+                .then(() => {
+                    appendLog('log', [
+                        `Photo ${index} saved to your photo log.`,
+                    ]);
+                })
+                .catch(() => {
+                    appendLog('warn', [
+                        `Photo ${index} could not be saved to your photo log.`,
+                    ]);
+                });
+
+            return {
+                captured: true,
+                index,
+                label: label ?? null,
+                position: capturedAt,
+            };
+        },
+        [appendLog, environment.bounds, gl, photoUrl, scene],
     );
 
     const stop = useCallback(() => {
@@ -222,6 +304,7 @@ export function useDroneSimulation({
                     : undefined,
             );
             previousVelocityRef.current = { x: 0, y: 0, z: 0 };
+            washAnnouncedRef.current = false;
             resetFlightVisualState(flightStateRef.current);
             resetDrone(body);
 
@@ -283,6 +366,8 @@ export function useDroneSimulation({
             clientRef.current?.terminate();
             clientRef.current = null;
             droneEngine.release();
+            photoCameraRef.current?.release();
+            photoCameraRef.current = null;
         },
         [],
     );
@@ -294,6 +379,32 @@ export function useDroneSimulation({
 
         bridgeRef.current.telemetry.collisions += 1;
     }, []);
+
+    /** Wash beams are sensors, so they report intersections, not collisions. */
+    const handleSensorEnter = useCallback(
+        (kind: string | undefined) => {
+            const telemetry = bridgeRef.current.telemetry;
+
+            if (kind === 'wash-entry') {
+                telemetry.washEntryHit = true;
+            } else if (kind === 'wash-exit') {
+                telemetry.washExitHit = true;
+            } else {
+                return;
+            }
+
+            if (
+                telemetry.washEntryHit &&
+                telemetry.washExitHit &&
+                !washAnnouncedRef.current
+            ) {
+                washAnnouncedRef.current = true;
+                appendLog('log', ['Wash cycle complete — airframe clean.']);
+                droneVoice.announceEvent('washed');
+            }
+        },
+        [appendLog],
+    );
 
     useFrame((_, dt) => {
         const body = rigidBodyRef.current;
@@ -487,11 +598,20 @@ export function useDroneSimulation({
                 body,
             );
             queryResult = hit ? hit.timeOfImpact : 20;
+        } else if (finishedCommand.type === 'scan') {
+            queryResult = scanEnvironment(
+                environment,
+                position,
+                yaw,
+                finishedCommand.range,
+            );
+        } else if (finishedCommand.type === 'takePhoto') {
+            queryResult = capturePhoto(finishedCommand.label, position, yaw);
         }
 
         bridge.active.resolve(queryResult);
         bridge.active = null;
     });
 
-    return { handleCollision };
+    return { handleCollision, handleSensorEnter };
 }

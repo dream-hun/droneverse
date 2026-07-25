@@ -16,6 +16,7 @@ type DroneRigProps = {
     successCriteria: SuccessCriteria;
     maxScore: number;
     attemptUrl: string;
+    photoUrl: string;
 };
 
 export function DroneRig({
@@ -26,14 +27,16 @@ export function DroneRig({
     successCriteria,
     maxScore,
     attemptUrl,
+    photoUrl,
 }: DroneRigProps) {
-    const { handleCollision } = useDroneSimulation({
+    const { handleCollision, handleSensorEnter } = useDroneSimulation({
         rigidBodyRef,
         session,
         environment,
         successCriteria,
         maxScore,
         attemptUrl,
+        photoUrl,
         flightState,
     });
 
@@ -50,6 +53,11 @@ export function DroneRig({
             userData={{ kind: 'drone' }}
             onCollisionEnter={({ other }) =>
                 handleCollision(
+                    other.rigidBodyObject?.userData?.kind as string | undefined,
+                )
+            }
+            onIntersectionEnter={({ other }) =>
+                handleSensorEnter(
                     other.rigidBodyObject?.userData?.kind as string | undefined,
                 )
             }

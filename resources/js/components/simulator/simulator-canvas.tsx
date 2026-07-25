@@ -20,6 +20,7 @@ type SimulatorCanvasProps = {
     successCriteria: SuccessCriteria;
     maxScore: number;
     attemptUrl: string;
+    photoUrl: string;
 };
 
 const CAMERA_MODES: { id: CameraMode; label: string }[] = [

@@ -6,6 +6,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 /**
  * A finished simulator run, as flown.
@@ -28,6 +29,22 @@ final class StoreChallengeAttemptRequest extends FormRequest
 
     /** Well above what any single mission asks a pilot to shoot. */
     private const int MAX_PHOTOS = 60;
+
+    /**
+     * Longest gap allowed between two consecutive path samples.
+     *
+     * telemetry.ts samples every 0.05s, and slower than that only when the
+     * browser is rendering slower than that — the sampler runs off the
+     * frame loop, so the gap is the frame time once frames get long. One
+     * second is therefore a run limping along at 1 fps, twenty times worse
+     * than the worst honest submission, and still accepted.
+     *
+     * What it does rule out is a path with no cadence at all: a submission
+     * has to carry roughly a sample per second of the flight it claims, so
+     * the handful of points that would otherwise be enough to sit on every
+     * waypoint is not a run any more.
+     */
+    private const float MAX_SAMPLE_GAP_SECONDS = 1.0;
 
     /**
      * Determine if the user is authorized to make this request.
@@ -59,6 +76,44 @@ final class StoreChallengeAttemptRequest extends FormRequest
             'photos.*.y' => ['required', 'numeric', 'between:-100000,100000'],
             'photos.*.z' => ['required', 'numeric', 'between:-100000,100000'],
         ];
+    }
+
+    /**
+     * Reject a path the simulator could not have recorded.
+     *
+     * The rules above check that each sample is a point; this checks that
+     * the samples are a *recording* — taken in order, at something like the
+     * rate the sampler takes them. Both failures describe a client that is
+     * not the simulator, so neither can happen to a pilot who flew.
+     */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            // Only worth asking once every sample is known to be a point;
+            // otherwise the shape below is not there to read.
+            if ($validator->errors()->isNotEmpty()) {
+                return;
+            }
+
+            /** @var array<int, array{t: mixed}> $path */
+            $path = array_values($validator->valid()['path'] ?? []);
+
+            for ($i = 1, $samples = count($path); $i < $samples; $i++) {
+                $gap = (float) $path[$i]['t'] - (float) $path[$i - 1]['t'];
+
+                if ($gap <= 0) {
+                    $validator->errors()->add('path', 'The flight path is out of order.');
+
+                    return;
+                }
+
+                if ($gap > self::MAX_SAMPLE_GAP_SECONDS) {
+                    $validator->errors()->add('path', 'The flight path is missing samples.');
+
+                    return;
+                }
+            }
+        });
     }
 
     /**

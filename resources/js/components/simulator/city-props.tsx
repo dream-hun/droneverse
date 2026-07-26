@@ -6,9 +6,20 @@ import {
     RigidBody,
 } from '@react-three/rapier';
 import { useMemo, useRef } from 'react';
-import { DoubleSide } from 'three';
-import type { BufferAttribute, Group, Points } from 'three';
+import {
+    BoxGeometry,
+    CylinderGeometry,
+    DoubleSide,
+    MeshStandardMaterial,
+    PlaneGeometry,
+    SphereGeometry,
+} from 'three';
+import type { BufferAttribute, CanvasTexture, Group, Points } from 'three';
 import { positionSeed, seededRng } from '@/lib/simulator/math';
+import {
+    sharedGeometry,
+    sharedMaterial,
+} from '@/lib/simulator/scene-resources';
 import { carwashSignTexture } from '@/lib/simulator/textures';
 import type { CarwashConfig, PropConfig } from '@/types/simulator';
 
@@ -17,6 +28,12 @@ import type { CarwashConfig, PropConfig } from '@/types/simulator';
  * fixed rigid body with an honest collider (clipping a parked car counts
  * as a collision) and is reported by `drone.scan()` at the same position
  * it renders here.
+ *
+ * Nothing here animates a material, so every material and every repeated
+ * shape comes from {@see ../../lib/simulator/scene-resources}: one wheel
+ * for all thirty-six on a street, one pane of glass, one tyre. Only the
+ * spray curtain keeps its own geometry, because it rewrites its vertices
+ * every frame.
  */
 
 const CAR_COLORS = [
@@ -37,12 +54,82 @@ function propSeed(prop: PropConfig): number {
     return positionSeed(prop.x, prop.z);
 }
 
+function boxGeometry(x: number, y: number, z: number) {
+    return sharedGeometry(
+        `box:${x}:${y}:${z}`,
+        () => new BoxGeometry(x, y, z),
+    );
+}
+
+function planeGeometry(width: number, height: number) {
+    return sharedGeometry(
+        `plane:${width}:${height}`,
+        () => new PlaneGeometry(width, height),
+    );
+}
+
+/** A painted body panel. Vehicles share a palette, so the paint is shared too. */
+function paintMaterial(color: string, roughness: number, metalness: number) {
+    return sharedMaterial(
+        `paint:${color}:${roughness}:${metalness}`,
+        () => new MeshStandardMaterial({ color, roughness, metalness }),
+    );
+}
+
+function glassMaterial() {
+    return paintMaterial(GLASS_COLOR, 0.15, 0.55);
+}
+
 function Wheel({ position }: { position: [number, number, number] }) {
     return (
-        <mesh position={position} rotation-z={Math.PI / 2} castShadow>
-            <cylinderGeometry args={[0.3, 0.3, 0.22, 16]} />
-            <meshStandardMaterial color={TIRE_COLOR} roughness={0.9} />
-        </mesh>
+        <mesh
+            position={position}
+            rotation-z={Math.PI / 2}
+            castShadow
+            geometry={sharedGeometry(
+                'wheel',
+                () => new CylinderGeometry(0.3, 0.3, 0.22, 16),
+            )}
+            material={sharedMaterial(
+                'tire',
+                () =>
+                    new MeshStandardMaterial({
+                        color: TIRE_COLOR,
+                        roughness: 0.9,
+                    }),
+            )}
+        />
+    );
+}
+
+/** Head- and tail-lamps: the same little block, lit differently. */
+function Lamp({
+    position,
+    kind,
+}: {
+    position: [number, number, number];
+    kind: 'head' | 'tail';
+}) {
+    return (
+        <mesh
+            position={position}
+            geometry={boxGeometry(0.3, 0.14, 0.04)}
+            material={sharedMaterial(
+                `lamp:${kind}`,
+                () =>
+                    kind === 'head'
+                        ? new MeshStandardMaterial({
+                              color: '#f5f2d4',
+                              emissive: '#fff7c2',
+                              emissiveIntensity: 0.5,
+                          })
+                        : new MeshStandardMaterial({
+                              color: '#5c1310',
+                              emissive: '#e0362c',
+                              emissiveIntensity: 0.6,
+                          }),
+            )}
+        />
     );
 }
 
@@ -50,23 +137,20 @@ function CarVisual({ color }: { color: string }) {
     return (
         <group>
             {/* Lower body shell. */}
-            <mesh position={[0, 0.62, 0]} castShadow receiveShadow>
-                <boxGeometry args={[1.76, 0.52, 4]} />
-                <meshStandardMaterial
-                    color={color}
-                    roughness={0.35}
-                    metalness={0.25}
-                />
-            </mesh>
+            <mesh
+                position={[0, 0.62, 0]}
+                castShadow
+                receiveShadow
+                geometry={boxGeometry(1.76, 0.52, 4)}
+                material={paintMaterial(color, 0.35, 0.25)}
+            />
             {/* Glass cabin. */}
-            <mesh position={[0, 1.1, 0.18]} castShadow>
-                <boxGeometry args={[1.58, 0.5, 2.05]} />
-                <meshStandardMaterial
-                    color={GLASS_COLOR}
-                    roughness={0.15}
-                    metalness={0.55}
-                />
-            </mesh>
+            <mesh
+                position={[0, 1.1, 0.18]}
+                castShadow
+                geometry={boxGeometry(1.58, 0.5, 2.05)}
+                material={glassMaterial()}
+            />
             {[-0.62, 0.62].map((side) => (
                 <group key={side}>
                     <Wheel position={[side * 1.42, 0.3, -1.28]} />
@@ -76,22 +160,8 @@ function CarVisual({ color }: { color: string }) {
             {/* Headlights and taillights. */}
             {[-0.55, 0.55].map((side) => (
                 <group key={side}>
-                    <mesh position={[side, 0.66, -2.01]}>
-                        <boxGeometry args={[0.3, 0.14, 0.04]} />
-                        <meshStandardMaterial
-                            color="#f5f2d4"
-                            emissive="#fff7c2"
-                            emissiveIntensity={0.5}
-                        />
-                    </mesh>
-                    <mesh position={[side, 0.66, 2.01]}>
-                        <boxGeometry args={[0.3, 0.14, 0.04]} />
-                        <meshStandardMaterial
-                            color="#5c1310"
-                            emissive="#e0362c"
-                            emissiveIntensity={0.6}
-                        />
-                    </mesh>
+                    <Lamp position={[side, 0.66, -2.01]} kind="head" />
+                    <Lamp position={[side, 0.66, 2.01]} kind="tail" />
                 </group>
             ))}
         </group>
@@ -99,34 +169,33 @@ function CarVisual({ color }: { color: string }) {
 }
 
 function VanVisual({ color }: { color: string }) {
+    const paint = paintMaterial(color, 0.45, 0.15);
+
     return (
         <group>
             {/* Cargo body. */}
-            <mesh position={[0, 1.18, 0.35]} castShadow receiveShadow>
-                <boxGeometry args={[1.95, 1.65, 3.6]} />
-                <meshStandardMaterial
-                    color={color}
-                    roughness={0.45}
-                    metalness={0.15}
-                />
-            </mesh>
+            <mesh
+                position={[0, 1.18, 0.35]}
+                castShadow
+                receiveShadow
+                geometry={boxGeometry(1.95, 1.65, 3.6)}
+                material={paint}
+            />
             {/* Cab with windshield. */}
-            <mesh position={[0, 0.95, -1.85]} castShadow receiveShadow>
-                <boxGeometry args={[1.85, 1.15, 1.1]} />
-                <meshStandardMaterial
-                    color={color}
-                    roughness={0.45}
-                    metalness={0.15}
-                />
-            </mesh>
-            <mesh position={[0, 1.42, -1.98]} rotation-x={-0.32} castShadow>
-                <boxGeometry args={[1.7, 0.62, 0.06]} />
-                <meshStandardMaterial
-                    color={GLASS_COLOR}
-                    roughness={0.15}
-                    metalness={0.55}
-                />
-            </mesh>
+            <mesh
+                position={[0, 0.95, -1.85]}
+                castShadow
+                receiveShadow
+                geometry={boxGeometry(1.85, 1.15, 1.1)}
+                material={paint}
+            />
+            <mesh
+                position={[0, 1.42, -1.98]}
+                rotation-x={-0.32}
+                castShadow
+                geometry={boxGeometry(1.7, 0.62, 0.06)}
+                material={glassMaterial()}
+            />
             {[-0.62, 0.62].map((side) => (
                 <group key={side}>
                     <Wheel position={[side * 1.58, 0.3, -1.55]} />
@@ -137,6 +206,21 @@ function VanVisual({ color }: { color: string }) {
     );
 }
 
+/** Foliage and trunk shapes, shared across every tree on the map. */
+function foliage(radius: number, widthSegments: number, heightSegments: number) {
+    return sharedGeometry(
+        `foliage:${radius}:${widthSegments}:${heightSegments}`,
+        () => new SphereGeometry(radius, widthSegments, heightSegments),
+    );
+}
+
+function leafMaterial(color: string) {
+    return sharedMaterial(
+        `leaf:${color}`,
+        () => new MeshStandardMaterial({ color, roughness: 0.9 }),
+    );
+}
+
 function TreeVisual({ seed }: { seed: number }) {
     // Cheap deterministic variation: two derived unit floats.
     const sway = ((seed % 97) / 97 - 0.5) * 0.35;
@@ -144,22 +228,40 @@ function TreeVisual({ seed }: { seed: number }) {
 
     return (
         <group scale={scale} rotation-y={sway * Math.PI}>
-            <mesh position={[0, 0.85, 0]} castShadow>
-                <cylinderGeometry args={[0.12, 0.18, 1.7, 10]} />
-                <meshStandardMaterial color="#6b4a2f" roughness={0.95} />
-            </mesh>
-            <mesh position={[0, 2.15, 0]} castShadow>
-                <sphereGeometry args={[0.92, 18, 14]} />
-                <meshStandardMaterial color="#3f7d3a" roughness={0.9} />
-            </mesh>
-            <mesh position={[0.42 + sway, 2.55, 0.1]} castShadow>
-                <sphereGeometry args={[0.6, 16, 12]} />
-                <meshStandardMaterial color="#4a8f43" roughness={0.9} />
-            </mesh>
-            <mesh position={[-0.4, 2.45, -0.15]} castShadow>
-                <sphereGeometry args={[0.55, 16, 12]} />
-                <meshStandardMaterial color="#417f3b" roughness={0.9} />
-            </mesh>
+            <mesh
+                position={[0, 0.85, 0]}
+                castShadow
+                geometry={sharedGeometry(
+                    'trunk',
+                    () => new CylinderGeometry(0.12, 0.18, 1.7, 10),
+                )}
+                material={sharedMaterial(
+                    'bark',
+                    () =>
+                        new MeshStandardMaterial({
+                            color: '#6b4a2f',
+                            roughness: 0.95,
+                        }),
+                )}
+            />
+            <mesh
+                position={[0, 2.15, 0]}
+                castShadow
+                geometry={foliage(0.92, 18, 14)}
+                material={leafMaterial('#3f7d3a')}
+            />
+            <mesh
+                position={[0.42 + sway, 2.55, 0.1]}
+                castShadow
+                geometry={foliage(0.6, 16, 12)}
+                material={leafMaterial('#4a8f43')}
+            />
+            <mesh
+                position={[-0.4, 2.45, -0.15]}
+                castShadow
+                geometry={foliage(0.55, 16, 12)}
+                material={leafMaterial('#417f3b')}
+            />
         </group>
     );
 }
@@ -214,7 +316,12 @@ const DEFAULT_WASH_LENGTH = 8;
 const DROPLET_COUNT = 90;
 const DROPLET_FALL_SPEED = 2.4; // m/s
 
-/** Falling water droplets filling the middle of the tunnel. */
+/**
+ * Falling water droplets filling the middle of the tunnel.
+ *
+ * The only thing in this file that keeps its own geometry: its vertices are
+ * rewritten every frame, so it can never be shared.
+ */
 function SprayCurtain({
     width,
     height,
@@ -313,23 +420,43 @@ function Brush({
     return (
         <group position={position} rotation-z={horizontal ? Math.PI / 2 : 0}>
             <group ref={spinRef}>
-                <mesh castShadow>
-                    <cylinderGeometry args={[radius, radius, length, 18]} />
-                    <meshStandardMaterial color={color} roughness={0.75} />
-                </mesh>
+                <mesh
+                    castShadow
+                    geometry={sharedGeometry(
+                        `brush:${radius}:${length}`,
+                        () =>
+                            new CylinderGeometry(radius, radius, length, 18),
+                    )}
+                    material={sharedMaterial(
+                        `brush:${color}`,
+                        () =>
+                            new MeshStandardMaterial({
+                                color,
+                                roughness: 0.75,
+                            }),
+                    )}
+                />
                 {/* Bristle ridges so the spin actually reads in motion. */}
                 {[0, 1, 2, 3].map((i) => (
-                    <mesh key={i} rotation-y={(i * Math.PI) / 4}>
-                        <boxGeometry
-                            args={[radius * 2.35, length * 0.92, 0.04]}
-                        />
-                        <meshStandardMaterial
-                            color={color}
-                            roughness={0.85}
-                            transparent
-                            opacity={0.55}
-                        />
-                    </mesh>
+                    <mesh
+                        key={i}
+                        rotation-y={(i * Math.PI) / 4}
+                        geometry={boxGeometry(
+                            radius * 2.35,
+                            length * 0.92,
+                            0.04,
+                        )}
+                        material={sharedMaterial(
+                            `bristle:${color}`,
+                            () =>
+                                new MeshStandardMaterial({
+                                    color,
+                                    roughness: 0.85,
+                                    transparent: true,
+                                    opacity: 0.55,
+                                }),
+                        )}
+                    />
                 ))}
             </group>
         </group>
@@ -370,19 +497,41 @@ function CurtainFlaps({
                     key={i}
                     position={[(i - (count - 1) / 2) * flapWidth * 1.05, 0, 0]}
                 >
-                    <mesh position={[0, -height * 0.36, 0]} castShadow>
-                        <boxGeometry
-                            args={[flapWidth * 0.82, height * 0.72, 0.03]}
-                        />
-                        <meshStandardMaterial
-                            color={i % 2 === 0 ? '#1d4ed8' : '#3b82f6'}
-                            roughness={0.85}
-                            side={DoubleSide}
-                        />
-                    </mesh>
+                    <mesh
+                        position={[0, -height * 0.36, 0]}
+                        castShadow
+                        geometry={boxGeometry(
+                            flapWidth * 0.82,
+                            height * 0.72,
+                            0.03,
+                        )}
+                        material={sharedMaterial(
+                            `flap:${i % 2}`,
+                            () =>
+                                new MeshStandardMaterial({
+                                    color:
+                                        i % 2 === 0 ? '#1d4ed8' : '#3b82f6',
+                                    roughness: 0.85,
+                                    side: DoubleSide,
+                                }),
+                        )}
+                    />
                 </group>
             ))}
         </group>
+    );
+}
+
+function signMaterial(texture: CanvasTexture) {
+    return sharedMaterial(
+        `carwash-sign:${texture.uuid}`,
+        () =>
+            new MeshStandardMaterial({
+                map: texture,
+                emissive: '#7dd3fc',
+                emissiveIntensity: 0.25,
+                emissiveMap: texture,
+            }),
     );
 }
 
@@ -395,7 +544,6 @@ export function CarwashStation({ carwash }: { carwash: CarwashConfig }) {
     const width = carwash.width ?? DEFAULT_WASH_WIDTH;
     const height = carwash.height ?? DEFAULT_WASH_HEIGHT;
     const length = carwash.length ?? DEFAULT_WASH_LENGTH;
-    const signTexture = carwashSignTexture();
 
     const wallX = width / 2 + WALL_THICKNESS / 2;
     const roofY = height + 0.225;
@@ -430,23 +578,38 @@ export function CarwashStation({ carwash }: { carwash: CarwashConfig }) {
                         position={[x, height / 2, 0]}
                         castShadow
                         receiveShadow
-                    >
-                        <boxGeometry args={[WALL_THICKNESS, height, length]} />
-                        <meshStandardMaterial
-                            color="#b6c2cc"
-                            roughness={0.6}
-                            metalness={0.2}
-                        />
-                    </mesh>
+                        geometry={boxGeometry(WALL_THICKNESS, height, length)}
+                        material={sharedMaterial(
+                            'wash-wall',
+                            () =>
+                                new MeshStandardMaterial({
+                                    color: '#b6c2cc',
+                                    roughness: 0.6,
+                                    metalness: 0.2,
+                                }),
+                        )}
+                    />
                 ))}
 
                 {/* Roof slab. */}
-                <mesh position={[0, roofY, 0]} castShadow receiveShadow>
-                    <boxGeometry
-                        args={[width + WALL_THICKNESS * 2, 0.45, length]}
-                    />
-                    <meshStandardMaterial color="#64707c" roughness={0.8} />
-                </mesh>
+                <mesh
+                    position={[0, roofY, 0]}
+                    castShadow
+                    receiveShadow
+                    geometry={boxGeometry(
+                        width + WALL_THICKNESS * 2,
+                        0.45,
+                        length,
+                    )}
+                    material={sharedMaterial(
+                        'wash-roof',
+                        () =>
+                            new MeshStandardMaterial({
+                                color: '#64707c',
+                                roughness: 0.8,
+                            }),
+                    )}
+                />
             </RigidBody>
 
             {/* Wet apron under the tunnel. */}
@@ -454,14 +617,17 @@ export function CarwashStation({ carwash }: { carwash: CarwashConfig }) {
                 position={[0, 0.008, 0]}
                 rotation-x={-Math.PI / 2}
                 receiveShadow
-            >
-                <planeGeometry args={[width + 2.4, length + 2.4]} />
-                <meshStandardMaterial
-                    color="#39424a"
-                    roughness={0.35}
-                    metalness={0.1}
-                />
-            </mesh>
+                geometry={planeGeometry(width + 2.4, length + 2.4)}
+                material={sharedMaterial(
+                    'wash-apron',
+                    () =>
+                        new MeshStandardMaterial({
+                            color: '#39424a',
+                            roughness: 0.35,
+                            metalness: 0.1,
+                        }),
+                )}
+            />
 
             {/* Illuminated signs over both mouths. */}
             {[1, -1].map((side) => (
@@ -469,15 +635,9 @@ export function CarwashStation({ carwash }: { carwash: CarwashConfig }) {
                     key={side}
                     position={[0, height + 1.05, side * (length / 2 + 0.02)]}
                     rotation-y={side === 1 ? 0 : Math.PI}
-                >
-                    <planeGeometry args={[width + 1.4, 1.15]} />
-                    <meshStandardMaterial
-                        map={signTexture}
-                        emissive="#7dd3fc"
-                        emissiveIntensity={0.25}
-                        emissiveMap={signTexture}
-                    />
-                </mesh>
+                    geometry={planeGeometry(width + 1.4, 1.15)}
+                    material={signMaterial(carwashSignTexture())}
+                />
             ))}
 
             {/* Entry pair of vertical brushes, then the overhead roller. */}

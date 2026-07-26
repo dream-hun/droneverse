@@ -43,6 +43,15 @@ use App\Models\Challenge;
  * determined client can always describe a plausible one. Every check below
  * is therefore built to only ever move a result against the submitter, so
  * that being wrong about an honest pilot is not possible.
+ *
+ * Every measurement here is a sweep over the whole path, and the path is
+ * the largest thing a request carries — up to
+ * {@see \App\Http\Requests\StoreChallengeAttemptRequest} four thousand
+ * samples. So the path is unpacked once into flat coordinate lists
+ * {@see self::handle()} and the geometry below reads those, rather than
+ * re-walking arrays of associative samples per obstacle, per waypoint and
+ * per photo. Nothing about what is measured changes; it is the same
+ * geometry over a cheaper representation of the same points.
  */
 final class ReconstructRunTelemetry
 {
@@ -104,7 +113,16 @@ final class ReconstructRunTelemetry
     {
         $criteria = $challenge->success_criteria;
         $environment = $challenge->environment;
-        $path = $run['path'];
+
+        // One pass over the submitted samples, after which nothing below
+        // touches the associative form again. The values arrive already cast
+        // by {@see \App\Http\Requests\StoreChallengeAttemptRequest::run()},
+        // which is the contract this method's signature states.
+        $xs = array_column($run['path'], 'x');
+        $ys = array_column($run['path'], 'y');
+        $zs = array_column($run['path'], 'z');
+        $ts = array_column($run['path'], 't');
+        $samples = count($xs);
 
         $waypoints = $this->waypointsFrom($criteria);
         $photoTargets = $this->photoTargetsFrom($criteria);
@@ -113,21 +131,21 @@ final class ReconstructRunTelemetry
         $maxSeconds = (float) $criteria['max_time_seconds'];
 
         $elapsed = max(
-            $this->elapsedSeconds($path),
-            $this->flightTimeFloor($path),
+            $samples === 0 ? 0.0 : (float) $ts[$samples - 1],
+            $this->flightTimeFloor($xs, $ys, $zs, $samples),
         );
-        $photos = $this->photosTakenFromThePath($run['photos'], $path);
+        $photos = $this->photosTakenFromThePath($run['photos'], $xs, $ys, $zs, $samples);
         $photoTargetsHit = $this->photoTargetsHit($photos, $photoTargets);
 
         return [
-            'waypointsHit' => $this->waypointsHit($path, $waypoints),
+            'waypointsHit' => $this->waypointsHit($xs, $ys, $zs, $samples, $waypoints),
             'waypointsTotal' => count($waypoints),
             'collisions' => max(
                 $run['collisions'],
-                $this->floorCollisions($path, $environment),
+                $this->floorCollisions($xs, $ys, $zs, $samples, $environment),
             ),
-            'maxAltitude' => $this->maxAltitude($path),
-            'landed' => $this->landed($path),
+            'maxAltitude' => $ys === [] ? 0.0 : max($ys),
+            'landed' => $samples !== 0 && $ys[$samples - 1] <= self::REST_HEIGHT + self::LANDING_EPSILON,
             'elapsedSeconds' => $elapsed,
             'timedOut' => $elapsed >= $maxSeconds,
             'photosTaken' => count($photos),
@@ -135,7 +153,7 @@ final class ReconstructRunTelemetry
             'photoTargetsTotal' => count($photoTargets),
             'photosMissing' => max(0, $minPhotos - count($photos)),
             'washRequired' => $washRequired,
-            'washed' => $washRequired && $this->washed($path, $environment),
+            'washed' => $washRequired && $this->washed($xs, $ys, $zs, $samples, $environment),
         ];
     }
 
@@ -173,14 +191,6 @@ final class ReconstructRunTelemetry
     }
 
     /**
-     * @param  array<int, array{t: float, x: float, y: float, z: float}>  $path
-     */
-    private function elapsedSeconds(array $path): float
-    {
-        return $path === [] ? 0.0 : (float) end($path)['t'];
-    }
-
-    /**
      * The least time the airframe needs to fly the submitted path.
      *
      * The clock is the client's, and a run that claims to have covered the
@@ -192,53 +202,40 @@ final class ReconstructRunTelemetry
      * Only ever raises the elapsed time, so an honest run keeps its own
      * clock: flying inside the envelope is what the envelope means.
      *
-     * @param  array<int, array{t: float, x: float, y: float, z: float}>  $path
+     * @param  array<int, float>  $xs
+     * @param  array<int, float>  $ys
+     * @param  array<int, float>  $zs
      */
-    private function flightTimeFloor(array $path): float
+    private function flightTimeFloor(array $xs, array $ys, array $zs, int $samples): float
     {
-        $seconds = 0.0;
+        if ($samples < 2) {
+            return 0.0;
+        }
 
-        for ($i = 1, $samples = count($path); $i < $samples; $i++) {
-            $horizontal = sqrt(
-                ($path[$i]['x'] - $path[$i - 1]['x']) ** 2
-                + ($path[$i]['z'] - $path[$i - 1]['z']) ** 2
-            );
-            $vertical = abs($path[$i]['y'] - $path[$i - 1]['y']);
+        $seconds = 0.0;
+        $previousX = $xs[0];
+        $previousY = $ys[0];
+        $previousZ = $zs[0];
+
+        for ($i = 1; $i < $samples; $i++) {
+            $x = $xs[$i];
+            $y = $ys[$i];
+            $z = $zs[$i];
+
+            $dx = $x - $previousX;
+            $dz = $z - $previousZ;
 
             $seconds += max(
-                $horizontal / self::MAX_HORIZONTAL_SPEED,
-                $vertical / self::MAX_VERTICAL_SPEED,
+                sqrt($dx * $dx + $dz * $dz) / self::MAX_HORIZONTAL_SPEED,
+                abs($y - $previousY) / self::MAX_VERTICAL_SPEED,
             );
+
+            $previousX = $x;
+            $previousY = $y;
+            $previousZ = $z;
         }
 
         return $seconds;
-    }
-
-    /**
-     * @param  array<int, array{t: float, x: float, y: float, z: float}>  $path
-     */
-    private function maxAltitude(array $path): float
-    {
-        return $path === [] ? 0.0 : max(array_column($path, 'y'));
-    }
-
-    /**
-     * Whether the drone finished the run on the ground.
-     *
-     * The simulator's own `landed` flag is set when a `land` command runs to
-     * completion, which always leaves the airframe resting on the pad — so
-     * the final sample's height answers the same question without taking the
-     * client's word for it.
-     *
-     * @param  array<int, array{t: float, x: float, y: float, z: float}>  $path
-     */
-    private function landed(array $path): bool
-    {
-        if ($path === []) {
-            return false;
-        }
-
-        return (float) end($path)['y'] <= self::REST_HEIGHT + self::LANDING_EPSILON;
     }
 
     /**
@@ -251,66 +248,70 @@ final class ReconstructRunTelemetry
      * crossing that a point-by-point test would miss and wrongly fail an
      * honest pilot for.
      *
-     * @param  array<int, array{t: float, x: float, y: float, z: float}>  $path
+     * @param  array<int, float>  $xs
+     * @param  array<int, float>  $ys
+     * @param  array<int, float>  $zs
      * @param  array<int, array{x: float, y: float, z: float, radius: float}>  $waypoints
      */
-    private function waypointsHit(array $path, array $waypoints): int
+    private function waypointsHit(array $xs, array $ys, array $zs, int $samples, array $waypoints): int
     {
-        if ($waypoints === [] || count($path) < 2) {
+        $total = count($waypoints);
+
+        if ($total === 0 || $samples < 2) {
             return 0;
         }
 
-        $next = 0;
+        // Squared radii, so the segment test never has to take a root.
+        $radii = [];
 
-        for ($i = 1, $samples = count($path); $i < $samples; $i++) {
-            while ($next < count($waypoints)) {
+        foreach ($waypoints as $index => $waypoint) {
+            $radii[$index] = $waypoint['radius'] * $waypoint['radius'];
+        }
+
+        $next = 0;
+        $fromX = $xs[0];
+        $fromY = $ys[0];
+        $fromZ = $zs[0];
+
+        for ($i = 1; $i < $samples && $next < $total; $i++) {
+            $toX = $xs[$i];
+            $toY = $ys[$i];
+            $toZ = $zs[$i];
+
+            $dx = $toX - $fromX;
+            $dy = $toY - $fromY;
+            $dz = $toZ - $fromZ;
+            $lengthSquared = $dx * $dx + $dy * $dy + $dz * $dz;
+
+            while ($next < $total) {
                 $waypoint = $waypoints[$next];
 
-                $distance = $this->segmentPointDistance(
-                    $path[$i - 1],
-                    $path[$i],
-                    $waypoint,
-                );
+                // Closest approach along the segment to the waypoint centre.
+                $t = $lengthSquared <= 1e-9
+                    ? 0.0
+                    : max(0.0, min(1.0, (
+                        ($waypoint['x'] - $fromX) * $dx
+                        + ($waypoint['y'] - $fromY) * $dy
+                        + ($waypoint['z'] - $fromZ) * $dz
+                    ) / $lengthSquared));
 
-                if ($distance > $waypoint['radius']) {
+                $ex = $fromX + $t * $dx - $waypoint['x'];
+                $ey = $fromY + $t * $dy - $waypoint['y'];
+                $ez = $fromZ + $t * $dz - $waypoint['z'];
+
+                if ($ex * $ex + $ey * $ey + $ez * $ez > $radii[$next]) {
                     break;
                 }
 
                 $next++;
             }
+
+            $fromX = $toX;
+            $fromY = $toY;
+            $fromZ = $toZ;
         }
 
         return $next;
-    }
-
-    /**
-     * Shortest distance from a point to the segment between two samples.
-     *
-     * @param  array{x: float, y: float, z: float}  $from
-     * @param  array{x: float, y: float, z: float}  $to
-     * @param  array{x: float, y: float, z: float}  $point
-     */
-    private function segmentPointDistance(array $from, array $to, array $point): float
-    {
-        $dx = $to['x'] - $from['x'];
-        $dy = $to['y'] - $from['y'];
-        $dz = $to['z'] - $from['z'];
-
-        $lengthSquared = $dx ** 2 + $dy ** 2 + $dz ** 2;
-
-        $t = $lengthSquared <= 1e-9
-            ? 0.0
-            : max(0.0, min(1.0, (
-                ($point['x'] - $from['x']) * $dx
-                + ($point['y'] - $from['y']) * $dy
-                + ($point['z'] - $from['z']) * $dz
-            ) / $lengthSquared));
-
-        return sqrt(
-            ($from['x'] + $t * $dx - $point['x']) ** 2
-            + ($from['y'] + $t * $dy - $point['y']) ** 2
-            + ($from['z'] + $t * $dz - $point['z']) ** 2
-        );
     }
 
     /**
@@ -324,29 +325,52 @@ final class ReconstructRunTelemetry
      * the same flying as everything else.
      *
      * @param  array<int, array{x: float, y: float, z: float}>  $photos
-     * @param  array<int, array{t: float, x: float, y: float, z: float}>  $path
+     * @param  array<int, float>  $xs
+     * @param  array<int, float>  $ys
+     * @param  array<int, float>  $zs
      * @return array<int, array{x: float, y: float, z: float}>
      */
-    private function photosTakenFromThePath(array $photos, array $path): array
+    private function photosTakenFromThePath(array $photos, array $xs, array $ys, array $zs, int $samples): array
     {
-        return array_values(array_filter(
-            $photos,
-            function (array $photo) use ($path): bool {
-                foreach ($path as $sample) {
-                    $distance = sqrt(
-                        ($photo['x'] - $sample['x']) ** 2
-                        + ($photo['y'] - $sample['y']) ** 2
-                        + ($photo['z'] - $sample['z']) ** 2
-                    );
+        $radius = self::PHOTO_CORROBORATION_RADIUS;
+        $radiusSquared = $radius * $radius;
+        $corroborated = [];
 
-                    if ($distance <= self::PHOTO_CORROBORATION_RADIUS) {
-                        return true;
-                    }
+        foreach ($photos as $photo) {
+            $px = (float) $photo['x'];
+            $py = (float) $photo['y'];
+            $pz = (float) $photo['z'];
+
+            for ($i = 0; $i < $samples; $i++) {
+                // Cheapest rejection first: a sample further than the radius
+                // on any one axis cannot be within it in three.
+                $dx = $xs[$i] - $px;
+
+                if ($dx > $radius || $dx < -$radius) {
+                    continue;
                 }
 
-                return false;
-            },
-        ));
+                $dy = $ys[$i] - $py;
+
+                if ($dy > $radius || $dy < -$radius) {
+                    continue;
+                }
+
+                $dz = $zs[$i] - $pz;
+
+                if ($dz > $radius || $dz < -$radius) {
+                    continue;
+                }
+
+                if ($dx * $dx + $dy * $dy + $dz * $dz <= $radiusSquared) {
+                    $corroborated[] = ['x' => $px, 'y' => $py, 'z' => $pz];
+
+                    break;
+                }
+            }
+        }
+
+        return $corroborated;
     }
 
     /**
@@ -363,13 +387,13 @@ final class ReconstructRunTelemetry
         $hit = 0;
 
         foreach ($targets as $target) {
-            foreach ($photos as $photo) {
-                $distance = sqrt(
-                    ($photo['x'] - $target['x']) ** 2
-                    + ($photo['z'] - $target['z']) ** 2
-                );
+            $radiusSquared = $target['radius'] * $target['radius'];
 
-                if ($distance <= $target['radius']) {
+            foreach ($photos as $photo) {
+                $dx = $photo['x'] - $target['x'];
+                $dz = $photo['z'] - $target['z'];
+
+                if ($dx * $dx + $dz * $dz <= $radiusSquared) {
                     $hit++;
 
                     break;
@@ -387,10 +411,12 @@ final class ReconstructRunTelemetry
      * same test works here: rotate each sample into the tunnel's local frame
      * and check that the path was inside the opening at both ends.
      *
-     * @param  array<int, array{t: float, x: float, y: float, z: float}>  $path
+     * @param  array<int, float>  $xs
+     * @param  array<int, float>  $ys
+     * @param  array<int, float>  $zs
      * @param  array<string, mixed>  $environment
      */
-    private function washed(array $path, array $environment): bool
+    private function washed(array $xs, array $ys, array $zs, int $samples, array $environment): bool
     {
         $carwash = $environment['carwash'] ?? null;
 
@@ -398,37 +424,56 @@ final class ReconstructRunTelemetry
             return false;
         }
 
-        $width = (float) ($carwash['width'] ?? self::DEFAULT_WASH_WIDTH);
+        $halfWidth = ((float) ($carwash['width'] ?? self::DEFAULT_WASH_WIDTH)) / 2;
         $height = (float) ($carwash['height'] ?? self::DEFAULT_WASH_HEIGHT);
         $length = (float) ($carwash['length'] ?? self::DEFAULT_WASH_LENGTH);
         $rotation = (float) ($carwash['rotationY'] ?? 0);
         $entryZ = $length / 2 - self::WASH_SENSOR_INSET;
+        $inset = self::WASH_SENSOR_INSET;
+
+        // The tunnel does not move, so its rotation is resolved once rather
+        // than once per sample.
+        $cos = cos($rotation);
+        $sin = sin($rotation);
+        $originX = (float) $carwash['x'];
+        $originZ = (float) $carwash['z'];
 
         $enteredFront = false;
         $enteredBack = false;
 
-        foreach ($path as $sample) {
-            [$localX, $localZ] = $this->toLocal(
-                $sample['x'] - (float) $carwash['x'],
-                $sample['z'] - (float) $carwash['z'],
-                $rotation,
-            );
+        for ($i = 0; $i < $samples; $i++) {
+            $y = $ys[$i];
 
-            $insideOpening = abs($localX) <= $width / 2
-                && $sample['y'] >= 0
-                && $sample['y'] <= $height;
+            if ($y < 0 || $y > $height) {
+                continue;
+            }
 
-            if (! $insideOpening) {
+            $dx = $xs[$i] - $originX;
+            $dz = $zs[$i] - $originZ;
+
+            $localX = $dx * $cos - $dz * $sin;
+
+            if ($localX > $halfWidth || $localX < -$halfWidth) {
                 continue;
             }
 
             // A sample-rate-tolerant band around each sensor plane.
-            if (abs($localZ - $entryZ) <= self::WASH_SENSOR_INSET) {
+            $localZ = $dx * $sin + $dz * $cos;
+
+            if (abs($localZ - $entryZ) <= $inset) {
                 $enteredFront = true;
+
+                if ($enteredBack) {
+                    return true;
+                }
             }
 
-            if (abs($localZ + $entryZ) <= self::WASH_SENSOR_INSET) {
+            if (abs($localZ + $entryZ) <= $inset) {
                 $enteredBack = true;
+
+                if ($enteredFront) {
+                    return true;
+                }
             }
         }
 
@@ -452,42 +497,121 @@ final class ReconstructRunTelemetry
      * path cheap — while an honest run, sampled every few centimetres of
      * travel, cannot tell the difference.
      *
-     * @param  array<int, array{t: float, x: float, y: float, z: float}>  $path
+     * This is the most expensive thing the class does — every obstacle
+     * against every segment — so each obstacle is first tested against the
+     * bounding box of the whole path. A mission's obstacles are spread
+     * across the map and a flight visits a corner of it, so most obstacles
+     * are settled by that one comparison and never see the sweep at all.
+     * The rejection is exact rather than heuristic: an obstacle whose
+     * world-space box misses the path's own box cannot be entered by any
+     * segment of it.
+     *
+     * @param  array<int, float>  $xs
+     * @param  array<int, float>  $ys
+     * @param  array<int, float>  $zs
      * @param  array<string, mixed>  $environment
      */
-    private function floorCollisions(array $path, array $environment): int
+    private function floorCollisions(array $xs, array $ys, array $zs, int $samples, array $environment): int
     {
         $obstacles = $environment['obstacles'] ?? [];
+
+        if ($obstacles === [] || $xs === [] || $ys === [] || $zs === []) {
+            return 0;
+        }
+
+        $pathMinX = min($xs);
+        $pathMaxX = max($xs);
+        $pathMinY = min($ys);
+        $pathMaxY = max($ys);
+        $pathMinZ = min($zs);
+        $pathMaxZ = max($zs);
+
         $strikes = 0;
 
         foreach ($obstacles as $obstacle) {
-            $half = [
-                'x' => ((float) ($obstacle['sx'] ?? ($obstacle['radius'] ?? 0.5) * 2)) / 2 - self::INTRUSION_MARGIN,
-                'y' => ((float) ($obstacle['sy'] ?? $obstacle['height'] ?? 1)) / 2 - self::INTRUSION_MARGIN,
-                'z' => ((float) ($obstacle['sz'] ?? ($obstacle['radius'] ?? 0.5) * 2)) / 2 - self::INTRUSION_MARGIN,
-            ];
+            $halfX = ((float) ($obstacle['sx'] ?? ($obstacle['radius'] ?? 0.5) * 2)) / 2 - self::INTRUSION_MARGIN;
+            $halfY = ((float) ($obstacle['sy'] ?? $obstacle['height'] ?? 1)) / 2 - self::INTRUSION_MARGIN;
+            $halfZ = ((float) ($obstacle['sz'] ?? ($obstacle['radius'] ?? 0.5) * 2)) / 2 - self::INTRUSION_MARGIN;
 
-            if ($half['x'] <= 0 || $half['y'] <= 0 || $half['z'] <= 0) {
+            if ($halfX <= 0 || $halfY <= 0 || $halfZ <= 0) {
                 continue;
             }
 
             $rotation = (float) ($obstacle['rotationY'] ?? 0);
-            $centre = [
-                'x' => (float) $obstacle['x'],
-                'y' => (float) $obstacle['y'],
-                'z' => (float) $obstacle['z'],
-            ];
+            $cos = cos($rotation);
+            $sin = sin($rotation);
+            $centreX = (float) $obstacle['x'];
+            $centreY = (float) $obstacle['y'];
+            $centreZ = (float) $obstacle['z'];
 
-            for ($i = 1, $samples = count($path); $i < $samples; $i++) {
+            // Half-extents of the Y-rotated box measured on the world axes:
+            // exact, so nothing that could be struck is discarded here.
+            $worldHalfX = abs($halfX * $cos) + abs($halfZ * $sin);
+            $worldHalfZ = abs($halfX * $sin) + abs($halfZ * $cos);
+
+            $minX = $centreX - $worldHalfX;
+            $maxX = $centreX + $worldHalfX;
+            $minY = $centreY - $halfY;
+            $maxY = $centreY + $halfY;
+            $minZ = $centreZ - $worldHalfZ;
+            $maxZ = $centreZ + $worldHalfZ;
+
+            if (
+                $maxX < $pathMinX || $minX > $pathMaxX
+                || $maxY < $pathMinY || $minY > $pathMaxY
+                || $maxZ < $pathMinZ || $minZ > $pathMaxZ
+            ) {
+                continue;
+            }
+
+            $previousX = $xs[0];
+            $previousY = $ys[0];
+            $previousZ = $zs[0];
+
+            for ($i = 1; $i < $samples; $i++) {
+                $x = $xs[$i];
+                $y = $ys[$i];
+                $z = $zs[$i];
+
+                // A segment lying wholly beyond one face of the world box
+                // cannot reach the rotated box inside it. Almost every
+                // segment of a real flight is settled right here, which is
+                // what keeps the rotation and the slab test off the hot
+                // path.
+                if (
+                    ($x > $maxX && $previousX > $maxX) || ($x < $minX && $previousX < $minX)
+                    || ($y > $maxY && $previousY > $maxY) || ($y < $minY && $previousY < $minY)
+                    || ($z > $maxZ && $previousZ > $maxZ) || ($z < $minZ && $previousZ < $minZ)
+                ) {
+                    $previousX = $x;
+                    $previousY = $y;
+                    $previousZ = $z;
+
+                    continue;
+                }
+
+                $dx = $previousX - $centreX;
+                $dz = $previousZ - $centreZ;
+                $dx2 = $x - $centreX;
+                $dz2 = $z - $centreZ;
+
                 if ($this->segmentEntersBox(
-                    $this->intoBoxFrame($path[$i - 1], $centre, $rotation),
-                    $this->intoBoxFrame($path[$i], $centre, $rotation),
-                    $half,
+                    $dx * $cos - $dz * $sin,
+                    $previousY - $centreY,
+                    $dx * $sin + $dz * $cos,
+                    $dx2 * $cos - $dz2 * $sin,
+                    $y - $centreY,
+                    $dx2 * $sin + $dz2 * $cos,
+                    $halfX, $halfY, $halfZ,
                 )) {
                     $strikes++;
 
                     break;
                 }
+
+                $previousX = $x;
+                $previousY = $y;
+                $previousZ = $z;
             }
         }
 
@@ -495,82 +619,98 @@ final class ReconstructRunTelemetry
     }
 
     /**
-     * A world point in the box's own frame, where it is axis-aligned.
-     *
-     * @param  array{x: float, y: float, z: float}  $point
-     * @param  array{x: float, y: float, z: float}  $centre
-     * @return array{x: float, y: float, z: float}
-     */
-    private function intoBoxFrame(array $point, array $centre, float $rotation): array
-    {
-        [$localX, $localZ] = $this->toLocal(
-            $point['x'] - $centre['x'],
-            $point['z'] - $centre['z'],
-            $rotation,
-        );
-
-        return ['x' => $localX, 'y' => $point['y'] - $centre['y'], 'z' => $localZ];
-    }
-
-    /**
      * Whether the segment between two local-frame points enters the box.
      *
      * The slab test: clip the segment against each pair of opposing faces in
-     * turn and see whether any of it survives.
-     *
-     * @param  array{x: float, y: float, z: float}  $from
-     * @param  array{x: float, y: float, z: float}  $to
-     * @param  array{x: float, y: float, z: float}  $half
+     * turn and see whether any of it survives. Written out per axis rather
+     * than looped, because this runs once per path segment per obstacle and
+     * the loop's own bookkeeping cost more than the arithmetic in it.
      */
-    private function segmentEntersBox(array $from, array $to, array $half): bool
-    {
+    private function segmentEntersBox(
+        float $fromX, float $fromY, float $fromZ,
+        float $toX, float $toY, float $toZ,
+        float $halfX, float $halfY, float $halfZ,
+    ): bool {
         $enter = 0.0;
         $exit = 1.0;
 
-        foreach (['x', 'y', 'z'] as $axis) {
-            $direction = $to[$axis] - $from[$axis];
+        $direction = $toX - $fromX;
 
-            if (abs($direction) < 1e-9) {
-                // Parallel to this pair of faces: either always between them
-                // or never.
-                if (abs($from[$axis]) > $half[$axis]) {
-                    return false;
-                }
+        if ($direction > -1e-9 && $direction < 1e-9) {
+            // Parallel to this pair of faces: either always between them or
+            // never.
+            if ($fromX > $halfX || $fromX < -$halfX) {
+                return false;
+            }
+        } else {
+            $first = (-$halfX - $fromX) / $direction;
+            $second = ($halfX - $fromX) / $direction;
 
-                continue;
+            if ($first > $second) {
+                [$first, $second] = [$second, $first];
             }
 
-            $first = (-$half[$axis] - $from[$axis]) / $direction;
-            $second = ($half[$axis] - $from[$axis]) / $direction;
+            if ($first > $enter) {
+                $enter = $first;
+            }
 
-            $enter = max($enter, min($first, $second));
-            $exit = min($exit, max($first, $second));
+            if ($second < $exit) {
+                $exit = $second;
+            }
 
             if ($enter > $exit) {
                 return false;
             }
         }
 
-        return true;
-    }
+        $direction = $toY - $fromY;
 
-    /**
-     * Rotate a world-space offset into the frame of an object turned
-     * `rotationY` about the Y axis.
-     *
-     * The inverse of the transform three.js applies to `rotation-y`, which
-     * is what places these objects in the scene. Shared so the wash tunnel
-     * and the obstacles cannot end up disagreeing about which way is which
-     * — they did while each carried its own copy, and a tunnel turned by
-     * anything other than a right angle failed an honest pass through it.
-     *
-     * @return array{0: float, 1: float}
-     */
-    private function toLocal(float $dx, float $dz, float $rotation): array
-    {
-        return [
-            $dx * cos($rotation) - $dz * sin($rotation),
-            $dx * sin($rotation) + $dz * cos($rotation),
-        ];
+        if ($direction > -1e-9 && $direction < 1e-9) {
+            if ($fromY > $halfY || $fromY < -$halfY) {
+                return false;
+            }
+        } else {
+            $first = (-$halfY - $fromY) / $direction;
+            $second = ($halfY - $fromY) / $direction;
+
+            if ($first > $second) {
+                [$first, $second] = [$second, $first];
+            }
+
+            if ($first > $enter) {
+                $enter = $first;
+            }
+
+            if ($second < $exit) {
+                $exit = $second;
+            }
+
+            if ($enter > $exit) {
+                return false;
+            }
+        }
+
+        $direction = $toZ - $fromZ;
+
+        if ($direction > -1e-9 && $direction < 1e-9) {
+            return $fromZ <= $halfZ && $fromZ >= -$halfZ;
+        }
+
+        $first = (-$halfZ - $fromZ) / $direction;
+        $second = ($halfZ - $fromZ) / $direction;
+
+        if ($first > $second) {
+            [$first, $second] = [$second, $first];
+        }
+
+        if ($first > $enter) {
+            $enter = $first;
+        }
+
+        if ($second < $exit) {
+            $exit = $second;
+        }
+
+        return $enter <= $exit;
     }
 }

@@ -76,26 +76,101 @@ function clampInt(value: number, min: number, max: number): number {
     return Math.max(min, Math.min(max, Math.round(value)));
 }
 
-function speckle(
-    context: CanvasRenderingContext2D,
-    size: number,
+/** `#rrggbb` to the three channel values, for blending in pixel space. */
+function parseHex(color: string): [number, number, number] {
+    const value = Number.parseInt(color.slice(1), 16);
+
+    return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
+}
+
+/**
+ * Scatter translucent dots over a pixel buffer.
+ *
+ * Written against the raw buffer rather than through `fillRect`, because
+ * every texture here wants tens of thousands of these and each canvas call
+ * would re-parse a fill style, re-validate the context state, and push a
+ * separate rasterizer op. The field alone asks for close to sixty thousand;
+ * done through the context that is a several-hundred-millisecond stall on
+ * the main thread, right where the simulator is trying to show its first
+ * frame. The alpha blend below is what the canvas would have done anyway.
+ */
+function speckleBuffer(
+    pixels: Uint8ClampedArray,
+    width: number,
+    height: number,
     colors: string[],
     count: number,
     maxDot: number,
     rng: () => number,
+    minAlpha = 0.03,
+    alphaRange = 0.05,
 ): void {
-    for (let i = 0; i < count; i++) {
-        context.fillStyle = colors[i % colors.length];
-        context.globalAlpha = 0.03 + rng() * 0.05;
-        context.fillRect(
-            rng() * size,
-            rng() * size,
-            1 + rng() * maxDot,
-            1 + rng() * maxDot,
-        );
-    }
+    const channels = colors.map(parseHex);
 
-    context.globalAlpha = 1;
+    for (let i = 0; i < count; i++) {
+        const [red, green, blue] = channels[i % channels.length];
+        const alpha = minAlpha + rng() * alphaRange;
+        const x = Math.floor(rng() * width);
+        const y = Math.floor(rng() * height);
+        const dot = 1 + Math.floor(rng() * maxDot);
+
+        const maxX = Math.min(x + dot, width);
+        const maxY = Math.min(y + dot, height);
+
+        for (let py = y; py < maxY; py++) {
+            let offset = (py * width + x) * 4;
+
+            for (let px = x; px < maxX; px++) {
+                pixels[offset] += (red - pixels[offset]) * alpha;
+                pixels[offset + 1] += (green - pixels[offset + 1]) * alpha;
+                pixels[offset + 2] += (blue - pixels[offset + 2]) * alpha;
+                offset += 4;
+            }
+        }
+    }
+}
+
+/**
+ * Run `paint` over the canvas's pixels directly.
+ *
+ * Reads the buffer back once, hands it over, and writes it once — so a
+ * caller that wants both pixel work and vector work (grid lines, text) does
+ * the pixel work first and then keeps drawing through the context as usual.
+ */
+function withPixels(
+    canvas: HTMLCanvasElement,
+    context: CanvasRenderingContext2D,
+    paint: (pixels: Uint8ClampedArray, width: number, height: number) => void,
+): void {
+    const image = context.getImageData(0, 0, canvas.width, canvas.height);
+    paint(image.data, canvas.width, canvas.height);
+    context.putImageData(image, 0, 0);
+}
+
+/** Tarmac size for the repeating asphalt patch under the survey grid. */
+const ASPHALT_PATCH_SIZE = 256;
+
+/** One patch of speckled tarmac, to be tiled across the flying field. */
+function asphaltPatch(): HTMLCanvasElement {
+    const [canvas, context] = createCanvas(ASPHALT_PATCH_SIZE);
+
+    context.fillStyle = '#474d55';
+    context.fillRect(0, 0, ASPHALT_PATCH_SIZE, ASPHALT_PATCH_SIZE);
+    withPixels(canvas, context, (pixels, width, height) => {
+        speckleBuffer(
+            pixels,
+            width,
+            height,
+            ['#ffffff', '#000000'],
+            Math.round((width * height) / 40),
+            2,
+            mulberry32(0xa5f4a17),
+            0.02,
+            0.045,
+        );
+    });
+
+    return canvas;
 }
 
 /**
@@ -115,19 +190,20 @@ function createFieldTexture(
         Math.round(widthMeters * pixelsPerMeter),
         Math.round(depthMeters * pixelsPerMeter),
     );
-    const rng = mulberry32(canvas.width * 73856093 + canvas.height);
-
-    context.fillStyle = '#474d55';
+    // Asphalt grain, laid down as a repeating patch rather than painted
+    // across the whole field.
+    //
+    // The grain is high-frequency noise, and the field canvas is large: at
+    // one dot per forty pixels a 64 m field wanted fifty-nine thousand of
+    // them, half a second of main-thread time spent right where the
+    // simulator is trying to show its first frame — and growing with the
+    // area of every new mission. One patch tiled over the canvas is the
+    // same asphalt to look at, costs a thirty-sixth of the dots, and now
+    // costs the same whatever size the field is. The survey grid is painted
+    // over the top afterwards, so the fill has to come first.
+    context.fillStyle =
+        context.createPattern(asphaltPatch(), 'repeat') ?? '#474d55';
     context.fillRect(0, 0, canvas.width, canvas.height);
-
-    for (let i = 0; i < (canvas.width * canvas.height) / 40; i++) {
-        context.fillStyle = rng() > 0.5 ? '#ffffff' : '#000000';
-        context.globalAlpha = 0.02 + rng() * 0.045;
-        const dot = 1 + rng() * 2;
-        context.fillRect(rng() * canvas.width, rng() * canvas.height, dot, dot);
-    }
-
-    context.globalAlpha = 1;
 
     const drawGridLines = (
         stepMeters: number,
@@ -182,14 +258,17 @@ function createGrassTexture(): CanvasTexture {
 
     context.fillStyle = '#5a6c42';
     context.fillRect(0, 0, size, size);
-    speckle(
-        context,
-        size,
-        ['#4e6038', '#647851', '#6d7d54', '#42522f'],
-        3200,
-        3,
-        mulberry32(0x6a55),
-    );
+    withPixels(canvas, context, (pixels, width, height) => {
+        speckleBuffer(
+            pixels,
+            width,
+            height,
+            ['#4e6038', '#647851', '#6d7d54', '#42522f'],
+            3200,
+            3,
+            mulberry32(0x6a55),
+        );
+    });
 
     return finishTexture(canvas);
 }
@@ -357,15 +436,34 @@ function createRoofTexture(seed: number): CanvasTexture {
     context.fillStyle = '#3b3f45';
     context.fillRect(0, 0, size, size);
 
-    for (let i = 0; i < 2600; i++) {
-        const shade = Math.floor(40 + rng() * 90);
-        context.fillStyle = `rgb(${shade}, ${shade + 4}, ${shade + 8})`;
-        context.globalAlpha = 0.25 + rng() * 0.4;
-        const dot = 1 + rng() * 2.5;
-        context.fillRect(rng() * size, rng() * size, dot, dot);
-    }
+    // Gravel. Every tower in a mission paints its own, and each grain here
+    // carries its own colour — through the context that is 2600 fill-style
+    // strings built and parsed per building, so it runs on the buffer.
+    withPixels(canvas, context, (pixels, width, height) => {
+        for (let i = 0; i < 2600; i++) {
+            const shade = Math.floor(40 + rng() * 90);
+            const alpha = 0.25 + rng() * 0.4;
+            const x = Math.floor(rng() * width);
+            const y = Math.floor(rng() * height);
+            const dot = 1 + Math.floor(rng() * 2.5);
 
-    context.globalAlpha = 1;
+            const maxX = Math.min(x + dot, width);
+            const maxY = Math.min(y + dot, height);
+
+            for (let py = y; py < maxY; py++) {
+                let offset = (py * width + x) * 4;
+
+                for (let px = x; px < maxX; px++) {
+                    pixels[offset] += (shade - pixels[offset]) * alpha;
+                    pixels[offset + 1] +=
+                        (shade + 4 - pixels[offset + 1]) * alpha;
+                    pixels[offset + 2] +=
+                        (shade + 8 - pixels[offset + 2]) * alpha;
+                    offset += 4;
+                }
+            }
+        }
+    });
 
     // Faint seams between roofing panels.
     context.strokeStyle = 'rgba(20, 22, 26, 0.5)';
@@ -402,7 +500,17 @@ function createCrateTexture(): CanvasTexture {
         context.fillRect(0, i * plankH + 2, size, plankH - 4);
     }
 
-    speckle(context, size, ['#7a5320', '#c79355', '#5f4018'], 1800, 3, rng);
+    withPixels(canvas, context, (pixels, width, height) => {
+        speckleBuffer(
+            pixels,
+            width,
+            height,
+            ['#7a5320', '#c79355', '#5f4018'],
+            1800,
+            3,
+            rng,
+        );
+    });
 
     // Corner brackets and a diagonal cross-brace.
     context.strokeStyle = '#5f4a2b';
@@ -436,14 +544,17 @@ function createConcreteTexture(): CanvasTexture {
 
     context.fillStyle = '#9ca1a6';
     context.fillRect(0, 0, size, size);
-    speckle(
-        context,
-        size,
-        ['#b4b8bc', '#82878c', '#6f7377'],
-        2400,
-        3,
-        mulberry32(0xc0c2e7e),
-    );
+    withPixels(canvas, context, (pixels, width, height) => {
+        speckleBuffer(
+            pixels,
+            width,
+            height,
+            ['#b4b8bc', '#82878c', '#6f7377'],
+            2400,
+            3,
+            mulberry32(0xc0c2e7e),
+        );
+    });
 
     // Form-panel seams and tie-rod holes.
     context.strokeStyle = 'rgba(60, 64, 68, 0.45)';

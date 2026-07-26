@@ -11,8 +11,8 @@ import { useState, useSyncExternalStore } from 'react';
 import { BriefingPanel } from '@/components/simulator/briefing-panel';
 import { CodeEditor } from '@/components/simulator/code-editor';
 import { ConsolePanel } from '@/components/simulator/console-panel';
+import { LazySimulatorCanvas } from '@/components/simulator/lazy-simulator-canvas';
 import { ResultModal } from '@/components/simulator/result-modal';
-import { SimulatorCanvas } from '@/components/simulator/simulator-canvas';
 import { SolutionPanel } from '@/components/simulator/solution-panel';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -185,7 +185,7 @@ export default function Play({
                 </div>
 
                 <div className="min-w-0 overflow-hidden rounded-xl border">
-                    <SimulatorCanvas
+                    <LazySimulatorCanvas
                         session={session}
                         environment={challenge.environment}
                         successCriteria={challenge.successCriteria}

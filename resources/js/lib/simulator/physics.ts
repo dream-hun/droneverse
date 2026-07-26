@@ -1,4 +1,5 @@
 import type { ActiveCommand, DroneCommand, Vector3 } from './commands';
+import { clamp } from './math';
 
 /**
  * Flight model for a prosumer GPS quadcopter in "Normal" mode.
@@ -79,10 +80,6 @@ function normalizeAngle(angle: number): number {
     }
 
     return normalized;
-}
-
-function clamp(value: number, min: number, max: number): number {
-    return Math.min(max, Math.max(min, value));
 }
 
 /**

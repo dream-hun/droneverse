@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\RecordChallengeAttempt;
-use App\Enums\ChallengeStatus;
 use App\Http\Requests\StoreChallengeAttemptRequest;
+use App\Http\Resources\ChallengeDetailResource;
+use App\Http\Resources\ChallengeProgressResource;
+use App\Http\Resources\ChallengeSolutionResource;
 use App\Models\Challenge;
 use App\Models\Course;
+use App\Models\User;
+use App\Models\UserChallengeProgress;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -21,46 +25,18 @@ final class ChallengeController extends Controller
      */
     public function show(Request $request, Course $course, Challenge $challenge): Response
     {
-        abort_unless($course->is_published && $challenge->is_published, 404);
-        abort_unless($challenge->course_id === $course->id, 404);
+        abort_unless($challenge->isPlayableIn($course), 404);
 
-        $progress = $request->user()
-            ->challengeProgress()
-            ->whereBelongsTo($challenge)
-            ->first();
-
-        // The reference solution is withheld until the pilot has earned it,
-        // so the source itself never reaches the browser while it is locked.
-        $solutionUnlocked = $challenge->solutionUnlockedBy($progress);
+        $progress = $this->progressFor($request->user(), $challenge);
 
         return Inertia::render('challenges/play', [
             'course' => [
                 'title' => $course->title,
                 'slug' => $course->slug,
             ],
-            'challenge' => [
-                'title' => $challenge->title,
-                'slug' => $challenge->slug,
-                'briefing' => $challenge->briefing,
-                'difficulty' => $challenge->difficulty,
-                'environment' => $challenge->environment,
-                'successCriteria' => $challenge->success_criteria,
-                'maxScore' => $challenge->max_score,
-                'starterCode' => $challenge->starter_code,
-            ],
-            'progress' => [
-                'status' => $progress->status ?? ChallengeStatus::NotStarted,
-                'bestScore' => $progress->best_score ?? 0,
-                'stars' => $progress->stars ?? 0,
-                'attempts' => $progress->attempts ?? 0,
-                'savedCode' => $progress->last_code ?? $challenge->starter_code,
-            ],
-            'solution' => [
-                'exists' => $challenge->solution_code !== null,
-                'unlocked' => $solutionUnlocked,
-                'code' => $solutionUnlocked ? $challenge->solution_code : null,
-                'attemptsRequired' => Challenge::ATTEMPTS_BEFORE_SOLUTION,
-            ],
+            'challenge' => ChallengeDetailResource::one($challenge),
+            'progress' => ChallengeProgressResource::one($challenge, $progress),
+            'solution' => ChallengeSolutionResource::one($challenge, $progress),
         ]);
     }
 
@@ -73,8 +49,7 @@ final class ChallengeController extends Controller
         Challenge $challenge,
         RecordChallengeAttempt $recordAttempt,
     ): JsonResponse {
-        abort_unless($course->is_published && $challenge->is_published, 404);
-        abort_unless($challenge->course_id === $course->id, 404);
+        abort_unless($challenge->isPlayableIn($course), 404);
 
         $progress = $recordAttempt->handle($request->user(), $challenge, $request->attempt());
 
@@ -84,5 +59,15 @@ final class ChallengeController extends Controller
             'stars' => $progress->stars,
             'attempts' => $progress->attempts,
         ]);
+    }
+
+    /**
+     * The viewer's progress row for this mission, if they have flown it.
+     */
+    private function progressFor(?User $user, Challenge $challenge): ?UserChallengeProgress
+    {
+        return $user?->challengeProgress()
+            ->whereBelongsTo($challenge)
+            ->first();
     }
 }

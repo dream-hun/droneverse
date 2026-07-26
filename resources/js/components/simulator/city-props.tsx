@@ -5,10 +5,11 @@ import {
     CylinderCollider,
     RigidBody,
 } from '@react-three/rapier';
-import { useEffect, useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { DoubleSide } from 'three';
 import type { BufferAttribute, Group, Points } from 'three';
-import { createCarwashSignTexture } from '@/lib/simulator/textures';
+import { positionSeed, seededRng } from '@/lib/simulator/math';
+import { carwashSignTexture } from '@/lib/simulator/textures';
 import type { CarwashConfig, PropConfig } from '@/types/simulator';
 
 /**
@@ -33,23 +34,7 @@ const TIRE_COLOR = '#181a1c';
 
 /** Stable per-prop seed so colors and tree shapes never change frame to frame. */
 function propSeed(prop: PropConfig): number {
-    const x = Math.round(prop.x * 100);
-    const z = Math.round(prop.z * 100);
-
-    return Math.abs((x * 73856093) ^ (z * 19349663)) >>> 0;
-}
-
-/** Deterministic PRNG so render-time layout stays pure (React Compiler rule). */
-function seededRng(seed: number): () => number {
-    let state = seed >>> 0;
-
-    return () => {
-        state = (state + 0x6d2b79f5) | 0;
-        let t = Math.imul(state ^ (state >>> 15), 1 | state);
-        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
+    return positionSeed(prop.x, prop.z);
 }
 
 function Wheel({ position }: { position: [number, number, number] }) {
@@ -134,11 +119,7 @@ function VanVisual({ color }: { color: string }) {
                     metalness={0.15}
                 />
             </mesh>
-            <mesh
-                position={[0, 1.42, -1.98]}
-                rotation-x={-0.32}
-                castShadow
-            >
+            <mesh position={[0, 1.42, -1.98]} rotation-x={-0.32} castShadow>
                 <boxGeometry args={[1.7, 0.62, 0.06]} />
                 <meshStandardMaterial
                     color={GLASS_COLOR}
@@ -387,11 +368,7 @@ function CurtainFlaps({
             {Array.from({ length: count }, (_, i) => (
                 <group
                     key={i}
-                    position={[
-                        (i - (count - 1) / 2) * flapWidth * 1.05,
-                        0,
-                        0,
-                    ]}
+                    position={[(i - (count - 1) / 2) * flapWidth * 1.05, 0, 0]}
                 >
                     <mesh position={[0, -height * 0.36, 0]} castShadow>
                         <boxGeometry
@@ -418,9 +395,7 @@ export function CarwashStation({ carwash }: { carwash: CarwashConfig }) {
     const width = carwash.width ?? DEFAULT_WASH_WIDTH;
     const height = carwash.height ?? DEFAULT_WASH_HEIGHT;
     const length = carwash.length ?? DEFAULT_WASH_LENGTH;
-    const signTexture = useMemo(() => createCarwashSignTexture(), []);
-
-    useEffect(() => () => signTexture.dispose(), [signTexture]);
+    const signTexture = carwashSignTexture();
 
     const wallX = width / 2 + WALL_THICKNESS / 2;
     const roofY = height + 0.225;
@@ -444,11 +419,7 @@ export function CarwashStation({ carwash }: { carwash: CarwashConfig }) {
                     position={[-wallX, height / 2, 0]}
                 />
                 <CuboidCollider
-                    args={[
-                        width / 2 + WALL_THICKNESS,
-                        0.225,
-                        length / 2,
-                    ]}
+                    args={[width / 2 + WALL_THICKNESS, 0.225, length / 2]}
                     position={[0, roofY, 0]}
                 />
 
@@ -460,9 +431,7 @@ export function CarwashStation({ carwash }: { carwash: CarwashConfig }) {
                         castShadow
                         receiveShadow
                     >
-                        <boxGeometry
-                            args={[WALL_THICKNESS, height, length]}
-                        />
+                        <boxGeometry args={[WALL_THICKNESS, height, length]} />
                         <meshStandardMaterial
                             color="#b6c2cc"
                             roughness={0.6}
@@ -474,11 +443,7 @@ export function CarwashStation({ carwash }: { carwash: CarwashConfig }) {
                 {/* Roof slab. */}
                 <mesh position={[0, roofY, 0]} castShadow receiveShadow>
                     <boxGeometry
-                        args={[
-                            width + WALL_THICKNESS * 2,
-                            0.45,
-                            length,
-                        ]}
+                        args={[width + WALL_THICKNESS * 2, 0.45, length]}
                     />
                     <meshStandardMaterial color="#64707c" roughness={0.8} />
                 </mesh>

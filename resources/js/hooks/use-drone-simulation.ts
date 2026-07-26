@@ -12,6 +12,7 @@ import { droneEngine } from '@/lib/simulator/engine-audio';
 import type { FlightVisualState } from '@/lib/simulator/flight-state';
 import { resetFlightVisualState } from '@/lib/simulator/flight-state';
 import { gradeRun } from '@/lib/simulator/grader';
+import { clamp, compassDegrees, normalizeDegrees } from '@/lib/simulator/math';
 import { DronePhotoCamera } from '@/lib/simulator/photo';
 import {
     beginCommand,
@@ -34,6 +35,7 @@ import {
     advanceTelemetry,
     hasExceededTimeLimit,
 } from '@/lib/simulator/telemetry';
+import { createUploadQueue } from '@/lib/simulator/upload-queue';
 import { droneVoice } from '@/lib/simulator/voice';
 import { SimulationWorkerClient } from '@/lib/simulator/worker-client';
 import type { EnvironmentConfig, SuccessCriteria } from '@/types/simulator';
@@ -54,14 +56,6 @@ const ROTOR_SLEW_RATE = 110; // rad/s^2 spool feel
 const TILT_SMOOTHING_TAU = 0.22; // seconds
 const BATTERY_IDLE_DRAIN = 0.04; // %/s with motors idle
 const BATTERY_THROTTLE_DRAIN = 0.22; // additional %/s at full throttle
-
-function clamp(value: number, min: number, max: number): number {
-    return Math.min(max, Math.max(min, value));
-}
-
-function compassDegrees(radians: number): number {
-    return ((((-radians * 180) / Math.PI) % 360) + 360) % 360;
-}
 
 function modeLabel(
     active: ActiveCommand | null,
@@ -127,6 +121,7 @@ export function useDroneSimulation({
     const codeRef = useRef('');
     const photoCameraRef = useRef<DronePhotoCamera | null>(null);
     const washAnnouncedRef = useRef(false);
+    const uploadsRef = useRef(createUploadQueue());
 
     const appendLog = useCallback(
         (level: 'log' | 'warn' | 'error', args: unknown[]) => {
@@ -183,14 +178,17 @@ export function useDroneSimulation({
                 `Photo ${index} captured${label ? ` — "${label}"` : ''}.`,
             ]);
 
-            postJson(photoUrl, {
-                image: shot.dataUrl,
-                label: label ?? null,
-                x: capturedAt.x,
-                y: capturedAt.y,
-                z: capturedAt.z,
-                heading: compassDegrees(yaw),
-            })
+            uploadsRef.current
+                .enqueue(() =>
+                    postJson(photoUrl, {
+                        image: shot.dataUrl,
+                        label: label ?? null,
+                        x: capturedAt.x,
+                        y: capturedAt.y,
+                        z: capturedAt.z,
+                        heading: compassDegrees(yaw),
+                    }),
+                )
                 .then(() => {
                     appendLog('log', [
                         `Photo ${index} saved to your photo log.`,
@@ -564,8 +562,9 @@ export function useDroneSimulation({
                 along.x * wind.meanSpeed + gust.x,
                 along.z * wind.meanSpeed + gust.z,
             );
-            fs.windHeadingDeg =
-                ((((wind.directionRad * 180) / Math.PI) % 360) + 360) % 360;
+            fs.windHeadingDeg = normalizeDegrees(
+                (wind.directionRad * 180) / Math.PI,
+            );
         }
 
         if (!bridge.active) {

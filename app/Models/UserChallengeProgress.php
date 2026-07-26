@@ -9,10 +9,11 @@ use Carbon\CarbonInterface;
 use Database\Factories\UserChallengeProgressFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Table;
+use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use stdClass;
@@ -46,13 +47,8 @@ final class UserChallengeProgress extends Model
      */
     public static function completedCountsByCourse(User $user): Collection
     {
-        return self::query()
-            ->join('challenges', 'challenges.id', '=', 'user_challenge_progress.challenge_id')
-            ->join('courses', 'courses.id', '=', 'challenges.course_id')
-            ->where('user_challenge_progress.user_id', $user->id)
+        return self::playableFor($user)
             ->where('user_challenge_progress.status', ChallengeStatus::Completed)
-            ->where('challenges.is_published', true)
-            ->where('courses.is_published', true)
             ->selectRaw('challenges.course_id as course_id, count(*) as completed')
             ->groupBy('challenges.course_id')
             ->pluck('completed', 'course_id');
@@ -68,12 +64,7 @@ final class UserChallengeProgress extends Model
      */
     public static function statsFor(User $user): array
     {
-        $row = self::query()
-            ->join('challenges', 'challenges.id', '=', 'user_challenge_progress.challenge_id')
-            ->join('courses', 'courses.id', '=', 'challenges.course_id')
-            ->where('user_challenge_progress.user_id', $user->id)
-            ->where('challenges.is_published', true)
-            ->where('courses.is_published', true)
+        $row = self::playableFor($user)
             ->selectRaw(
                 'count(case when user_challenge_progress.status = ? then 1 end) as completed, coalesce(sum(user_challenge_progress.stars), 0) as stars',
                 [ChallengeStatus::Completed->value],
@@ -87,7 +78,7 @@ final class UserChallengeProgress extends Model
     }
 
     /**
-     * The leading pilots, best first.
+     * The leading pilots, the best first.
      *
      * Only pilots who have actually flown appear; the board is a record of
      * simulator time, not a roster of everyone who signed up.
@@ -109,6 +100,10 @@ final class UserChallengeProgress extends Model
      * pilot who fell outside {@see self::standings()} still learns where
      * they stand. Null only until they fly a mission that still counts.
      *
+     * A caller already holding a page of {@see self::standings()} should
+     * prefer the viewer's row from that page when it is present: it is
+     * identical to this one and saves re-running the ranking aggregate.
+     *
      * @return array{rank: int, name: string, points: int, stars: int, completed: int, isYou: bool}|null
      */
     public static function standingFor(User $viewer, ?Course $course = null): ?array
@@ -123,12 +118,17 @@ final class UserChallengeProgress extends Model
 
     /**
      * How many pilots the board is ranking, so a rank can be read as "of N".
+     *
+     * Counted straight off the playable set. The ranking window in
+     * {@see self::standingsQuery()} orders and numbers pilots but cannot
+     * change how many distinct ones there are, so the grouping aggregate
+     * never has to run to answer this.
      */
     public static function rankedPilotCount(?Course $course = null): int
     {
-        return DB::query()
-            ->fromSub(self::standingsQuery($course), 'standings')
-            ->count();
+        return self::inCourse(self::playable(), $course)
+            ->distinct()
+            ->count('user_challenge_progress.user_id');
     }
 
     /**
@@ -162,23 +162,63 @@ final class UserChallengeProgress extends Model
     }
 
     /**
+     * Progress rows for content that is still playable today.
+     *
+     * Every aggregate on this model reads through here, so "playable" means
+     * exactly one thing everywhere: a published challenge inside a published
+     * course. Retiring either end retires the progress from all of them at
+     * once, with no predicate left behind to drift out of step.
+     *
+     * @return EloquentBuilder<self>
+     */
+    private static function playable(): EloquentBuilder
+    {
+        return self::query()
+            ->join('challenges', 'challenges.id', '=', 'user_challenge_progress.challenge_id')
+            ->join('courses', 'courses.id', '=', 'challenges.course_id')
+            ->where('challenges.is_published', true)
+            ->where('courses.is_published', true);
+    }
+
+    /**
+     * {@see self::playable()} narrowed to one pilot.
+     *
+     * @return EloquentBuilder<self>
+     */
+    private static function playableFor(User $user): EloquentBuilder
+    {
+        return self::playable()->where('user_challenge_progress.user_id', $user->id);
+    }
+
+    /**
+     * Narrow a playable-progress query to one course, or leave it global.
+     *
+     * @param  EloquentBuilder<self>  $query
+     * @return EloquentBuilder<self>
+     */
+    private static function inCourse(EloquentBuilder $query, ?Course $course): EloquentBuilder
+    {
+        if ($course instanceof Course) {
+            $query->where('challenges.course_id', $course->id);
+        }
+
+        return $query;
+    }
+
+    /**
      * The leaderboard population, ranked and ordered.
      *
      * Points, stars and completions are summed per pilot over currently
      * playable content only, so retiring a mission retires its score too.
      * `rank()` leaves pilots level on all three metrics sharing a rank,
-     * while the row order breaks the tie in favour of whoever finished
+     * while the row order breaks the tie in favor of whoever finished
      * first. "rank" and "position" are reserved words in MySQL, hence
      * `place`.
      */
-    private static function standingsQuery(?Course $course = null): Builder
+    private static function standingsQuery(?Course $course = null): QueryBuilder
     {
-        $totals = self::query()
-            ->join('challenges', 'challenges.id', '=', 'user_challenge_progress.challenge_id')
-            ->join('courses', 'courses.id', '=', 'challenges.course_id')
+        $totals = self::inCourse(self::playable(), $course)
             ->join('users', 'users.id', '=', 'user_challenge_progress.user_id')
-            ->where('challenges.is_published', true)
-            ->where('courses.is_published', true)
             ->groupBy('users.id', 'users.name')
             ->selectRaw(
                 'users.id as user_id, users.name as name, '
@@ -188,10 +228,6 @@ final class UserChallengeProgress extends Model
                 .'max(user_challenge_progress.completed_at) as finished_at',
                 [ChallengeStatus::Completed->value],
             );
-
-        if ($course instanceof Course) {
-            $totals->where('challenges.course_id', $course->id);
-        }
 
         return DB::query()
             ->fromSub($totals->toBase(), 'totals')

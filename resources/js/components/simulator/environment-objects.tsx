@@ -6,10 +6,24 @@ import {
 } from '@react-three/rapier';
 import { useEffect, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
-import type { Group } from 'three';
+import {
+    BoxGeometry,
+    CircleGeometry,
+    CylinderGeometry,
+    MeshStandardMaterial,
+    PlaneGeometry,
+    SphereGeometry,
+    TorusGeometry,
+} from 'three';
+import type { CanvasTexture, Group } from 'three';
 import { CarwashStation, CityProp } from '@/components/simulator/city-props';
 import { positionSeed, seededRng } from '@/lib/simulator/math';
 import { classifyObstacle } from '@/lib/simulator/obstacles';
+import {
+    releaseSceneResources,
+    sharedGeometry,
+    sharedMaterial,
+} from '@/lib/simulator/scene-resources';
 import { releaseTextureCache } from '@/lib/simulator/texture-cache';
 import {
     concreteTexture,
@@ -34,52 +48,141 @@ function obstacleSeed(obstacle: ObstacleConfig): number {
     return positionSeed(obstacle.x, obstacle.z, obstacle.sy ?? 1);
 }
 
-function GateFrame({ gate }: { gate: GateConfig }) {
-    const postRadius = 0.06;
-    const bandHeights = [0.35, 0.7];
+// --- Shared shapes and surfaces -------------------------------------------
+// Keyed on exactly what makes two of them differ, so a field of identical
+// crates is one box and one surface, not twenty of each.
 
+function boxGeometry(x: number, y: number, z: number) {
+    return sharedGeometry(`box:${x}:${y}:${z}`, () => new BoxGeometry(x, y, z));
+}
+
+function planeGeometry(width: number, height: number) {
+    return sharedGeometry(
+        `plane:${width}:${height}`,
+        () => new PlaneGeometry(width, height),
+    );
+}
+
+function cylinderGeometry(
+    radius: number,
+    height: number,
+    segments: number,
+    topRadius: number = radius,
+) {
+    return sharedGeometry(
+        `cyl:${topRadius}:${radius}:${height}:${segments}`,
+        () =>
+            new CylinderGeometry(topRadius, radius, height, segments),
+    );
+}
+
+function circleGeometry(radius: number, segments: number) {
+    return sharedGeometry(
+        `circle:${radius}:${segments}`,
+        () => new CircleGeometry(radius, segments),
+    );
+}
+
+function plainMaterial(color: string, roughness: number, metalness?: number) {
+    return sharedMaterial(
+        `plain:${color}:${roughness}:${metalness ?? '-'}`,
+        () =>
+            new MeshStandardMaterial(
+                metalness === undefined
+                    ? { color, roughness }
+                    : { color, roughness, metalness },
+            ),
+    );
+}
+
+/** A surface carrying one of the procedural textures. */
+function texturedMaterial(
+    texture: CanvasTexture,
+    roughness: number,
+    extra?: { transparent?: boolean; opacity?: number; color?: string },
+) {
+    const key = `tex:${texture.uuid}:${roughness}:${extra?.transparent ? 1 : 0}:${extra?.opacity ?? 1}:${extra?.color ?? '-'}`;
+
+    return sharedMaterial(
+        key,
+        () =>
+            new MeshStandardMaterial({
+                map: texture,
+                roughness,
+                ...extra,
+            }),
+    );
+}
+
+function emissiveMaterial(
+    color: string,
+    emissive: string,
+    emissiveIntensity: number,
+    extra?: { transparent?: boolean; opacity?: number },
+) {
+    const key = `emissive:${color}:${emissive}:${emissiveIntensity}:${extra?.opacity ?? 1}`;
+
+    return sharedMaterial(
+        key,
+        () =>
+            new MeshStandardMaterial({
+                color,
+                emissive,
+                emissiveIntensity,
+                ...extra,
+            }),
+    );
+}
+
+const GATE_POST_RADIUS = 0.06;
+const GATE_BAND_HEIGHTS = [0.35, 0.7];
+
+function GateFrame({ gate }: { gate: GateConfig }) {
     return (
         <group position={[gate.x, 0, gate.z]} rotation={[0, gate.rotationY, 0]}>
             {[-1, 1].map((side) => (
                 <group key={side} position={[(side * gate.width) / 2, 0, 0]}>
-                    <mesh position={[0, gate.height / 2, 0]} castShadow>
-                        <cylinderGeometry
-                            args={[postRadius, postRadius, gate.height, 12]}
-                        />
-                        <meshStandardMaterial
-                            color="#f0b429"
-                            roughness={0.55}
-                        />
-                    </mesh>
-                    {bandHeights.map((ratio) => (
+                    <mesh
+                        position={[0, gate.height / 2, 0]}
+                        castShadow
+                        geometry={cylinderGeometry(
+                            GATE_POST_RADIUS,
+                            gate.height,
+                            12,
+                        )}
+                        material={plainMaterial('#f0b429', 0.55)}
+                    />
+                    {GATE_BAND_HEIGHTS.map((ratio) => (
                         <mesh
                             key={ratio}
                             position={[0, gate.height * ratio, 0]}
-                        >
-                            <cylinderGeometry args={[0.075, 0.075, 0.14, 12]} />
-                            <meshStandardMaterial
-                                color="#7c5410"
-                                emissive="#fbbf24"
-                                emissiveIntensity={1.1}
-                            />
-                        </mesh>
+                            geometry={cylinderGeometry(0.075, 0.14, 12)}
+                            material={emissiveMaterial(
+                                '#7c5410',
+                                '#fbbf24',
+                                1.1,
+                            )}
+                        />
                     ))}
-                    <mesh position={[0, 0.015, 0]} receiveShadow>
-                        <boxGeometry args={[0.45, 0.03, 0.45]} />
-                        <meshStandardMaterial color="#272c31" roughness={0.8} />
-                    </mesh>
+                    <mesh
+                        position={[0, 0.015, 0]}
+                        receiveShadow
+                        geometry={boxGeometry(0.45, 0.03, 0.45)}
+                        material={plainMaterial('#272c31', 0.8)}
+                    />
                 </group>
             ))}
             <mesh
                 position={[0, gate.height, 0]}
                 rotation-z={Math.PI / 2}
                 castShadow
-            >
-                <cylinderGeometry
-                    args={[postRadius, postRadius, gate.width + 0.3, 12]}
-                />
-                <meshStandardMaterial color="#f0b429" roughness={0.55} />
-            </mesh>
+                geometry={cylinderGeometry(
+                    GATE_POST_RADIUS,
+                    gate.width + 0.3,
+                    12,
+                )}
+                material={plainMaterial('#f0b429', 0.55)}
+            />
         </group>
     );
 }
@@ -168,24 +271,25 @@ function RooftopClutter({
                     position={item.position}
                     castShadow
                     receiveShadow
-                >
-                    <boxGeometry args={item.size} />
-                    <meshStandardMaterial color={item.color} roughness={0.7} />
-                </mesh>
+                    geometry={boxGeometry(...item.size)}
+                    material={plainMaterial(item.color, 0.7)}
+                />
             ))}
             {/* Antenna mast with a warning light. */}
-            <mesh position={[sx * 0.28, topY + 1.1, -sz * 0.28]} castShadow>
-                <cylinderGeometry args={[0.04, 0.04, 2.2, 8]} />
-                <meshStandardMaterial color="#2c3036" metalness={0.6} />
-            </mesh>
-            <mesh position={[sx * 0.28, topY + 2.25, -sz * 0.28]}>
-                <sphereGeometry args={[0.09, 10, 10]} />
-                <meshStandardMaterial
-                    color="#4a0f0c"
-                    emissive="#ff2a1f"
-                    emissiveIntensity={1.6}
-                />
-            </mesh>
+            <mesh
+                position={[sx * 0.28, topY + 1.1, -sz * 0.28]}
+                castShadow
+                geometry={cylinderGeometry(0.04, 2.2, 8)}
+                material={plainMaterial('#2c3036', 1, 0.6)}
+            />
+            <mesh
+                position={[sx * 0.28, topY + 2.25, -sz * 0.28]}
+                geometry={sharedGeometry(
+                    'mast-lamp',
+                    () => new SphereGeometry(0.09, 10, 10),
+                )}
+                material={emissiveMaterial('#4a0f0c', '#ff2a1f', 1.6)}
+            />
         </>
     );
 }
@@ -209,57 +313,61 @@ function BuildingVisual({
 
     // Front/back faces span the width; left/right span the depth. Two textures
     // (seeded apart) keep adjacent faces from looking copy-pasted.
-    const facadeWide = facadeTexture(sx, sy, seed);
-    const facadeDeep = facadeTexture(sz, sy, seed ^ 0x1234);
-    const roofMap = roofTexture(seed);
+    const facadeWide = texturedMaterial(facadeTexture(sx, sy, seed), 0.35);
+    const facadeDeep = texturedMaterial(
+        facadeTexture(sz, sy, seed ^ 0x1234),
+        0.35,
+    );
+    const roofSurface = texturedMaterial(roofTexture(seed), 0.95);
+    const parapet = plainMaterial(PARAPET_COLOR, 0.85);
 
     return (
         <group>
             {/* Structural mass: any seam between facade planes reads as shadow. */}
-            <mesh castShadow receiveShadow>
-                <boxGeometry args={[sx, sy, sz]} />
-                <meshStandardMaterial color="#3f434a" roughness={0.9} />
-            </mesh>
+            <mesh
+                castShadow
+                receiveShadow
+                geometry={boxGeometry(sx, sy, sz)}
+                material={plainMaterial('#3f434a', 0.9)}
+            />
 
             {/* Facades, nudged just outside the mass. */}
-            <mesh position={[0, 0, hz + 0.02]} receiveShadow>
-                <planeGeometry args={[sx, sy]} />
-                <meshStandardMaterial map={facadeWide} roughness={0.35} />
-            </mesh>
+            <mesh
+                position={[0, 0, hz + 0.02]}
+                receiveShadow
+                geometry={planeGeometry(sx, sy)}
+                material={facadeWide}
+            />
             <mesh
                 position={[0, 0, -hz - 0.02]}
                 rotation={[0, Math.PI, 0]}
                 receiveShadow
-            >
-                <planeGeometry args={[sx, sy]} />
-                <meshStandardMaterial map={facadeWide} roughness={0.35} />
-            </mesh>
+                geometry={planeGeometry(sx, sy)}
+                material={facadeWide}
+            />
             <mesh
                 position={[hx + 0.02, 0, 0]}
                 rotation={[0, Math.PI / 2, 0]}
                 receiveShadow
-            >
-                <planeGeometry args={[sz, sy]} />
-                <meshStandardMaterial map={facadeDeep} roughness={0.35} />
-            </mesh>
+                geometry={planeGeometry(sz, sy)}
+                material={facadeDeep}
+            />
             <mesh
                 position={[-hx - 0.02, 0, 0]}
                 rotation={[0, -Math.PI / 2, 0]}
                 receiveShadow
-            >
-                <planeGeometry args={[sz, sy]} />
-                <meshStandardMaterial map={facadeDeep} roughness={0.35} />
-            </mesh>
+                geometry={planeGeometry(sz, sy)}
+                material={facadeDeep}
+            />
 
             {/* Roof deck. */}
             <mesh
                 position={[0, hy + 0.02, 0]}
                 rotation={[-Math.PI / 2, 0, 0]}
                 receiveShadow
-            >
-                <planeGeometry args={[sx, sz]} />
-                <meshStandardMaterial map={roofMap} roughness={0.95} />
-            </mesh>
+                geometry={planeGeometry(sx, sz)}
+                material={roofSurface}
+            />
 
             {/* Parapet wall around the roof edge. */}
             {(
@@ -282,13 +390,13 @@ function BuildingVisual({
                     ],
                 ] as [[number, number, number], [number, number, number]][]
             ).map(([position, size], i) => (
-                <mesh key={i} position={position} castShadow>
-                    <boxGeometry args={size} />
-                    <meshStandardMaterial
-                        color={PARAPET_COLOR}
-                        roughness={0.85}
-                    />
-                </mesh>
+                <mesh
+                    key={i}
+                    position={position}
+                    castShadow
+                    geometry={boxGeometry(...size)}
+                    material={parapet}
+                />
             ))}
 
             <RooftopClutter sx={sx} sz={sz} topY={hy + 0.04} seed={seed} />
@@ -303,10 +411,12 @@ function CrateVisual({ obstacle }: { obstacle: ObstacleConfig }) {
     const sz = obstacle.sz ?? 1;
 
     return (
-        <mesh castShadow receiveShadow>
-            <boxGeometry args={[sx, sy, sz]} />
-            <meshStandardMaterial map={crateTexture()} roughness={0.8} />
-        </mesh>
+        <mesh
+            castShadow
+            receiveShadow
+            geometry={boxGeometry(sx, sy, sz)}
+            material={texturedMaterial(crateTexture(), 0.8)}
+        />
     );
 }
 
@@ -325,14 +435,16 @@ function ConcreteVisual({ obstacle }: { obstacle: ObstacleConfig }) {
     );
 
     return (
-        <mesh castShadow receiveShadow>
-            {isCylinder ? (
-                <cylinderGeometry args={[radius, radius, height, 24]} />
-            ) : (
-                <boxGeometry args={[sx, sy, sz]} />
-            )}
-            <meshStandardMaterial map={concreteMap} roughness={0.9} />
-        </mesh>
+        <mesh
+            castShadow
+            receiveShadow
+            geometry={
+                isCylinder
+                    ? cylinderGeometry(radius, height, 24)
+                    : boxGeometry(sx, sy, sz)
+            }
+            material={texturedMaterial(concreteMap, 0.9)}
+        />
     );
 }
 
@@ -348,10 +460,12 @@ function PylonVisual({ obstacle }: { obstacle: ObstacleConfig }) {
     );
 
     return (
-        <mesh castShadow receiveShadow>
-            <boxGeometry args={[sx, sy, sz]} />
-            <meshStandardMaterial map={hazardMap} roughness={0.75} />
-        </mesh>
+        <mesh
+            castShadow
+            receiveShadow
+            geometry={boxGeometry(sx, sy, sz)}
+            material={texturedMaterial(hazardMap, 0.75)}
+        />
     );
 }
 
@@ -408,26 +522,27 @@ function WaypointBeacon({
 
     return (
         <group ref={groupRef} position={[waypoint.x, waypoint.y, waypoint.z]}>
-            <mesh rotation-x={Math.PI / 2}>
-                <torusGeometry args={[waypoint.radius, 0.035, 12, 48]} />
-                <meshStandardMaterial
-                    color="#22d3ee"
-                    emissive="#22d3ee"
-                    emissiveIntensity={1.1}
-                    transparent
-                    opacity={0.55}
-                />
-            </mesh>
-            <mesh>
-                <sphereGeometry args={[0.12, 16, 16]} />
-                <meshStandardMaterial
-                    color="#22d3ee"
-                    emissive="#22d3ee"
-                    emissiveIntensity={2}
-                    transparent
-                    opacity={0.85}
-                />
-            </mesh>
+            <mesh
+                rotation-x={Math.PI / 2}
+                geometry={sharedGeometry(
+                    `beacon-ring:${waypoint.radius}`,
+                    () => new TorusGeometry(waypoint.radius, 0.035, 12, 48),
+                )}
+                material={emissiveMaterial('#22d3ee', '#22d3ee', 1.1, {
+                    transparent: true,
+                    opacity: 0.55,
+                })}
+            />
+            <mesh
+                geometry={sharedGeometry(
+                    'beacon-core',
+                    () => new SphereGeometry(0.12, 16, 16),
+                )}
+                material={emissiveMaterial('#22d3ee', '#22d3ee', 2, {
+                    transparent: true,
+                    opacity: 0.85,
+                })}
+            />
         </group>
     );
 }
@@ -446,9 +561,15 @@ export function EnvironmentObjects({
         target: targetPadTexture(),
     };
 
-    // The scene owns every procedural texture in it, including the ones its
-    // children asked for, so the cache is emptied here and nowhere else.
-    useEffect(() => releaseTextureCache, []);
+    // The scene owns every procedural resource in it, including the ones its
+    // children asked for, so both caches are emptied here and nowhere else.
+    useEffect(
+        () => () => {
+            releaseTextureCache();
+            releaseSceneResources();
+        },
+        [],
+    );
 
     return (
         <>
@@ -461,26 +582,20 @@ export function EnvironmentObjects({
                     receiveShadow
                     rotation-x={-Math.PI / 2}
                     position={[0, -0.02, 0]}
-                >
-                    <planeGeometry args={[span * 8, span * 8]} />
-                    <meshStandardMaterial
-                        map={textures.grass}
-                        color="#9aa78a"
-                        roughness={1}
-                    />
-                </mesh>
-                <mesh receiveShadow rotation-x={-Math.PI / 2}>
-                    <planeGeometry
-                        args={[
-                            environment.bounds.width,
-                            environment.bounds.depth,
-                        ]}
-                    />
-                    <meshStandardMaterial
-                        map={textures.field}
-                        roughness={0.95}
-                    />
-                </mesh>
+                    geometry={planeGeometry(span * 8, span * 8)}
+                    material={texturedMaterial(textures.grass, 1, {
+                        color: '#9aa78a',
+                    })}
+                />
+                <mesh
+                    receiveShadow
+                    rotation-x={-Math.PI / 2}
+                    geometry={planeGeometry(
+                        environment.bounds.width,
+                        environment.bounds.depth,
+                    )}
+                    material={texturedMaterial(textures.field, 0.95)}
+                />
             </RigidBody>
 
             {/* Launch helipad */}
@@ -488,29 +603,23 @@ export function EnvironmentObjects({
                 position={[environment.start.x, 0.012, environment.start.z]}
                 rotation-x={-Math.PI / 2}
                 receiveShadow
-            >
-                <circleGeometry args={[1.15, 48]} />
-                <meshStandardMaterial
-                    map={textures.helipad}
-                    transparent
-                    roughness={0.9}
-                />
-            </mesh>
+                geometry={circleGeometry(1.15, 48)}
+                material={texturedMaterial(textures.helipad, 0.9, {
+                    transparent: true,
+                })}
+            />
 
             {/* Goal landing target */}
             <mesh
                 position={[environment.goal.x, 0.011, environment.goal.z]}
                 rotation-x={-Math.PI / 2}
                 receiveShadow
-            >
-                <circleGeometry args={[environment.goal.radius, 48]} />
-                <meshStandardMaterial
-                    map={textures.target}
-                    transparent
-                    opacity={0.92}
-                    roughness={0.9}
-                />
-            </mesh>
+                geometry={circleGeometry(environment.goal.radius, 48)}
+                material={texturedMaterial(textures.target, 0.9, {
+                    transparent: true,
+                    opacity: 0.92,
+                })}
+            />
 
             {environment.obstacles.map((obstacle, index) => (
                 <Obstacle key={index} obstacle={obstacle} />

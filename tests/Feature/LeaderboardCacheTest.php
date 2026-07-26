@@ -79,6 +79,82 @@ final class LeaderboardCacheTest extends TestCase
                 ->where('pilotCount', 2));
     }
 
+    /**
+     * The array store the suite runs on keeps the live object, so nothing
+     * it caches is ever serialized. Every driver that could be deployed
+     * does serialize, and reads back through `serializable_classes` —
+     * `false` here, so no class survives the round trip. A board cached as
+     * query rows therefore rendered once, on the miss that populated it,
+     * and fatalled on every hit until the entry aged out.
+     */
+    public function test_a_cached_board_is_readable_on_the_configured_cache_driver(): void
+    {
+        config(['cache.default' => 'database']);
+
+        $viewer = $this->pilotWithProgress();
+
+        // Populates the cache.
+        $this->actingAs($viewer)->get(route('leaderboard'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->has('standings', 1));
+
+        // Reads it back.
+        $this->actingAs($viewer)->get(route('leaderboard'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('standings', 1)
+                ->where('standings.0.isYou', true)
+                ->where('you.isYou', true));
+    }
+
+    /**
+     * The suite runs on the array store, which counts up from nothing when
+     * asked to increment a key it has never seen. The database and
+     * memcached stores do not — they refuse and write nothing — so a
+     * generation counter that no run had ever created stayed at zero, every
+     * bump was discarded, and the board went stale behind a cache the app
+     * believed it was retiring. Deployed configuration picks the driver, so
+     * this has to hold on the one production actually uses.
+     */
+    public function test_recording_a_run_retires_the_board_on_the_configured_cache_driver(): void
+    {
+        config(['cache.default' => 'database']);
+
+        $course = Course::factory()->create();
+        $challenge = Challenge::factory()->for($course)->create(['max_score' => 100]);
+
+        $incumbent = User::factory()->create(['name' => 'Ada']);
+        UserChallengeProgress::factory()->completed()->create([
+            'user_id' => $incumbent->id,
+            'challenge_id' => $challenge->id,
+            'best_score' => 40,
+        ]);
+
+        $newcomer = User::factory()->create(['name' => 'Grace']);
+
+        $this->actingAs($newcomer)->get(route('leaderboard'))
+            ->assertInertia(fn ($page) => $page->has('standings', 1));
+
+        $this->actingAs($newcomer)->postJson(
+            route('challenges.attempts.store', [$course, $challenge]),
+            [
+                'code' => 'async function main(drone) {}',
+                'collisions' => 0,
+                'photos' => [],
+                'path' => [
+                    ['t' => 0, 'x' => 0, 'y' => 0.15, 'z' => 0],
+                    ['t' => 1, 'x' => 0, 'y' => 1.5, 'z' => 0],
+                    ['t' => 2, 'x' => 0, 'y' => 0.15, 'z' => 0],
+                ],
+            ],
+        )->assertOk();
+
+        $this->actingAs($newcomer)->get(route('leaderboard'))
+            ->assertInertia(fn ($page) => $page
+                ->has('standings', 2)
+                ->where('standings.0.name', 'Grace'));
+    }
+
     public function test_each_course_board_is_cached_separately_from_the_overall_one(): void
     {
         $viewer = $this->pilotWithProgress();

@@ -16,7 +16,7 @@ use App\Models\Challenge;
  *
  * The policy is mirrored in resources/js/lib/simulator/grader.ts. The two
  * have to agree, or pilots watch their score change after the fact; the
- * weights below are the shared contract, and RunGradingTest pins the cases
+ * weights below are the shared contract, and ChallengeTest pins the cases
  * that would drift first.
  */
 final class GradeSimulatorRun

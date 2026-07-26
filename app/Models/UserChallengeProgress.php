@@ -102,10 +102,13 @@ final class UserChallengeProgress extends Model
     {
         $rows = self::remember(
             sprintf('standings:%s:%d', self::scopeKey($course), $limit),
-            fn (): Collection => self::standingsQuery($course)->limit($limit)->get(),
+            fn (): array => self::standingRows(
+                self::standingsQuery($course)->limit($limit)->get()->all(),
+            ),
         );
 
-        return $rows->map(fn (stdClass $row): array => self::toStanding($row, $viewer));
+        return (new Collection($rows))
+            ->map(fn (array $row): array => self::toStanding($row, $viewer));
     }
 
     /**
@@ -125,10 +128,14 @@ final class UserChallengeProgress extends Model
     {
         $row = self::remember(
             sprintf('standing:%s:%d', self::scopeKey($course), $viewer->id),
-            fn (): ?stdClass => DB::query()
-                ->fromSub(self::standingsQuery($course), 'standings')
-                ->where('user_id', $viewer->id)
-                ->first(),
+            function () use ($course, $viewer): ?array {
+                $row = DB::query()
+                    ->fromSub(self::standingsQuery($course), 'standings')
+                    ->where('user_id', $viewer->id)
+                    ->first();
+
+                return $row === null ? null : self::standingRows([$row])[0];
+            },
         );
 
         return $row === null ? null : self::toStanding($row, $viewer);
@@ -159,9 +166,21 @@ final class UserChallengeProgress extends Model
      * of the per-course and per-viewer entries a given run could have moved,
      * the generation counter is bumped and every old key simply stops being
      * looked up — the stale entries age out on their own.
+     *
+     * The counter has to be seeded before it can be bumped. Only some cache
+     * drivers treat `increment` on an absent key as counting up from zero;
+     * the database and memcached stores return false and write nothing, so
+     * bumping a generation that no run had ever created left the board
+     * pinned at generation zero and every invalidation silently did
+     * nothing. `add` is the atomic "create if absent" that closes that, and
+     * creating the counter *is* the first bump, so it never double-counts.
      */
     public static function forgetBoard(): void
     {
+        if (Cache::add(self::BOARD_GENERATION_KEY, 1)) {
+            return;
+        }
+
         Cache::increment(self::BOARD_GENERATION_KEY);
     }
 
@@ -311,17 +330,47 @@ final class UserChallengeProgress extends Model
     }
 
     /**
-     * @return array{rank: int, name: string, points: int, stars: int, completed: int, isYou: bool}
+     * Ranked rows reduced to plain values, ready to be cached.
+     *
+     * Nothing with a class may cross the cache boundary. Every serializing
+     * store — database, file, redis, memcached — unserializes through
+     * `cache.serializable_classes`, which this application leaves at the
+     * framework default of `false` so that a leaked APP_KEY cannot be
+     * turned into a gadget chain. A cached query row therefore comes back
+     * as __PHP_Incomplete_Class and fatals on first use, which is what
+     * caching the raw stdClass rows did: the board rendered on the miss
+     * that populated the cache and then threw on every hit until the entry
+     * expired. Only the array store, which the test suite uses and which
+     * keeps the live object, could not see it.
+     *
+     * @param  array<int, stdClass>  $rows
+     * @return array<int, array{user_id: int, name: string, points: int, stars: int, completed: int, place: int}>
      */
-    private static function toStanding(stdClass $row, User $viewer): array
+    private static function standingRows(array $rows): array
     {
-        return [
-            'rank' => (int) $row->place,
+        return array_map(fn (stdClass $row): array => [
+            'user_id' => (int) $row->user_id,
             'name' => (string) $row->name,
             'points' => (int) $row->points,
             'stars' => (int) $row->stars,
             'completed' => (int) $row->completed,
-            'isYou' => (int) $row->user_id === $viewer->id,
+            'place' => (int) $row->place,
+        ], $rows);
+    }
+
+    /**
+     * @param  array{user_id: int, name: string, points: int, stars: int, completed: int, place: int}  $row
+     * @return array{rank: int, name: string, points: int, stars: int, completed: int, isYou: bool}
+     */
+    private static function toStanding(array $row, User $viewer): array
+    {
+        return [
+            'rank' => $row['place'],
+            'name' => $row['name'],
+            'points' => $row['points'],
+            'stars' => $row['stars'],
+            'completed' => $row['completed'],
+            'isYou' => $row['user_id'] === $viewer->id,
         ];
     }
 }

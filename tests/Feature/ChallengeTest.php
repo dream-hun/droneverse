@@ -210,11 +210,11 @@ final class ChallengeTest extends TestCase
 
         $missed = $this->actingAs($user)->postJson(
             route('challenges.attempts.store', [$course, $challenge]),
-            $this->flight(['path' => [
-                ['t' => 0, 'x' => 0, 'y' => 0.15, 'z' => 0],
-                ['t' => 2, 'x' => 20, 'y' => 2, 'z' => 20],
-                ['t' => 3, 'x' => 20, 'y' => 0.15, 'z' => 20],
-            ]]),
+            $this->flight(['path' => $this->flightThrough([
+                [0, 0.15, 0],
+                [20, 2, 20],
+                [20, 0.15, 20],
+            ])]),
         );
 
         $missed->assertJsonPath('result.waypointsHit', 0);
@@ -222,11 +222,11 @@ final class ChallengeTest extends TestCase
 
         $flown = $this->actingAs($user)->postJson(
             route('challenges.attempts.store', [$course, $challenge]),
-            $this->flight(['path' => [
-                ['t' => 0, 'x' => 0, 'y' => 0.15, 'z' => 0],
-                ['t' => 2, 'x' => 5, 'y' => 2, 'z' => 0],
-                ['t' => 3, 'x' => 5, 'y' => 0.15, 'z' => 0],
-            ]]),
+            $this->flight(['path' => $this->flightThrough([
+                [0, 0.15, 0],
+                [5, 2, 0],
+                [5, 0.15, 0],
+            ])]),
         );
 
         $flown->assertJsonPath('result.waypointsHit', 1);
@@ -312,12 +312,17 @@ final class ChallengeTest extends TestCase
         $course = Course::factory()->create();
         $challenge = Challenge::factory()->for($course)->create(['max_score' => 100]);
 
+        // Sitting on the pad for longer than the mission allows: the clock
+        // runs out even though the drone never went anywhere.
+        $loitering = [];
+
+        for ($second = 0; $second <= 75; $second++) {
+            $loitering[] = ['t' => $second, 'x' => 0, 'y' => 0.15, 'z' => 0];
+        }
+
         $response = $this->actingAs($user)->postJson(
             route('challenges.attempts.store', [$course, $challenge]),
-            $this->flight(['path' => [
-                ['t' => 0, 'x' => 0, 'y' => 0.15, 'z' => 0],
-                ['t' => 75, 'x' => 0, 'y' => 0.15, 'z' => 0],
-            ]]),
+            $this->flight(['path' => $loitering]),
         );
 
         $response->assertJsonPath('result.timedOut', true);
@@ -340,9 +345,14 @@ final class ChallengeTest extends TestCase
             ],
         ]);
 
+        // Both runs shoot a frame from where they actually are; only the
+        // second one bothers to fly over the target first.
         $elsewhere = $this->actingAs($user)->postJson(
             route('challenges.attempts.store', [$course, $challenge]),
-            $this->flight(['photos' => [['x' => -30, 'y' => 4, 'z' => 30]]]),
+            $this->flight([
+                'path' => $this->flightThrough([[0, 0.15, 0], [-30, 4, 30], [-30, 0.15, 30]]),
+                'photos' => [['x' => -30, 'y' => 4, 'z' => 30]],
+            ]),
         );
 
         $elsewhere->assertJsonPath('result.photoTargetsHit', 0);
@@ -350,7 +360,10 @@ final class ChallengeTest extends TestCase
 
         $onTarget = $this->actingAs($user)->postJson(
             route('challenges.attempts.store', [$course, $challenge]),
-            $this->flight(['photos' => [['x' => 12.5, 'y' => 4, 'z' => -3]]]),
+            $this->flight([
+                'path' => $this->flightThrough([[0, 0.15, 0], [12.5, 4, -3], [12.5, 0.15, -3]]),
+                'photos' => [['x' => 12.5, 'y' => 4, 'z' => -3]],
+            ]),
         );
 
         $onTarget->assertJsonPath('result.photoTargetsHit', 1);
@@ -382,10 +395,10 @@ final class ChallengeTest extends TestCase
 
         $skipped = $this->actingAs($user)->postJson(
             route('challenges.attempts.store', [$course, $challenge]),
-            $this->flight(['path' => [
-                ['t' => 0, 'x' => 20, 'y' => 2, 'z' => 20],
-                ['t' => 2, 'x' => 25, 'y' => 2, 'z' => 25],
-            ]]),
+            $this->flight(['path' => $this->flightThrough([
+                [20, 2, 20],
+                [25, 2, 25],
+            ])]),
         );
 
         $skipped->assertJsonPath('result.washed', false);
@@ -405,6 +418,230 @@ final class ChallengeTest extends TestCase
 
         $driven->assertJsonPath('result.washed', true);
         $driven->assertJsonPath('result.completed', true);
+    }
+
+    /**
+     * The mission's waypoints are rendered by the browser, so their
+     * coordinates are on the page for anyone to read. Sitting a handful of
+     * samples on top of them used to buy a finished mission outright; a
+     * submission now has to look like something the sampler recorded.
+     */
+    public function test_a_path_without_the_simulator_s_sampling_cadence_is_rejected(): void
+    {
+        $user = User::factory()->create();
+        $course = Course::factory()->create();
+        $challenge = $this->challengeWithWaypoint($course);
+
+        $response = $this->actingAs($user)->postJson(
+            route('challenges.attempts.store', [$course, $challenge]),
+            $this->flight(['path' => [
+                ['t' => 0, 'x' => 0, 'y' => 0.15, 'z' => 0],
+                ['t' => 0.05, 'x' => 5, 'y' => 2, 'z' => 0],
+                ['t' => 0.1, 'x' => 0, 'y' => 0.15, 'z' => 0],
+                // Nothing at all for the next eight seconds.
+                ['t' => 8, 'x' => 0, 'y' => 0.15, 'z' => 0],
+            ]]),
+        );
+
+        $response->assertUnprocessable();
+        $response->assertJsonValidationErrors('path');
+        $this->assertDatabaseEmpty('user_challenge_progress');
+    }
+
+    public function test_a_path_that_runs_backwards_in_time_is_rejected(): void
+    {
+        $user = User::factory()->create();
+        $course = Course::factory()->create();
+        $challenge = Challenge::factory()->for($course)->create(['max_score' => 100]);
+
+        $response = $this->actingAs($user)->postJson(
+            route('challenges.attempts.store', [$course, $challenge]),
+            $this->flight(['path' => [
+                ['t' => 0, 'x' => 0, 'y' => 0.15, 'z' => 0],
+                ['t' => 0.5, 'x' => 0, 'y' => 1.5, 'z' => 0],
+                ['t' => 0.2, 'x' => 0, 'y' => 0.15, 'z' => 0],
+            ]]),
+        );
+
+        $response->assertUnprocessable();
+        $response->assertJsonValidationErrors('path');
+    }
+
+    /**
+     * The clock on a run is the client's. Covering ground therefore has to
+     * cost what the airframe would charge for it, or a pilot could claim to
+     * have crossed the map in a fraction of a second and collect the speed
+     * star for it.
+     */
+    public function test_a_run_is_charged_the_time_the_flight_would_have_taken(): void
+    {
+        $user = User::factory()->create();
+        $course = Course::factory()->create();
+        $challenge = Challenge::factory()->for($course)->create([
+            'max_score' => 100,
+            'success_criteria' => [
+                'type' => 'waypoints',
+                'waypoints' => [],
+                'avoid_collisions' => true,
+                'max_time_seconds' => 10,
+                'landing_required' => true,
+            ],
+        ]);
+
+        // Three hundred metres of flying, claimed at a tenth of a second a
+        // sample. The envelope says this is a minute of flight on a mission
+        // that allows ten seconds.
+        $sprint = [['t' => 0.0, 'x' => 0, 'y' => 0.15, 'z' => 0]];
+
+        for ($sample = 1; $sample <= 20; $sample++) {
+            $sprint[] = [
+                't' => $sample * 0.1,
+                'x' => $sample % 2 === 0 ? 0 : 150,
+                'y' => 0.15,
+                'z' => 0,
+            ];
+        }
+
+        $response = $this->actingAs($user)->postJson(
+            route('challenges.attempts.store', [$course, $challenge]),
+            $this->flight(['path' => $sprint]),
+        );
+
+        $response->assertOk();
+        $this->assertGreaterThan(2, $response->json('result.elapsedSeconds'));
+        $response->assertJsonPath('result.timedOut', true);
+        $response->assertJsonPath('result.completed', false);
+    }
+
+    /**
+     * Waypoints are credited along the segment between two samples, because
+     * a real flight can cross one without landing a sample inside it. The
+     * same has to hold for the walls, or a path is only solid where it was
+     * sampled and can step straight over a building.
+     */
+    public function test_passing_through_an_obstacle_between_two_samples_counts_as_a_collision(): void
+    {
+        $user = User::factory()->create();
+        $course = Course::factory()->create();
+        $challenge = Challenge::factory()->for($course)->create([
+            'max_score' => 100,
+            'environment' => [
+                'start' => ['x' => 0, 'y' => 0.5, 'z' => 0],
+                'obstacles' => [
+                    ['type' => 'box', 'x' => 5, 'y' => 3, 'z' => 0, 'sx' => 6, 'sy' => 6, 'sz' => 6],
+                ],
+                'gates' => [],
+                'waypoints' => [],
+            ],
+        ]);
+
+        $response = $this->actingAs($user)->postJson(
+            route('challenges.attempts.store', [$course, $challenge]),
+            $this->flight([
+                'collisions' => 0,
+                'path' => [
+                    // Straight through the middle of the box without ever
+                    // sampling inside it.
+                    ['t' => 0, 'x' => 0, 'y' => 3, 'z' => 0],
+                    ['t' => 1, 'x' => 10, 'y' => 3, 'z' => 0],
+                    ['t' => 2, 'x' => 10, 'y' => 0.15, 'z' => 0],
+                ],
+            ]),
+        );
+
+        $response->assertJsonPath('result.collisions', 1);
+    }
+
+    /**
+     * The tunnel is placed by rotating it about Y, and the check has to undo
+     * that rotation the way the scene applied it. Undoing it backwards is
+     * invisible at right angles, where the two agree by symmetry, and fails
+     * an honest pass at every other angle.
+     */
+    public function test_a_wash_pass_through_a_rotated_tunnel_is_confirmed(): void
+    {
+        $user = User::factory()->create();
+        $course = Course::factory()->create();
+        $angle = M_PI / 4;
+        $challenge = Challenge::factory()->for($course)->create([
+            'max_score' => 100,
+            'environment' => [
+                'start' => ['x' => 0, 'y' => 0.5, 'z' => 0],
+                'obstacles' => [],
+                'gates' => [],
+                'waypoints' => [],
+                'carwash' => ['x' => 0, 'z' => 0, 'width' => 4.5, 'height' => 3.5, 'length' => 8, 'rotationY' => $angle],
+            ],
+            'success_criteria' => [
+                'type' => 'waypoints',
+                'waypoints' => [],
+                'avoid_collisions' => false,
+                'max_time_seconds' => 60,
+                'landing_required' => false,
+                'wash_required' => true,
+            ],
+        ]);
+
+        // Down the tunnel's own axis, turned into world space the way
+        // three.js turns the group that carries it.
+        $path = [];
+        $t = 0.0;
+
+        for ($local = 6.0; $local >= -6.0; $local -= 0.4) {
+            $path[] = [
+                't' => $t,
+                'x' => $local * sin($angle),
+                'y' => 1.5,
+                'z' => $local * cos($angle),
+            ];
+            $t += 0.25;
+        }
+
+        $response = $this->actingAs($user)->postJson(
+            route('challenges.attempts.store', [$course, $challenge]),
+            $this->flight(['path' => $path]),
+        );
+
+        $response->assertJsonPath('result.washed', true);
+        $response->assertJsonPath('result.completed', true);
+    }
+
+    /**
+     * A camera mission has no waypoints to fly, so the photo positions are
+     * the whole submission. Tying them back to the path is what stops the
+     * target coordinates — which the browser is given, to draw them — from
+     * being the entire cost of clearing one.
+     */
+    public function test_a_photo_taken_where_the_drone_never_went_does_not_count(): void
+    {
+        $user = User::factory()->create();
+        $course = Course::factory()->create();
+        $challenge = Challenge::factory()->for($course)->create([
+            'max_score' => 100,
+            'success_criteria' => [
+                'type' => 'waypoints',
+                'waypoints' => [],
+                'avoid_collisions' => true,
+                'max_time_seconds' => 60,
+                'landing_required' => true,
+                'min_photos' => 1,
+                'photo_targets' => [['x' => 12, 'z' => -4, 'radius' => 3]],
+            ],
+        ]);
+
+        $response = $this->actingAs($user)->postJson(
+            route('challenges.attempts.store', [$course, $challenge]),
+            $this->flight([
+                // Never leaves the pad, but claims a frame over the target.
+                'photos' => [['x' => 12, 'y' => 4, 'z' => -4]],
+            ]),
+        );
+
+        $response->assertOk();
+        $response->assertJsonPath('result.photosTaken', 0);
+        $response->assertJsonPath('result.photoTargetsHit', 0);
+        $response->assertJsonPath('result.photosMissing', 1);
+        $response->assertJsonPath('result.completed', false);
     }
 
     public function test_runs_on_an_unpublished_challenge_are_rejected(): void
@@ -560,6 +797,49 @@ final class ChallengeTest extends TestCase
             ['t' => 1, 'x' => 0, 'y' => 2, 'z' => 0],
             ['t' => 2, 'x' => 0, 'y' => 2, 'z' => 0],
         ];
+    }
+
+    /**
+     * A sampled flight along the given corners, at a rate and a speed the
+     * simulator could have produced.
+     *
+     * Grading rejects a path that no client could have recorded, so a
+     * fixture describing a route has to be flown rather than sketched: the
+     * corners say where the run went, and this fills in the samples between
+     * them.
+     *
+     * @param  array<int, array{0: float|int, 1: float|int, 2: float|int}>  $corners
+     * @return array<int, array<string, float>>
+     */
+    private function flightThrough(array $corners): array
+    {
+        $interval = 0.25;
+        $speed = 6.0;
+
+        $path = [['t' => 0.0, 'x' => (float) $corners[0][0], 'y' => (float) $corners[0][1], 'z' => (float) $corners[0][2]]];
+        $t = 0.0;
+
+        for ($i = 1; $i < count($corners); $i++) {
+            [$fromX, $fromY, $fromZ] = $corners[$i - 1];
+            [$toX, $toY, $toZ] = $corners[$i];
+
+            $distance = sqrt(($toX - $fromX) ** 2 + ($toY - $fromY) ** 2 + ($toZ - $fromZ) ** 2);
+            $steps = max(1, (int) ceil($distance / ($speed * $interval)));
+
+            for ($step = 1; $step <= $steps; $step++) {
+                $fraction = $step / $steps;
+                $t += $interval;
+
+                $path[] = [
+                    't' => $t,
+                    'x' => $fromX + ($toX - $fromX) * $fraction,
+                    'y' => $fromY + ($toY - $fromY) * $fraction,
+                    'z' => $fromZ + ($toZ - $fromZ) * $fraction,
+                ];
+            }
+        }
+
+        return $path;
     }
 
     /** A mission with a single waypoint five metres out along +X. */

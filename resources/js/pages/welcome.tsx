@@ -1,6 +1,6 @@
 import { Head, Link, usePage } from '@inertiajs/react';
 import { Code2, Gauge, Trophy } from 'lucide-react';
-import { DroneShowcase } from '@/components/marketing/drone-showcase';
+import { LazyDroneShowcase } from '@/components/marketing/lazy-drone-showcase';
 import { Button } from '@/components/ui/button';
 import { dashboard, login, register } from '@/routes';
 import { index as coursesIndex } from '@/routes/courses';
@@ -100,7 +100,7 @@ export default function Welcome() {
                         </div>
 
                         <div className="aspect-square min-w-0 overflow-hidden rounded-2xl border bg-gradient-to-br from-slate-900 to-slate-800 shadow-lg">
-                            <DroneShowcase />
+                            <LazyDroneShowcase />
                         </div>
                     </section>
 

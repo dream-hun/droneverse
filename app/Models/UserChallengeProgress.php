@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Enums\ChallengeStatus;
 use Carbon\CarbonInterface;
+use Closure;
 use Database\Factories\UserChallengeProgressFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Table;
@@ -15,6 +16,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use stdClass;
 
@@ -35,6 +37,17 @@ final class UserChallengeProgress extends Model
 {
     /** @use HasFactory<UserChallengeProgressFactory> */
     use HasFactory;
+
+    /**
+     * How long a cached view of the leaderboard may live unattended.
+     *
+     * Recording a run retires the board explicitly, so this is only a
+     * backstop for the things that move it without going through an attempt
+     * — a pilot renaming themselves, a course being published or pulled.
+     */
+    private const int BOARD_TTL_SECONDS = 300;
+
+    private const string BOARD_GENERATION_KEY = 'leaderboard:generation';
 
     /**
      * Completed-challenge counts for the given user, keyed by course id.
@@ -87,10 +100,12 @@ final class UserChallengeProgress extends Model
      */
     public static function standings(User $viewer, ?Course $course = null, int $limit = 25): Collection
     {
-        return self::standingsQuery($course)
-            ->limit($limit)
-            ->get()
-            ->map(fn (stdClass $row): array => self::toStanding($row, $viewer));
+        $rows = self::remember(
+            sprintf('standings:%s:%d', self::scopeKey($course), $limit),
+            fn (): Collection => self::standingsQuery($course)->limit($limit)->get(),
+        );
+
+        return $rows->map(fn (stdClass $row): array => self::toStanding($row, $viewer));
     }
 
     /**
@@ -108,10 +123,13 @@ final class UserChallengeProgress extends Model
      */
     public static function standingFor(User $viewer, ?Course $course = null): ?array
     {
-        $row = DB::query()
-            ->fromSub(self::standingsQuery($course), 'standings')
-            ->where('user_id', $viewer->id)
-            ->first();
+        $row = self::remember(
+            sprintf('standing:%s:%d', self::scopeKey($course), $viewer->id),
+            fn (): ?stdClass => DB::query()
+                ->fromSub(self::standingsQuery($course), 'standings')
+                ->where('user_id', $viewer->id)
+                ->first(),
+        );
 
         return $row === null ? null : self::toStanding($row, $viewer);
     }
@@ -126,9 +144,25 @@ final class UserChallengeProgress extends Model
      */
     public static function rankedPilotCount(?Course $course = null): int
     {
-        return self::inCourse(self::playable(), $course)
-            ->distinct()
-            ->count('user_challenge_progress.user_id');
+        return self::remember(
+            sprintf('pilots:%s', self::scopeKey($course)),
+            fn (): int => self::inCourse(self::playable(), $course)
+                ->distinct()
+                ->count('user_challenge_progress.user_id'),
+        );
+    }
+
+    /**
+     * Retire every cached view of the board.
+     *
+     * Called when a run changes a pilot's totals. Rather than tracking which
+     * of the per-course and per-viewer entries a given run could have moved,
+     * the generation counter is bumped and every old key simply stops being
+     * looked up — the stale entries age out on their own.
+     */
+    public static function forgetBoard(): void
+    {
+        Cache::increment(self::BOARD_GENERATION_KEY);
     }
 
     /**
@@ -159,6 +193,42 @@ final class UserChallengeProgress extends Model
             'attempts' => 'integer',
             'completed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Cache a slice of the board against the current generation.
+     *
+     * Ranking is a full aggregate over the largest table in the schema, and
+     * the board is read far more often than it changes, so every view of it
+     * goes through here. The generation is part of the key, which is what
+     * makes {@see self::forgetBoard()} a single write rather than a hunt for
+     * every entry a run might have invalidated.
+     *
+     * @template TValue
+     *
+     * @param  Closure(): TValue  $compute
+     * @return TValue
+     */
+    private static function remember(string $key, Closure $compute): mixed
+    {
+        $generation = Cache::get(self::BOARD_GENERATION_KEY, 0);
+
+        return Cache::remember(
+            sprintf('leaderboard:%s:%s', $generation, $key),
+            self::BOARD_TTL_SECONDS,
+            $compute,
+        );
+    }
+
+    /**
+     * Cache-key fragment naming the slice of the board being read.
+     *
+     * The overall board and each per-course board are separate populations,
+     * so they must never share an entry.
+     */
+    private static function scopeKey(?Course $course): string
+    {
+        return $course instanceof Course ? (string) $course->id : 'all';
     }
 
     /**

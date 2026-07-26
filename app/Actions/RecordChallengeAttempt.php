@@ -34,7 +34,7 @@ final class RecordChallengeAttempt
             'challenge_id' => $challenge->id,
         ]);
 
-        return DB::transaction(function () use ($user, $challenge, $attempt, $score, $stars) {
+        $progress = DB::transaction(function () use ($user, $challenge, $attempt, $score, $stars): UserChallengeProgress {
             $progress = UserChallengeProgress::query()
                 ->where('user_id', $user->id)
                 ->where('challenge_id', $challenge->id)
@@ -57,5 +57,11 @@ final class RecordChallengeAttempt
 
             return $progress;
         });
+
+        // This run may have moved the pilot up the board, so no cached view
+        // of it can be trusted any more.
+        UserChallengeProgress::forgetBoard();
+
+        return $progress;
     }
 }

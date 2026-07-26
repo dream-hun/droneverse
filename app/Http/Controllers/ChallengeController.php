@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Actions\GradeSimulatorRun;
+use App\Actions\ReconstructRunTelemetry;
 use App\Actions\RecordChallengeAttempt;
 use App\Http\Requests\StoreChallengeAttemptRequest;
 use App\Http\Resources\ChallengeDetailResource;
@@ -41,23 +43,41 @@ final class ChallengeController extends Controller
     }
 
     /**
-     * Record the result of a simulator run.
+     * Grade and record a simulator run.
+     *
+     * The submission describes the flight, not its result: the objectives
+     * are measured against the mission's own geometry and scored here, so a
+     * pilot cannot post themselves a perfect run. The graded outcome comes
+     * back in the response, which is what the pilot is finally shown.
      */
     public function store(
         StoreChallengeAttemptRequest $request,
         Course $course,
         Challenge $challenge,
+        ReconstructRunTelemetry $reconstruct,
+        GradeSimulatorRun $grade,
         RecordChallengeAttempt $recordAttempt,
     ): JsonResponse {
         abort_unless($challenge->isPlayableIn($course), 404);
 
-        $progress = $recordAttempt->handle($request->user(), $challenge, $request->attempt());
+        $run = $request->run();
+        $result = $grade->handle($reconstruct->handle($challenge, $run), $challenge);
+
+        $progress = $recordAttempt->handle($request->user(), $challenge, [
+            'score' => $result['score'],
+            'stars' => $result['stars'],
+            'completed' => $result['completed'],
+            'code' => $run['code'],
+        ]);
 
         return response()->json([
-            'status' => $progress->status,
-            'bestScore' => $progress->best_score,
-            'stars' => $progress->stars,
-            'attempts' => $progress->attempts,
+            'result' => $result,
+            'progress' => [
+                'status' => $progress->status,
+                'bestScore' => $progress->best_score,
+                'stars' => $progress->stars,
+                'attempts' => $progress->attempts,
+            ],
         ]);
     }
 

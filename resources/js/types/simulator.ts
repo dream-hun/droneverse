@@ -122,6 +122,19 @@ export type ChallengeSummary = {
     stars: number;
 };
 
+/** One pilot's row on the leaderboard. */
+export type LeaderboardStanding = {
+    /** Shared by pilots level on points, stars and completions alike. */
+    rank: number;
+    name: string;
+    /** Total best score across every published challenge in scope. */
+    points: number;
+    stars: number;
+    completed: number;
+    /** Set server-side so the board never ships other pilots' user ids. */
+    isYou: boolean;
+};
+
 export type ChallengeDetail = {
     title: string;
     slug: string;

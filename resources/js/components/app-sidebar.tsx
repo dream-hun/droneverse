@@ -1,5 +1,12 @@
 import { Link } from '@inertiajs/react';
-import { BookOpen, Camera, FolderGit2, LayoutGrid, Rocket } from 'lucide-react';
+import {
+    BookOpen,
+    Camera,
+    FolderGit2,
+    LayoutGrid,
+    Rocket,
+    Trophy,
+} from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -13,7 +20,7 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { dashboard } from '@/routes';
+import { dashboard, leaderboard } from '@/routes';
 import { index as coursesIndex } from '@/routes/courses';
 import { index as photosIndex } from '@/routes/photos';
 import type { NavItem } from '@/types';
@@ -33,6 +40,11 @@ const mainNavItems: NavItem[] = [
         title: 'Photo Log',
         href: photosIndex(),
         icon: Camera,
+    },
+    {
+        title: 'Leaderboard',
+        href: leaderboard(),
+        icon: Trophy,
     },
 ];
 

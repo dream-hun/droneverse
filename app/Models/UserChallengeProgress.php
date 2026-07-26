@@ -12,7 +12,10 @@ use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use stdClass;
 
 /**
  * @property int $id
@@ -84,6 +87,50 @@ final class UserChallengeProgress extends Model
     }
 
     /**
+     * The leading pilots, best first.
+     *
+     * Only pilots who have actually flown appear; the board is a record of
+     * simulator time, not a roster of everyone who signed up.
+     *
+     * @return Collection<int, array{rank: int, name: string, points: int, stars: int, completed: int, isYou: bool}>
+     */
+    public static function standings(User $viewer, ?Course $course = null, int $limit = 25): Collection
+    {
+        return self::standingsQuery($course)
+            ->limit($limit)
+            ->get()
+            ->map(fn (stdClass $row): array => self::toStanding($row, $viewer));
+    }
+
+    /**
+     * The viewer's own row, wherever they placed.
+     *
+     * Null until they fly a mission that still counts, which is also the
+     * only case where they are absent from {@see self::standings()}.
+     *
+     * @return array{rank: int, name: string, points: int, stars: int, completed: int, isYou: bool}|null
+     */
+    public static function standingFor(User $viewer, ?Course $course = null): ?array
+    {
+        $row = DB::query()
+            ->fromSub(self::standingsQuery($course), 'standings')
+            ->where('user_id', $viewer->id)
+            ->first();
+
+        return $row === null ? null : self::toStanding($row, $viewer);
+    }
+
+    /**
+     * How many pilots the board is ranking, so a rank can be read as "of N".
+     */
+    public static function rankedPilotCount(?Course $course = null): int
+    {
+        return DB::query()
+            ->fromSub(self::standingsQuery($course), 'standings')
+            ->count();
+    }
+
+    /**
      * @return BelongsTo<User, $this>
      */
     public function user(): BelongsTo
@@ -110,6 +157,64 @@ final class UserChallengeProgress extends Model
             'stars' => 'integer',
             'attempts' => 'integer',
             'completed_at' => 'datetime',
+        ];
+    }
+
+    /**
+     * The leaderboard population, ranked and ordered.
+     *
+     * Points, stars and completions are summed per pilot over currently
+     * playable content only, so retiring a mission retires its score too.
+     * `rank()` leaves pilots level on all three metrics sharing a rank,
+     * while the row order breaks the tie in favour of whoever finished
+     * first. "rank" and "position" are reserved words in MySQL, hence
+     * `place`.
+     */
+    private static function standingsQuery(?Course $course = null): Builder
+    {
+        $totals = self::query()
+            ->join('challenges', 'challenges.id', '=', 'user_challenge_progress.challenge_id')
+            ->join('courses', 'courses.id', '=', 'challenges.course_id')
+            ->join('users', 'users.id', '=', 'user_challenge_progress.user_id')
+            ->where('challenges.is_published', true)
+            ->where('courses.is_published', true)
+            ->groupBy('users.id', 'users.name')
+            ->selectRaw(
+                'users.id as user_id, users.name as name, '
+                .'coalesce(sum(user_challenge_progress.best_score), 0) as points, '
+                .'coalesce(sum(user_challenge_progress.stars), 0) as stars, '
+                .'count(case when user_challenge_progress.status = ? then 1 end) as completed, '
+                .'max(user_challenge_progress.completed_at) as finished_at',
+                [ChallengeStatus::Completed->value],
+            );
+
+        if ($course instanceof Course) {
+            $totals->where('challenges.course_id', $course->id);
+        }
+
+        return DB::query()
+            ->fromSub($totals->toBase(), 'totals')
+            ->select('user_id', 'name', 'points', 'stars', 'completed')
+            ->selectRaw('rank() over (order by points desc, stars desc, completed desc) as place')
+            ->orderByDesc('points')
+            ->orderByDesc('stars')
+            ->orderByDesc('completed')
+            ->orderByRaw('finished_at is null, finished_at')
+            ->orderBy('user_id');
+    }
+
+    /**
+     * @return array{rank: int, name: string, points: int, stars: int, completed: int, isYou: bool}
+     */
+    private static function toStanding(stdClass $row, User $viewer): array
+    {
+        return [
+            'rank' => (int) $row->place,
+            'name' => (string) $row->name,
+            'points' => (int) $row->points,
+            'stars' => (int) $row->stars,
+            'completed' => (int) $row->completed,
+            'isYou' => (int) $row->user_id === $viewer->id,
         ];
     }
 }

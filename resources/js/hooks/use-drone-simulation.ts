@@ -38,7 +38,11 @@ import {
 import { createUploadQueue } from '@/lib/simulator/upload-queue';
 import { droneVoice } from '@/lib/simulator/voice';
 import { SimulationWorkerClient } from '@/lib/simulator/worker-client';
-import type { EnvironmentConfig, SuccessCriteria } from '@/types/simulator';
+import type {
+    EnvironmentConfig,
+    RunResult,
+    SuccessCriteria,
+} from '@/types/simulator';
 
 type UseDroneSimulationArgs = {
     rigidBodyRef: RefObject<RapierRigidBody | null>;
@@ -239,21 +243,22 @@ export function useDroneSimulation({
             bridgeRef.current.telemetry.timedOut = timedOut;
             flightStateRef.current.armed = false;
 
-            const grade = gradeRun(
-                bridgeRef.current.telemetry,
-                successCriteria,
-                maxScore,
-            );
+            const telemetry = bridgeRef.current.telemetry;
 
-            session.finish(grade);
+            // Shown straight away so the pilot is not left waiting on the
+            // network, but this is a preview: the server grades the flight
+            // itself and its verdict replaces this one below.
+            session.finish(gradeRun(telemetry, successCriteria, maxScore));
 
-            postJson(attemptUrl, {
-                score: grade.score,
-                stars: grade.stars,
-                completed: grade.completed,
+            postJson<{ result: RunResult }>(attemptUrl, {
                 code: codeRef.current,
+                collisions: telemetry.collisions,
+                path: telemetry.path,
+                photos: telemetry.photoPositions,
             })
-                .then(() => {
+                .then(({ result }) => {
+                    session.finish(result);
+
                     // The progress badges and the reference-solution gate are
                     // rendered from server state, so pull them again now the
                     // attempt has been recorded. A partial reload keeps the

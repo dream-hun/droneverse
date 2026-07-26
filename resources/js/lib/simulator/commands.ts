@@ -42,6 +42,9 @@ export type MainToWorkerMessage =
 
 export type Vector3 = { x: number; y: number; z: number };
 
+/** One point on the flight path: a position and the run-time it was reached. */
+export type PathSample = Vector3 & { t: number };
+
 /** A command currently being carried out by the physics loop. */
 export type ActiveCommand = {
     command: DroneCommand;
@@ -63,6 +66,13 @@ export type RunTelemetry = {
     landed: boolean;
     elapsedSeconds: number;
     timedOut: boolean;
+    /**
+     * The route the drone flew, sampled at a fixed rate.
+     *
+     * Submitted with the run so the server can measure the objectives from
+     * the flight itself rather than trusting the counts beside it.
+     */
+    path: PathSample[];
     /** Where each photo was captured, for photo-target grading. */
     photoPositions: Vector3[];
     /** Wash beams tripped at either mouth of the tunnel; both = full pass. */
@@ -89,6 +99,7 @@ export function createBridge(waypointsTotal: number): SimulationBridge {
             landed: false,
             elapsedSeconds: 0,
             timedOut: false,
+            path: [],
             photoPositions: [],
             washEntryHit: false,
             washExitHit: false,

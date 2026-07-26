@@ -41,6 +41,103 @@ final class ChallengeTest extends TestCase
             ->where('progress.status', ChallengeStatus::NotStarted));
     }
 
+    public function test_the_reference_solution_is_withheld_on_a_first_visit(): void
+    {
+        $user = User::factory()->create();
+        $course = Course::factory()->create();
+        $challenge = Challenge::factory()->for($course)->create();
+
+        $response = $this->actingAs($user)->get(route('challenges.show', [$course, $challenge]));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->where('solution.exists', true)
+            ->where('solution.unlocked', false)
+            ->where('solution.code', null)
+            ->where('solution.attemptsRequired', Challenge::ATTEMPTS_BEFORE_SOLUTION));
+    }
+
+    public function test_the_reference_solution_stays_locked_below_the_attempt_threshold(): void
+    {
+        $user = User::factory()->create();
+        $course = Course::factory()->create();
+        $challenge = Challenge::factory()->for($course)->create();
+
+        UserChallengeProgress::factory()->create([
+            'user_id' => $user->id,
+            'challenge_id' => $challenge->id,
+            'attempts' => Challenge::ATTEMPTS_BEFORE_SOLUTION - 1,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('challenges.show', [$course, $challenge]));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->where('solution.unlocked', false)
+            ->where('solution.code', null));
+    }
+
+    public function test_the_reference_solution_unlocks_once_the_attempt_threshold_is_reached(): void
+    {
+        $user = User::factory()->create();
+        $course = Course::factory()->create();
+        $challenge = Challenge::factory()->for($course)->create();
+
+        UserChallengeProgress::factory()->create([
+            'user_id' => $user->id,
+            'challenge_id' => $challenge->id,
+            'attempts' => Challenge::ATTEMPTS_BEFORE_SOLUTION,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('challenges.show', [$course, $challenge]));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->where('solution.unlocked', true)
+            ->where('solution.code', $challenge->solution_code));
+    }
+
+    public function test_completing_a_challenge_unlocks_the_reference_solution_immediately(): void
+    {
+        $user = User::factory()->create();
+        $course = Course::factory()->create();
+        $challenge = Challenge::factory()->for($course)->create();
+
+        UserChallengeProgress::factory()->completed()->create([
+            'user_id' => $user->id,
+            'challenge_id' => $challenge->id,
+            'attempts' => 1,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('challenges.show', [$course, $challenge]));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->where('solution.unlocked', true)
+            ->where('solution.code', $challenge->solution_code));
+    }
+
+    public function test_a_challenge_without_a_reference_solution_never_unlocks_one(): void
+    {
+        $user = User::factory()->create();
+        $course = Course::factory()->create();
+        $challenge = Challenge::factory()->for($course)->withoutSolution()->create();
+
+        UserChallengeProgress::factory()->completed()->create([
+            'user_id' => $user->id,
+            'challenge_id' => $challenge->id,
+            'attempts' => 10,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('challenges.show', [$course, $challenge]));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->where('solution.exists', false)
+            ->where('solution.unlocked', false)
+            ->where('solution.code', null));
+    }
+
     public function test_challenge_from_a_different_course_returns_not_found(): void
     {
         $user = User::factory()->create();

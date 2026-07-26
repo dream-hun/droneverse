@@ -1,3 +1,4 @@
+import { router } from '@inertiajs/react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useRapier } from '@react-three/rapier';
 import type { RapierRigidBody } from '@react-three/rapier';
@@ -253,11 +254,19 @@ export function useDroneSimulation({
                 stars: grade.stars,
                 completed: grade.completed,
                 code: codeRef.current,
-            }).catch(() => {
-                appendLog('warn', [
-                    'Could not save your progress for this run.',
-                ]);
-            });
+            })
+                .then(() => {
+                    // The progress badges and the reference-solution gate are
+                    // rendered from server state, so pull them again now the
+                    // attempt has been recorded. A partial reload keeps the
+                    // editor contents and the live scene untouched.
+                    router.reload({ only: ['progress', 'solution'] });
+                })
+                .catch(() => {
+                    appendLog('warn', [
+                        'Could not save your progress for this run.',
+                    ]);
+                });
         },
         [appendLog, attemptUrl, maxScore, session, successCriteria],
     );

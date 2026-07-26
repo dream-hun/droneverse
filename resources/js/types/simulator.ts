@@ -141,6 +141,17 @@ export type ChallengeProgress = {
     savedCode: string;
 };
 
+/**
+ * The mission's reference solution. `code` is only ever sent once the pilot
+ * has unlocked it, so a locked panel has nothing to reveal.
+ */
+export type ChallengeSolution = {
+    exists: boolean;
+    unlocked: boolean;
+    code: string | null;
+    attemptsRequired: number;
+};
+
 export type RunResult = {
     completed: boolean;
     score: number;

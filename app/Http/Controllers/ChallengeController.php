@@ -29,6 +29,10 @@ final class ChallengeController extends Controller
             ->whereBelongsTo($challenge)
             ->first();
 
+        // The reference solution is withheld until the pilot has earned it,
+        // so the source itself never reaches the browser while it is locked.
+        $solutionUnlocked = $challenge->solutionUnlockedBy($progress);
+
         return Inertia::render('challenges/play', [
             'course' => [
                 'title' => $course->title,
@@ -50,6 +54,12 @@ final class ChallengeController extends Controller
                 'stars' => $progress->stars ?? 0,
                 'attempts' => $progress->attempts ?? 0,
                 'savedCode' => $progress->last_code ?? $challenge->starter_code,
+            ],
+            'solution' => [
+                'exists' => $challenge->solution_code !== null,
+                'unlocked' => $solutionUnlocked,
+                'code' => $solutionUnlocked ? $challenge->solution_code : null,
+                'attemptsRequired' => Challenge::ATTEMPTS_BEFORE_SOLUTION,
             ],
         ]);
     }

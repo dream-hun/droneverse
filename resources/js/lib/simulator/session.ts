@@ -23,6 +23,16 @@ export type SimulatorControls = {
  * Object.is bail-out works per slice.
  */
 export class SimulatorSession {
+    /**
+     * Console lines kept before the oldest start scrolling off.
+     *
+     * The program producing these lines is written by the pilot, so a stray
+     * `console.log` inside a flight loop can emit thousands per run. Holding
+     * every one of them would grow the array — and the work of re-rendering
+     * it — without bound, for output nobody can read anyway.
+     */
+    private static readonly MAX_LINES = 500;
+
     private listeners = new Set<() => void>();
     private controls: SimulatorControls | null = null;
     private running = false;
@@ -77,7 +87,14 @@ export class SimulatorSession {
     }
 
     appendLog(line: ConsoleLine): void {
-        this.lines = [...this.lines, line];
+        const kept =
+            this.lines.length >= SimulatorSession.MAX_LINES
+                ? this.lines.slice(
+                      this.lines.length - SimulatorSession.MAX_LINES + 1,
+                  )
+                : this.lines;
+
+        this.lines = [...kept, line];
         this.notify();
     }
 

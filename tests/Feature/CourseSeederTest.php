@@ -18,13 +18,13 @@ final class CourseSeederTest extends TestCase
     {
         $this->seed(CourseSeeder::class);
 
-        $this->assertSame(5, Course::count());
-        $this->assertSame(20, Challenge::count());
+        $this->assertSame(5, Course::query()->count());
+        $this->assertSame(20, Challenge::query()->count());
 
         $this->seed(CourseSeeder::class);
 
-        $this->assertSame(5, Course::count());
-        $this->assertSame(20, Challenge::count());
+        $this->assertSame(5, Course::query()->count());
+        $this->assertSame(20, Challenge::query()->count());
     }
 
     public function test_seeded_catalog_is_published_and_ordered(): void
@@ -40,7 +40,7 @@ final class CourseSeederTest extends TestCase
         $this->assertTrue(Challenge::query()->where('is_published', false)->doesntExist());
 
         Course::query()->withCount('challenges')->get()->each(function (Course $course): void {
-            $this->assertGreaterThanOrEqual(1, $course->challenges_count, "course {$course->slug} has no challenges");
+            $this->assertGreaterThanOrEqual(1, $course->challenges_count, sprintf('course %s has no challenges', $course->slug));
         });
     }
 
@@ -57,68 +57,68 @@ final class CourseSeederTest extends TestCase
             $this->assertSame(100, $challenge->max_score, $slug);
 
             foreach (['x', 'y', 'z', 'yaw'] as $key) {
-                $this->assertArrayHasKey($key, $environment['start'], "{$slug}: start.{$key}");
+                $this->assertArrayHasKey($key, $environment['start'], sprintf('%s: start.%s', $slug, $key));
             }
 
             $bounds = $environment['bounds'];
 
             foreach (['width', 'depth', 'height'] as $key) {
-                $this->assertArrayHasKey($key, $bounds, "{$slug}: bounds.{$key}");
-                $this->assertGreaterThan(0, $bounds[$key], "{$slug}: bounds.{$key}");
+                $this->assertArrayHasKey($key, $bounds, sprintf('%s: bounds.%s', $slug, $key));
+                $this->assertGreaterThan(0, $bounds[$key], sprintf('%s: bounds.%s', $slug, $key));
             }
 
             $this->assertContains($criteria['type'], ['waypoints', 'gates'], $slug);
             $this->assertIsBool($criteria['avoid_collisions'], $slug);
             $this->assertIsBool($criteria['landing_required'], $slug);
             $this->assertIsArray($criteria['waypoints'], $slug);
-            $this->assertGreaterThanOrEqual(10, $criteria['max_time_seconds'], "{$slug}: max_time_seconds");
+            $this->assertGreaterThanOrEqual(10, $criteria['max_time_seconds'], $slug.': max_time_seconds');
 
             if (array_key_exists('min_altitude', $criteria)) {
-                $this->assertGreaterThan(0, $criteria['min_altitude'], "{$slug}: min_altitude");
-                $this->assertLessThanOrEqual($bounds['height'], $criteria['min_altitude'], "{$slug}: min_altitude exceeds bounds");
+                $this->assertGreaterThan(0, $criteria['min_altitude'], $slug.': min_altitude');
+                $this->assertLessThanOrEqual($bounds['height'], $criteria['min_altitude'], $slug.': min_altitude exceeds bounds');
             }
 
-            $this->assertGreaterThan(0, $environment['goal']['radius'], "{$slug}: goal radius");
-            $this->assertPointWithinBounds($environment['goal'] + ['y' => 1], $bounds, "{$slug}: goal");
+            $this->assertGreaterThan(0, $environment['goal']['radius'], $slug.': goal radius');
+            $this->assertPointWithinBounds($environment['goal'] + ['y' => 1], $bounds, $slug.': goal');
 
             foreach ($criteria['waypoints'] as $index => $waypoint) {
-                $this->assertGreaterThanOrEqual(0.5, $waypoint['radius'], "{$slug}: criteria waypoint {$index} radius too small to hit");
-                $this->assertPointWithinBounds($waypoint, $bounds, "{$slug}: criteria waypoint {$index}");
+                $this->assertGreaterThanOrEqual(0.5, $waypoint['radius'], sprintf('%s: criteria waypoint %s radius too small to hit', $slug, $index));
+                $this->assertPointWithinBounds($waypoint, $bounds, sprintf('%s: criteria waypoint %s', $slug, $index));
             }
 
             foreach ($environment['waypoints'] as $index => $waypoint) {
-                $this->assertPointWithinBounds($waypoint, $bounds, "{$slug}: environment waypoint {$index}");
+                $this->assertPointWithinBounds($waypoint, $bounds, sprintf('%s: environment waypoint %s', $slug, $index));
             }
 
             foreach ($environment['obstacles'] as $index => $obstacle) {
-                $this->assertPointWithinBounds($obstacle, $bounds, "{$slug}: obstacle {$index}");
+                $this->assertPointWithinBounds($obstacle, $bounds, sprintf('%s: obstacle %s', $slug, $index));
             }
 
             foreach ($environment['props'] ?? [] as $index => $prop) {
-                $this->assertContains($prop['kind'], ['car', 'van', 'tree'], "{$slug}: prop {$index} kind");
-                $this->assertPointWithinBounds($prop + ['y' => 1], $bounds, "{$slug}: prop {$index}");
+                $this->assertContains($prop['kind'], ['car', 'van', 'tree'], sprintf('%s: prop %s kind', $slug, $index));
+                $this->assertPointWithinBounds($prop + ['y' => 1], $bounds, sprintf('%s: prop %s', $slug, $index));
             }
 
             if (array_key_exists('carwash', $environment)) {
-                $this->assertPointWithinBounds($environment['carwash'] + ['y' => 1], $bounds, "{$slug}: carwash");
+                $this->assertPointWithinBounds($environment['carwash'] + ['y' => 1], $bounds, $slug.': carwash');
             }
 
             if (array_key_exists('photo_targets', $criteria)) {
-                $this->assertNotEmpty($criteria['photo_targets'], "{$slug}: photo_targets empty");
+                $this->assertNotEmpty($criteria['photo_targets'], $slug.': photo_targets empty');
 
                 foreach ($criteria['photo_targets'] as $index => $target) {
-                    $this->assertGreaterThanOrEqual(1, $target['radius'], "{$slug}: photo target {$index} radius too small to hit");
-                    $this->assertPointWithinBounds($target + ['y' => 1], $bounds, "{$slug}: photo target {$index}");
+                    $this->assertGreaterThanOrEqual(1, $target['radius'], sprintf('%s: photo target %s radius too small to hit', $slug, $index));
+                    $this->assertPointWithinBounds($target + ['y' => 1], $bounds, sprintf('%s: photo target %s', $slug, $index));
                 }
             }
 
             if (array_key_exists('min_photos', $criteria)) {
-                $this->assertGreaterThanOrEqual(1, $criteria['min_photos'], "{$slug}: min_photos");
-                $this->assertLessThanOrEqual(10, $criteria['min_photos'], "{$slug}: min_photos unreasonably high");
+                $this->assertGreaterThanOrEqual(1, $criteria['min_photos'], $slug.': min_photos');
+                $this->assertLessThanOrEqual(10, $criteria['min_photos'], $slug.': min_photos unreasonably high');
             }
 
             if (! empty($criteria['wash_required'])) {
-                $this->assertArrayHasKey('carwash', $environment, "{$slug}: wash required but no carwash in the environment");
+                $this->assertArrayHasKey('carwash', $environment, $slug.': wash required but no carwash in the environment');
             }
         });
     }
@@ -132,16 +132,16 @@ final class CourseSeederTest extends TestCase
             $solution = $challenge->solution_code;
             $criteria = $challenge->success_criteria;
 
-            $this->assertNotNull($solution, "{$slug}: no reference solution");
+            $this->assertNotNull($solution, $slug.': no reference solution');
             $this->assertStringContainsString('async function main(drone)', $solution, $slug);
             $this->assertNotSame(
                 $challenge->starter_code,
                 $solution,
-                "{$slug}: the solution is just the starter code",
+                $slug.': the solution is just the starter code',
             );
 
             if ($criteria['landing_required']) {
-                $this->assertStringContainsString('drone.land()', $solution, "{$slug}: never lands");
+                $this->assertStringContainsString('drone.land()', $solution, $slug.': never lands');
             }
 
             // A photo mission's solution has to actually take the photos the
@@ -152,7 +152,7 @@ final class CourseSeederTest extends TestCase
                 $this->assertGreaterThanOrEqual(
                     $minPhotos,
                     mb_substr_count($solution, 'drone.takePhoto'),
-                    "{$slug}: fewer takePhoto calls than the mission requires",
+                    $slug.': fewer takePhoto calls than the mission requires',
                 );
             }
         });
@@ -206,9 +206,9 @@ final class CourseSeederTest extends TestCase
      */
     private function assertPointWithinBounds(array $point, array $bounds, string $context): void
     {
-        $this->assertLessThanOrEqual($bounds['width'] / 2, abs($point['x']), "{$context}: x outside ground plane");
-        $this->assertLessThanOrEqual($bounds['depth'] / 2, abs($point['z']), "{$context}: z outside ground plane");
-        $this->assertGreaterThan(0, $point['y'], "{$context}: y below ground");
-        $this->assertLessThanOrEqual($bounds['height'], $point['y'], "{$context}: y above bounds");
+        $this->assertLessThanOrEqual($bounds['width'] / 2, abs($point['x']), $context.': x outside ground plane');
+        $this->assertLessThanOrEqual($bounds['depth'] / 2, abs($point['z']), $context.': z outside ground plane');
+        $this->assertGreaterThan(0, $point['y'], $context.': y below ground');
+        $this->assertLessThanOrEqual($bounds['height'], $point['y'], $context.': y above bounds');
     }
 }

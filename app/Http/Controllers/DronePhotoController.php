@@ -6,18 +6,23 @@ namespace App\Http\Controllers;
 
 use App\Actions\StoreDronePhoto;
 use App\Http\Requests\StoreDronePhotoRequest;
+use App\Http\Resources\DronePhotoResource;
 use App\Models\Challenge;
 use App\Models\Course;
 use App\Models\DronePhoto;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
 final class DronePhotoController extends Controller
 {
+    /** Photos shown per page of the log. */
+    private const int PER_PAGE = 24;
+
     /**
      * Display the pilot's photo log.
      */
@@ -28,19 +33,10 @@ final class DronePhotoController extends Controller
             ->with('challenge.course')
             ->latest()
             ->latest('id')
-            ->paginate(24);
+            ->paginate(self::PER_PAGE);
 
         return Inertia::render('photos/index', [
-            'photos' => $photos->getCollection()->map(fn (DronePhoto $photo): array => [
-                'id' => $photo->id,
-                'url' => $photo->url(),
-                'label' => $photo->label,
-                'challengeTitle' => $photo->challenge?->title,
-                'courseSlug' => $photo->challenge?->course?->slug,
-                'challengeSlug' => $photo->challenge?->slug,
-                'position' => $photo->position,
-                'takenAt' => $photo->created_at?->toIso8601String() ?? '',
-            ])->values(),
+            'photos' => DronePhotoResource::collection($photos->getCollection()),
             'page' => $photos->currentPage(),
             'lastPage' => $photos->lastPage(),
             'total' => $photos->total(),
@@ -56,8 +52,7 @@ final class DronePhotoController extends Controller
         Challenge $challenge,
         StoreDronePhoto $storePhoto,
     ): JsonResponse {
-        abort_unless($course->is_published && $challenge->is_published, 404);
-        abort_unless($challenge->course_id === $course->id, 404);
+        abort_unless($challenge->isPlayableIn($course), 404);
 
         $photo = $storePhoto->handle($request->user(), $challenge, $request->photo());
 
@@ -71,12 +66,17 @@ final class DronePhotoController extends Controller
     /**
      * Delete a photo (and its file) from the pilot's log.
      */
-    public function destroy(Request $request, DronePhoto $photo): RedirectResponse
+    public function destroy(DronePhoto $photo): RedirectResponse
     {
-        abort_unless($photo->user_id === $request->user()->id, 403);
+        Gate::authorize('delete', $photo);
 
-        Storage::disk('public')->delete($photo->path);
+        $path = $photo->path;
+
+        // The row is the record of truth, so it goes first: a storage failure
+        // then leaves a stray file to sweep up rather than a log entry
+        // pointing at an image that is already gone.
         $photo->delete();
+        Storage::disk('public')->delete($path);
 
         return back();
     }

@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Enums\ChallengeStatus;
 use Database\Factories\ChallengeFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -30,6 +31,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property bool $is_published
  */
 #[Fillable(['course_id', 'title', 'slug', 'briefing', 'order', 'difficulty', 'starter_code', 'solution_code', 'environment', 'success_criteria', 'max_score', 'is_published'])]
+#[Hidden(['solution_code'])]
 final class Challenge extends Model
 {
     /** @use HasFactory<ChallengeFactory> */
@@ -49,6 +51,21 @@ final class Challenge extends Model
     }
 
     /**
+     * Whether this mission can be flown as part of the given course.
+     *
+     * Both ends have to be live and the challenge has to actually belong to
+     * the course in the URL, or the pair is indistinguishable from content
+     * that does not exist. Every route carrying a course/challenge pair
+     * asks this one question, so the answer cannot drift between them.
+     */
+    public function isPlayableIn(Course $course): bool
+    {
+        return $this->is_published
+            && $course->is_published
+            && $this->course_id === $course->id;
+    }
+
+    /**
      * Whether the reference solution may be shown for this progress record.
      *
      * A mission with no authored solution never unlocks, so the panel can
@@ -60,7 +77,7 @@ final class Challenge extends Model
             return false;
         }
 
-        if ($progress === null) {
+        if (! $progress instanceof UserChallengeProgress) {
             return false;
         }
 

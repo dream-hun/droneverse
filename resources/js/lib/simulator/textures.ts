@@ -1,17 +1,37 @@
 import { CanvasTexture, RepeatWrapping, SRGBColorSpace } from 'three';
+import { cachedTexture } from './texture-cache';
 
 /**
  * Procedural textures for the flying field, generated on a canvas at mount
  * time so the simulator ships no image assets. Only called from components
  * rendered inside the R3F <Canvas>, which never runs during SSR.
+ *
+ * Every exported accessor returns a *shared* texture from
+ * {@see cachedTexture}: a field of twenty identical crates paints one canvas,
+ * not twenty. Two consequences follow, and both are load-bearing:
+ *
+ * - Callers must not dispose or mutate what they are given. Anything that
+ *   varies per use — `repeat`, above all — is an argument here, so that
+ *   different needs resolve to different cache entries instead of callers
+ *   fighting over one texture's properties.
+ * - Generation is seeded rather than random. Identical inputs have to paint
+ *   identical pixels, or sharing one texture between two objects would be
+ *   visible.
  */
 
 function createCanvas(
     size: number,
 ): [HTMLCanvasElement, CanvasRenderingContext2D] {
+    return createCanvasOfSize(size, size);
+}
+
+function createCanvasOfSize(
+    width: number,
+    height: number,
+): [HTMLCanvasElement, CanvasRenderingContext2D] {
     const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
+    canvas.width = width;
+    canvas.height = height;
 
     const context = canvas.getContext('2d');
 
@@ -26,6 +46,14 @@ function finishTexture(canvas: HTMLCanvasElement): CanvasTexture {
     const texture = new CanvasTexture(canvas);
     texture.colorSpace = SRGBColorSpace;
     texture.anisotropy = 8;
+
+    return texture;
+}
+
+function tiled(texture: CanvasTexture, x: number, y: number): CanvasTexture {
+    texture.wrapS = RepeatWrapping;
+    texture.wrapT = RepeatWrapping;
+    texture.repeat.set(x, y);
 
     return texture;
 }
@@ -54,15 +82,16 @@ function speckle(
     colors: string[],
     count: number,
     maxDot: number,
+    rng: () => number,
 ): void {
     for (let i = 0; i < count; i++) {
         context.fillStyle = colors[i % colors.length];
-        context.globalAlpha = 0.03 + Math.random() * 0.05;
+        context.globalAlpha = 0.03 + rng() * 0.05;
         context.fillRect(
-            Math.random() * size,
-            Math.random() * size,
-            1 + Math.random() * maxDot,
-            1 + Math.random() * maxDot,
+            rng() * size,
+            rng() * size,
+            1 + rng() * maxDot,
+            1 + rng() * maxDot,
         );
     }
 
@@ -74,7 +103,7 @@ function speckle(
  * sky-blue center axes, and a yellow boundary line. The grid doubles as a
  * distance reference for the meters used in drone commands.
  */
-export function createFieldTexture(
+function createFieldTexture(
     widthMeters: number,
     depthMeters: number,
 ): CanvasTexture {
@@ -82,29 +111,20 @@ export function createFieldTexture(
         24,
         2048 / Math.max(widthMeters, depthMeters),
     );
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.round(widthMeters * pixelsPerMeter);
-    canvas.height = Math.round(depthMeters * pixelsPerMeter);
-
-    const context = canvas.getContext('2d');
-
-    if (!context) {
-        throw new Error('2D canvas is unavailable');
-    }
+    const [canvas, context] = createCanvasOfSize(
+        Math.round(widthMeters * pixelsPerMeter),
+        Math.round(depthMeters * pixelsPerMeter),
+    );
+    const rng = mulberry32(canvas.width * 73856093 + canvas.height);
 
     context.fillStyle = '#474d55';
     context.fillRect(0, 0, canvas.width, canvas.height);
 
     for (let i = 0; i < (canvas.width * canvas.height) / 40; i++) {
-        context.fillStyle = Math.random() > 0.5 ? '#ffffff' : '#000000';
-        context.globalAlpha = 0.02 + Math.random() * 0.045;
-        const dot = 1 + Math.random() * 2;
-        context.fillRect(
-            Math.random() * canvas.width,
-            Math.random() * canvas.height,
-            dot,
-            dot,
-        );
+        context.fillStyle = rng() > 0.5 ? '#ffffff' : '#000000';
+        context.globalAlpha = 0.02 + rng() * 0.045;
+        const dot = 1 + rng() * 2;
+        context.fillRect(rng() * canvas.width, rng() * canvas.height, dot, dot);
     }
 
     context.globalAlpha = 1;
@@ -156,7 +176,7 @@ export function createFieldTexture(
 }
 
 /** Mottled grass for the terrain surrounding the field. */
-export function createGrassTexture(): CanvasTexture {
+function createGrassTexture(): CanvasTexture {
     const size = 256;
     const [canvas, context] = createCanvas(size);
 
@@ -168,17 +188,14 @@ export function createGrassTexture(): CanvasTexture {
         ['#4e6038', '#647851', '#6d7d54', '#42522f'],
         3200,
         3,
+        mulberry32(0x6a55),
     );
 
-    const texture = finishTexture(canvas);
-    texture.wrapS = RepeatWrapping;
-    texture.wrapT = RepeatWrapping;
-
-    return texture;
+    return finishTexture(canvas);
 }
 
 /** Painted helipad: dark pad, white ring, bold H. */
-export function createHelipadTexture(): CanvasTexture {
+function createHelipadTexture(): CanvasTexture {
     const size = 512;
     const [canvas, context] = createCanvas(size);
     const center = size / 2;
@@ -204,7 +221,7 @@ export function createHelipadTexture(): CanvasTexture {
 }
 
 /** Concentric landing target for the goal zone. */
-export function createTargetPadTexture(): CanvasTexture {
+function createTargetPadTexture(): CanvasTexture {
     const size = 512;
     const [canvas, context] = createCanvas(size);
     const center = size / 2;
@@ -234,29 +251,21 @@ const FACADE_CONCRETE = ['#8b8f96', '#9a9285', '#7a828d', '#a49d94', '#6f7681'];
  * A glazed high-rise facade: concrete piers and floor spandrels framing a
  * grid of window bays. Each pane is tinted glass with a cool sky-reflection
  * gradient; a scattering of panes read as occupied (blinds) or lit, so no two
- * buildings look identical. Sized to the wall's real width and height so
- * windows line up floor-to-floor across every face of the tower.
+ * buildings look identical. Sized in whole bays and floors so windows line up
+ * floor-to-floor across every face of the tower.
  */
-export function createFacadeTexture(
-    widthMeters: number,
-    heightMeters: number,
+function createFacadeTexture(
+    bays: number,
+    floors: number,
     seed: number,
 ): CanvasTexture {
     const rng = mulberry32(seed);
-    const bays = clampInt(widthMeters / 2.6, 2, 14);
-    const floors = clampInt(heightMeters / 3.2, 3, 40);
     const bayPx = Math.min(56, Math.floor(1792 / bays));
     const floorPx = Math.min(60, Math.floor(1792 / floors));
-
-    const canvas = document.createElement('canvas');
-    canvas.width = bays * bayPx;
-    canvas.height = floors * floorPx;
-
-    const context = canvas.getContext('2d');
-
-    if (!context) {
-        throw new Error('2D canvas is unavailable');
-    }
+    const [canvas, context] = createCanvasOfSize(
+        bays * bayPx,
+        floors * floorPx,
+    );
 
     const concrete =
         FACADE_CONCRETE[Math.floor(rng() * FACADE_CONCRETE.length)];
@@ -336,15 +345,11 @@ export function createFacadeTexture(
         }
     }
 
-    const texture = finishTexture(canvas);
-    texture.wrapS = RepeatWrapping;
-    texture.wrapT = RepeatWrapping;
-
-    return texture;
+    return finishTexture(canvas);
 }
 
 /** Tar-and-gravel rooftop with a painted border for the roof caps. */
-export function createRoofTexture(seed: number): CanvasTexture {
+function createRoofTexture(seed: number): CanvasTexture {
     const size = 256;
     const [canvas, context] = createCanvas(size);
     const rng = mulberry32(seed);
@@ -379,9 +384,10 @@ export function createRoofTexture(seed: number): CanvasTexture {
 }
 
 /** Weathered wooden shipping crate: planks, cross-brace, and stencil. */
-export function createCrateTexture(): CanvasTexture {
+function createCrateTexture(): CanvasTexture {
     const size = 256;
     const [canvas, context] = createCanvas(size);
+    const rng = mulberry32(0xc4a7e);
 
     context.fillStyle = '#a9752f';
     context.fillRect(0, 0, size, size);
@@ -391,12 +397,12 @@ export function createCrateTexture(): CanvasTexture {
     const plankH = size / planks;
 
     for (let i = 0; i < planks; i++) {
-        const tone = 150 + Math.round(Math.random() * 30);
+        const tone = 150 + Math.round(rng() * 30);
         context.fillStyle = `rgb(${tone + 20}, ${tone - 30}, ${Math.round((tone - 60) * 0.7)})`;
         context.fillRect(0, i * plankH + 2, size, plankH - 4);
     }
 
-    speckle(context, size, ['#7a5320', '#c79355', '#5f4018'], 1800, 3);
+    speckle(context, size, ['#7a5320', '#c79355', '#5f4018'], 1800, 3, rng);
 
     // Corner brackets and a diagonal cross-brace.
     context.strokeStyle = '#5f4a2b';
@@ -420,21 +426,24 @@ export function createCrateTexture(): CanvasTexture {
     context.fillText('CARGO', 0, 0);
     context.restore();
 
-    const texture = finishTexture(canvas);
-    texture.wrapS = RepeatWrapping;
-    texture.wrapT = RepeatWrapping;
-
-    return texture;
+    return finishTexture(canvas);
 }
 
 /** Pre-cast concrete panel with form seams, for walls and low barriers. */
-export function createConcreteTexture(): CanvasTexture {
+function createConcreteTexture(): CanvasTexture {
     const size = 256;
     const [canvas, context] = createCanvas(size);
 
     context.fillStyle = '#9ca1a6';
     context.fillRect(0, 0, size, size);
-    speckle(context, size, ['#b4b8bc', '#82878c', '#6f7377'], 2400, 3);
+    speckle(
+        context,
+        size,
+        ['#b4b8bc', '#82878c', '#6f7377'],
+        2400,
+        3,
+        mulberry32(0xc0c2e7e),
+    );
 
     // Form-panel seams and tie-rod holes.
     context.strokeStyle = 'rgba(60, 64, 68, 0.45)';
@@ -459,26 +468,14 @@ export function createConcreteTexture(): CanvasTexture {
         }
     }
 
-    const texture = finishTexture(canvas);
-    texture.wrapS = RepeatWrapping;
-    texture.wrapT = RepeatWrapping;
-
-    return texture;
+    return finishTexture(canvas);
 }
 
 /** Illuminated "DRONE WASH" board mounted over the wash tunnel mouths. */
-export function createCarwashSignTexture(): CanvasTexture {
+function createCarwashSignTexture(): CanvasTexture {
     const width = 512;
     const height = 128;
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-
-    const context = canvas.getContext('2d');
-
-    if (!context) {
-        throw new Error('2D canvas is unavailable');
-    }
+    const [canvas, context] = createCanvasOfSize(width, height);
 
     const backdrop = context.createLinearGradient(0, 0, 0, height);
     backdrop.addColorStop(0, '#0b3050');
@@ -520,7 +517,7 @@ export function createCarwashSignTexture(): CanvasTexture {
 }
 
 /** Diagonal orange/white hazard stripes for tall pylon obstacles. */
-export function createHazardTexture(): CanvasTexture {
+function createHazardTexture(): CanvasTexture {
     const size = 128;
     const [canvas, context] = createCanvas(size);
 
@@ -540,9 +537,79 @@ export function createHazardTexture(): CanvasTexture {
 
     context.restore();
 
-    const texture = finishTexture(canvas);
-    texture.wrapS = RepeatWrapping;
-    texture.wrapT = RepeatWrapping;
+    return finishTexture(canvas);
+}
 
-    return texture;
+// --- Shared accessors -------------------------------------------------
+// Each keys the cache on exactly the inputs that change the pixels, so
+// callers asking for the same thing are handed the same texture.
+
+export function fieldTexture(
+    widthMeters: number,
+    depthMeters: number,
+): CanvasTexture {
+    return cachedTexture(`field:${widthMeters}x${depthMeters}`, () =>
+        createFieldTexture(widthMeters, depthMeters),
+    );
+}
+
+export function grassTexture(repeat: number): CanvasTexture {
+    return cachedTexture(`grass:${repeat}`, () =>
+        tiled(createGrassTexture(), repeat, repeat),
+    );
+}
+
+export function helipadTexture(): CanvasTexture {
+    return cachedTexture('helipad', createHelipadTexture);
+}
+
+export function targetPadTexture(): CanvasTexture {
+    return cachedTexture('target-pad', createTargetPadTexture);
+}
+
+/**
+ * A tower facade sized to a wall in meters.
+ *
+ * The pixels depend only on the whole number of bays and floors the wall
+ * resolves to, so two towers of slightly different size — but the same bay
+ * and floor count — legitimately share one texture.
+ */
+export function facadeTexture(
+    widthMeters: number,
+    heightMeters: number,
+    seed: number,
+): CanvasTexture {
+    const bays = clampInt(widthMeters / 2.6, 2, 14);
+    const floors = clampInt(heightMeters / 3.2, 3, 40);
+
+    return cachedTexture(`facade:${bays}:${floors}:${seed}`, () =>
+        tiled(createFacadeTexture(bays, floors, seed), 1, 1),
+    );
+}
+
+export function roofTexture(seed: number): CanvasTexture {
+    return cachedTexture(`roof:${seed}`, () => createRoofTexture(seed));
+}
+
+export function crateTexture(): CanvasTexture {
+    return cachedTexture('crate', () => tiled(createCrateTexture(), 1, 1));
+}
+
+export function concreteTexture(
+    repeatX: number,
+    repeatY: number,
+): CanvasTexture {
+    return cachedTexture(`concrete:${repeatX}:${repeatY}`, () =>
+        tiled(createConcreteTexture(), repeatX, repeatY),
+    );
+}
+
+export function hazardTexture(repeatX: number, repeatY: number): CanvasTexture {
+    return cachedTexture(`hazard:${repeatX}:${repeatY}`, () =>
+        tiled(createHazardTexture(), repeatX, repeatY),
+    );
+}
+
+export function carwashSignTexture(): CanvasTexture {
+    return cachedTexture('carwash-sign', createCarwashSignTexture);
 }

@@ -8,17 +8,19 @@ import { useEffect, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
 import type { Group } from 'three';
 import { CarwashStation, CityProp } from '@/components/simulator/city-props';
+import { positionSeed, seededRng } from '@/lib/simulator/math';
 import { classifyObstacle } from '@/lib/simulator/obstacles';
+import { releaseTextureCache } from '@/lib/simulator/texture-cache';
 import {
-    createConcreteTexture,
-    createCrateTexture,
-    createFacadeTexture,
-    createFieldTexture,
-    createGrassTexture,
-    createHazardTexture,
-    createHelipadTexture,
-    createRoofTexture,
-    createTargetPadTexture,
+    concreteTexture,
+    crateTexture,
+    facadeTexture,
+    fieldTexture,
+    grassTexture,
+    hazardTexture,
+    helipadTexture,
+    roofTexture,
+    targetPadTexture,
 } from '@/lib/simulator/textures';
 import type {
     EnvironmentConfig,
@@ -29,11 +31,7 @@ import type {
 
 /** Stable per-obstacle seed so a tower's windows never flicker between frames. */
 function obstacleSeed(obstacle: ObstacleConfig): number {
-    const x = Math.round(obstacle.x * 100);
-    const z = Math.round(obstacle.z * 100);
-    const h = Math.round((obstacle.sy ?? 1) * 100);
-
-    return Math.abs((x * 73856093) ^ (z * 19349663) ^ (h * 83492791)) >>> 0;
+    return positionSeed(obstacle.x, obstacle.z, obstacle.sy ?? 1);
 }
 
 function GateFrame({ gate }: { gate: GateConfig }) {
@@ -117,18 +115,6 @@ function ObstacleBody({
             {children}
         </RigidBody>
     );
-}
-
-function seededRng(seed: number): () => number {
-    let state = seed >>> 0;
-
-    return () => {
-        state = (state + 0x6d2b79f5) | 0;
-        let t = Math.imul(state ^ (state >>> 15), 1 | state);
-        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
 }
 
 /** Air handlers, vents, and a mast scattered on a tower roof. */
@@ -223,24 +209,9 @@ function BuildingVisual({
 
     // Front/back faces span the width; left/right span the depth. Two textures
     // (seeded apart) keep adjacent faces from looking copy-pasted.
-    const facadeWide = useMemo(
-        () => createFacadeTexture(sx, sy, seed),
-        [sx, sy, seed],
-    );
-    const facadeDeep = useMemo(
-        () => createFacadeTexture(sz, sy, seed ^ 0x1234),
-        [sz, sy, seed],
-    );
-    const roofMap = useMemo(() => createRoofTexture(seed), [seed]);
-
-    useEffect(
-        () => () => {
-            facadeWide.dispose();
-            facadeDeep.dispose();
-            roofMap.dispose();
-        },
-        [facadeWide, facadeDeep, roofMap],
-    );
+    const facadeWide = facadeTexture(sx, sy, seed);
+    const facadeDeep = facadeTexture(sz, sy, seed ^ 0x1234);
+    const roofMap = roofTexture(seed);
 
     return (
         <group>
@@ -330,14 +301,11 @@ function CrateVisual({ obstacle }: { obstacle: ObstacleConfig }) {
     const sx = obstacle.sx ?? 1;
     const sy = obstacle.sy ?? 1;
     const sz = obstacle.sz ?? 1;
-    const crateMap = useMemo(() => createCrateTexture(), []);
-
-    useEffect(() => () => crateMap.dispose(), [crateMap]);
 
     return (
         <mesh castShadow receiveShadow>
             <boxGeometry args={[sx, sy, sz]} />
-            <meshStandardMaterial map={crateMap} roughness={0.8} />
+            <meshStandardMaterial map={crateTexture()} roughness={0.8} />
         </mesh>
     );
 }
@@ -351,17 +319,10 @@ function ConcreteVisual({ obstacle }: { obstacle: ObstacleConfig }) {
     const radius = obstacle.radius ?? 0.5;
     const height = obstacle.height ?? sy;
 
-    const concreteMap = useMemo(() => {
-        const texture = createConcreteTexture();
-        texture.repeat.set(
-            Math.max(1, Math.round(Math.max(sx, sz) / 2)),
-            Math.max(1, Math.round((isCylinder ? height : sy) / 2)),
-        );
-
-        return texture;
-    }, [sx, sz, sy, height, isCylinder]);
-
-    useEffect(() => () => concreteMap.dispose(), [concreteMap]);
+    const concreteMap = concreteTexture(
+        Math.max(1, Math.round(Math.max(sx, sz) / 2)),
+        Math.max(1, Math.round((isCylinder ? height : sy) / 2)),
+    );
 
     return (
         <mesh castShadow receiveShadow>
@@ -381,17 +342,10 @@ function PylonVisual({ obstacle }: { obstacle: ObstacleConfig }) {
     const sy = obstacle.sy ?? 1;
     const sz = obstacle.sz ?? 1;
 
-    const hazardMap = useMemo(() => {
-        const texture = createHazardTexture();
-        texture.repeat.set(
-            Math.max(1, Math.round((sx + sz) / 2)),
-            Math.max(1, Math.round(sy / 1.2)),
-        );
-
-        return texture;
-    }, [sx, sy, sz]);
-
-    useEffect(() => () => hazardMap.dispose(), [hazardMap]);
+    const hazardMap = hazardTexture(
+        Math.max(1, Math.round((sx + sz) / 2)),
+        Math.max(1, Math.round(sy / 1.2)),
+    );
 
     return (
         <mesh castShadow receiveShadow>
@@ -485,30 +439,16 @@ export function EnvironmentObjects({
 }) {
     const span = Math.max(environment.bounds.width, environment.bounds.depth);
 
-    const textures = useMemo(
-        () => ({
-            field: createFieldTexture(
-                environment.bounds.width,
-                environment.bounds.depth,
-            ),
-            grass: (() => {
-                const grass = createGrassTexture();
-                grass.repeat.set(span * 2.5, span * 2.5);
+    const textures = {
+        field: fieldTexture(environment.bounds.width, environment.bounds.depth),
+        grass: grassTexture(span * 2.5),
+        helipad: helipadTexture(),
+        target: targetPadTexture(),
+    };
 
-                return grass;
-            })(),
-            helipad: createHelipadTexture(),
-            target: createTargetPadTexture(),
-        }),
-        [environment.bounds.depth, environment.bounds.width, span],
-    );
-
-    useEffect(
-        () => () => {
-            Object.values(textures).forEach((texture) => texture.dispose());
-        },
-        [textures],
-    );
+    // The scene owns every procedural texture in it, including the ones its
+    // children asked for, so the cache is emptied here and nowhere else.
+    useEffect(() => releaseTextureCache, []);
 
     return (
         <>

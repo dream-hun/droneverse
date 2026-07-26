@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Enums\ChallengeStatus;
+use App\Http\Resources\CourseCardResource;
 use App\Models\Course;
+use App\Models\User;
 use App\Models\UserChallengeProgress;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -19,13 +21,29 @@ final class DashboardController extends Controller
     public function __invoke(Request $request): Response
     {
         $user = $request->user();
-
         $courses = Course::catalog()->get();
-        $completedByCourse = UserChallengeProgress::completedCountsByCourse($user);
 
-        // The continue card must never link to content that challenges.show
-        // would 404: only a published challenge in a published course counts.
-        $continue = $user->challengeProgress()
+        return Inertia::render('dashboard', [
+            'courses' => CourseCardResource::collection(
+                $courses,
+                UserChallengeProgress::completedCountsByCourse($user),
+            ),
+            'continue' => $this->continueCard($user),
+            'stats' => UserChallengeProgress::statsFor($user),
+        ]);
+    }
+
+    /**
+     * The "pick up where you left off" card, or null with nothing in flight.
+     *
+     * The card must never link to content the simulator route would 404 on,
+     * so only a published challenge in a published course counts.
+     *
+     * @return array{courseSlug: string, challengeSlug: string, challengeTitle: string}|null
+     */
+    private function continueCard(User $user): ?array
+    {
+        $progress = $user->challengeProgress()
             ->with('challenge.course')
             ->where('status', '!=', ChallengeStatus::Completed)
             ->whereRelation('challenge', 'is_published', true)
@@ -33,20 +51,16 @@ final class DashboardController extends Controller
             ->latest('updated_at')
             ->first();
 
-        return Inertia::render('dashboard', [
-            'courses' => $courses->map(fn (Course $course): array => [
-                'title' => $course->title,
-                'slug' => $course->slug,
-                'difficulty' => $course->difficulty,
-                'challengesCount' => $course->challenges_count,
-                'completedCount' => $completedByCourse->get($course->id, 0),
-            ]),
-            'continue' => $continue && $continue->challenge ? [
-                'courseSlug' => $continue->challenge->course->slug,
-                'challengeSlug' => $continue->challenge->slug,
-                'challengeTitle' => $continue->challenge->title,
-            ] : null,
-            'stats' => UserChallengeProgress::statsFor($user),
-        ]);
+        $challenge = $progress?->challenge;
+
+        if ($challenge === null || $challenge->course === null) {
+            return null;
+        }
+
+        return [
+            'courseSlug' => $challenge->course->slug,
+            'challengeSlug' => $challenge->slug,
+            'challengeTitle' => $challenge->title,
+        ];
     }
 }

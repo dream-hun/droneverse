@@ -105,8 +105,9 @@ final class UserChallengeProgress extends Model
     /**
      * The viewer's own row, wherever they placed.
      *
-     * Null until they fly a mission that still counts, which is also the
-     * only case where they are absent from {@see self::standings()}.
+     * Ranked against every pilot rather than only the listed ones, so a
+     * pilot who fell outside {@see self::standings()} still learns where
+     * they stand. Null only until they fly a mission that still counts.
      *
      * @return array{rank: int, name: string, points: int, stars: int, completed: int, isYou: bool}|null
      */

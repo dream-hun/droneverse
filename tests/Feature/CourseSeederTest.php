@@ -123,6 +123,41 @@ final class CourseSeederTest extends TestCase
         });
     }
 
+    public function test_every_seeded_challenge_ships_a_reference_solution(): void
+    {
+        $this->seed(CourseSeeder::class);
+
+        Challenge::query()->get()->each(function (Challenge $challenge): void {
+            $slug = $challenge->slug;
+            $solution = $challenge->solution_code;
+            $criteria = $challenge->success_criteria;
+
+            $this->assertNotNull($solution, "{$slug}: no reference solution");
+            $this->assertStringContainsString('async function main(drone)', $solution, $slug);
+            $this->assertNotSame(
+                $challenge->starter_code,
+                $solution,
+                "{$slug}: the solution is just the starter code",
+            );
+
+            if ($criteria['landing_required']) {
+                $this->assertStringContainsString('drone.land()', $solution, "{$slug}: never lands");
+            }
+
+            // A photo mission's solution has to actually take the photos the
+            // grader counts, otherwise it cannot score.
+            $minPhotos = $criteria['min_photos'] ?? 0;
+
+            if ($minPhotos > 0) {
+                $this->assertGreaterThanOrEqual(
+                    $minPhotos,
+                    mb_substr_count($solution, 'drone.takePhoto'),
+                    "{$slug}: fewer takePhoto calls than the mission requires",
+                );
+            }
+        });
+    }
+
     public function test_city_operations_exercises_the_full_mission_toolkit(): void
     {
         $this->seed(CourseSeeder::class);

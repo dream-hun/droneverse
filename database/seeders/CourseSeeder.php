@@ -35,6 +35,7 @@ final class CourseSeeder extends Seeder
                         'order' => $challengeOrder,
                         'difficulty' => $challenge['difficulty'],
                         'starter_code' => $challenge['starter_code'],
+                        'solution_code' => $challenge['solution_code'],
                         'environment' => $challenge['environment'],
                         'success_criteria' => $challenge['success_criteria'],
                         'max_score' => 100,
@@ -107,6 +108,20 @@ final class CourseSeeder extends Seeder
                         await drone.land();
                     }
                     JS,
+                'solution_code' => <<<'JS'
+                    async function main(drone) {
+                        // The default takeoff altitude is 1.5 m, comfortably above the
+                        // 1 m minimum this flight plan grades on.
+                        await drone.takeoff();
+
+                        // Hold the hover long enough for the airframe to settle.
+                        await drone.hover(2);
+
+                        // `land()` descends straight down from wherever it is called,
+                        // so the drone touches back down on the pad it left.
+                        await drone.land();
+                    }
+                    JS,
                 'environment' => [
                     'start' => ['x' => 0, 'y' => 0, 'z' => 0, 'yaw' => 0],
                     'bounds' => ['width' => 20, 'depth' => 20, 'height' => 10],
@@ -141,6 +156,27 @@ final class CourseSeeder extends Seeder
                         await drone.moveForward(5);
 
                         // Waypoint 3: turn right once more
+                        await drone.turn(90);
+                        await drone.moveForward(5);
+
+                        await drone.land();
+                    }
+                    JS,
+                'solution_code' => <<<'JS'
+                    async function main(drone) {
+                        await drone.takeoff();
+
+                        // Waypoint 1 sits 5 m straight ahead of the pad, and the drone
+                        // starts out facing it.
+                        await drone.moveForward(5);
+
+                        // Waypoint 2: a right turn (positive degrees) puts the nose on
+                        // the next marker, 5 m away again.
+                        await drone.turn(90);
+                        await drone.moveForward(5);
+
+                        // Waypoint 3: one more right turn closes the square back toward
+                        // the start line.
                         await drone.turn(90);
                         await drone.moveForward(5);
 
@@ -195,6 +231,40 @@ final class CourseSeeder extends Seeder
                         await drone.land();
                     }
                     JS,
+                'solution_code' => <<<'JS'
+                    async function main(drone) {
+                        await drone.takeoff();
+
+                        const goalZ = -18;
+
+                        // Probe before every step and only fly into air the rangefinder
+                        // says is clear. The crates are staggered either side of the
+                        // center line, so the clean route is straight down the middle -
+                        // but if one ever does sit in the lane, slide 3 m across, run
+                        // past it, and rejoin the center line.
+                        let position = await drone.getPosition();
+
+                        while (position.z - goalZ > 0.5) {
+                            const ahead = await drone.getDistanceAhead();
+
+                            if (ahead > 3) {
+                                await drone.moveForward(Math.min(3, position.z - goalZ));
+                            } else {
+                                console.log('Crate at', ahead, 'm - stepping around it.');
+
+                                const lane = position.x <= 0 ? 3 : -3;
+
+                                await drone.moveTo(position.x + lane, 1.5, position.z);
+                                await drone.moveTo(position.x + lane, 1.5, position.z - 4);
+                                await drone.moveTo(0, 1.5, position.z - 4);
+                            }
+
+                            position = await drone.getPosition();
+                        }
+
+                        await drone.land();
+                    }
+                    JS,
                 'environment' => [
                     'start' => ['x' => 0, 'y' => 0, 'z' => 0, 'yaw' => 0],
                     'bounds' => ['width' => 20, 'depth' => 40, 'height' => 10],
@@ -233,6 +303,27 @@ final class CourseSeeder extends Seeder
                         await drone.moveForward(6);
                         await drone.turn(-45);
                         await drone.moveForward(6);
+
+                        await drone.land();
+                    }
+                    JS,
+                'solution_code' => <<<'JS'
+                    async function main(drone) {
+                        await drone.takeoff();
+
+                        // Fly the gate centers as absolute points instead of
+                        // dead-reckoning with turns: `moveTo` holds the line whatever
+                        // the wind does, and a missed gate never counts.
+                        const gates = [
+                            [0, -6],
+                            [4, -10],
+                            [4, -16],
+                            [0, -20],
+                        ];
+
+                        for (const [x, z] of gates) {
+                            await drone.moveTo(x, 1.5, z);
+                        }
 
                         await drone.land();
                     }
@@ -278,6 +369,29 @@ final class CourseSeeder extends Seeder
 
                         for (const [dx, dz] of legs) {
                             await drone.moveTo(dx, 1.5, dz);
+                        }
+
+                        await drone.land();
+                    }
+                    JS,
+                'solution_code' => <<<'JS'
+                    async function main(drone) {
+                        await drone.takeoff();
+
+                        // Back-and-forth sweep through every corner marker, finishing on
+                        // the center of the field. Absolute `moveTo` points mean the
+                        // pattern never drifts, however long the sweep runs.
+                        const sweep = [
+                            [8, 0],
+                            [0, 8],
+                            [-8, 0],
+                            [0, -8],
+                            [0, 0],
+                        ];
+
+                        for (const [x, z] of sweep) {
+                            await drone.moveTo(x, 1.5, z);
+                            console.log('Sector swept:', x, z);
                         }
 
                         await drone.land();
@@ -337,6 +451,28 @@ final class CourseSeeder extends Seeder
                         await drone.land();
                     }
                     JS,
+                'solution_code' => <<<'JS'
+                    async function main(drone) {
+                        await drone.takeoff();
+
+                        // Rung 1: climb to 3 m, then fly the first 4 m leg.
+                        // `setAltitude` changes height in place, and `moveForward`
+                        // holds whatever height it is called at.
+                        await drone.setAltitude(3);
+                        await drone.moveForward(4);
+
+                        // Rung 2: 5 m - this is also the pass that clears the 4 m
+                        // ceiling the mission grades on.
+                        await drone.setAltitude(5);
+                        await drone.moveForward(4);
+
+                        // Rung 3: back down to 1.5 m for the last leg and the landing.
+                        await drone.setAltitude(1.5);
+                        await drone.moveForward(4);
+
+                        await drone.land();
+                    }
+                    JS,
                 'environment' => [
                     'start' => ['x' => 0, 'y' => 0, 'z' => 0, 'yaw' => 0],
                     'bounds' => ['width' => 20, 'depth' => 28, 'height' => 10],
@@ -375,6 +511,29 @@ final class CourseSeeder extends Seeder
                         await drone.moveTo(-2.5, 1.5, -10);
 
                         // Weave past the last pylon and finish at the pad.
+
+                        await drone.land();
+                    }
+                    JS,
+                'solution_code' => <<<'JS'
+                    async function main(drone) {
+                        await drone.takeoff();
+
+                        // Right of pylon one, left of pylon two, right of pylon three,
+                        // then straighten out onto the pad. 2.5 m of offset clears each
+                        // post by far more than the drone's own width, and the straight
+                        // lines between the markers never re-cross the center line
+                        // where the pylons stand.
+                        const line = [
+                            [2.5, -5],
+                            [-2.5, -10],
+                            [2.5, -15],
+                            [0, -19],
+                        ];
+
+                        for (const [x, z] of line) {
+                            await drone.moveTo(x, 1.5, z);
+                        }
 
                         await drone.land();
                     }
@@ -426,6 +585,25 @@ final class CourseSeeder extends Seeder
                         await drone.land();
                     }
                     JS,
+                'solution_code' => <<<'JS'
+                    async function main(drone) {
+                        await drone.takeoff();
+
+                        // Duck under the slabs once and stay there: every marker in the
+                        // corridor sits at 1.2 m, and `moveForward` holds the altitude
+                        // it is called at.
+                        await drone.setAltitude(1.2);
+
+                        await drone.moveForward(5);
+                        await drone.moveForward(4);
+                        await drone.moveForward(4);
+
+                        // Clear of the last slab - run out to the landing pad.
+                        await drone.moveForward(3);
+
+                        await drone.land();
+                    }
+                    JS,
                 'environment' => [
                     'start' => ['x' => 0, 'y' => 0, 'z' => 0, 'yaw' => 0],
                     'bounds' => ['width' => 20, 'depth' => 36, 'height' => 10],
@@ -467,6 +645,28 @@ final class CourseSeeder extends Seeder
 
                         // Two right turns and two legs to reach the pad.
 
+                        await drone.land();
+                    }
+                    JS,
+                'solution_code' => <<<'JS'
+                    async function main(drone) {
+                        // Straight to 2 m: every marker on this approach sits at that
+                        // height, so there is no altitude changing to do afterwards.
+                        await drone.takeoff(2);
+
+                        // Down the long leg of the L.
+                        await drone.moveForward(6);
+
+                        // Right at the corner, across the top of the L.
+                        await drone.turn(90);
+                        await drone.moveForward(4);
+
+                        // Right again, onto the landing pad.
+                        await drone.turn(90);
+                        await drone.moveForward(4);
+
+                        // The pad is only 0.8 m across, so touch down from the settled
+                        // hover `moveForward` leaves behind rather than drifting in.
                         await drone.land();
                     }
                     JS,
@@ -523,6 +723,30 @@ final class CourseSeeder extends Seeder
                         await drone.land();
                     }
                     JS,
+                'solution_code' => <<<'JS'
+                    async function main(drone) {
+                        await drone.takeoff();
+
+                        // Creep forward on the rangefinder until the wall is 2.5 m off
+                        // the nose. Where that happens depends on where the wall is,
+                        // which is exactly the point - nothing here is hard-coded.
+                        while ((await drone.getDistanceAhead()) > 2.5) {
+                            await drone.moveForward(1);
+                        }
+
+                        const contact = await drone.getPosition();
+                        console.log('Wall contact at z =', Math.round(contact.z * 10) / 10);
+
+                        // The wall runs from x = -5 to x = +5, so slide east well past
+                        // its edge at the height we stopped at...
+                        await drone.moveTo(6.5, 1.5, contact.z);
+
+                        // ...then push through the gap to the marker behind it.
+                        await drone.moveTo(6.5, 1.5, -12);
+
+                        await drone.land();
+                    }
+                    JS,
                 'environment' => [
                     'start' => ['x' => 0, 'y' => 0, 'z' => 0, 'yaw' => 0],
                     'bounds' => ['width' => 24, 'depth' => 30, 'height' => 10],
@@ -563,6 +787,27 @@ final class CourseSeeder extends Seeder
                         }
 
                         // The exit is somewhere to the right.
+
+                        await drone.land();
+                    }
+                    JS,
+                'solution_code' => <<<'JS'
+                    async function main(drone) {
+                        await drone.takeoff();
+
+                        // Run the canyon on the rangefinder: step forward while there is
+                        // open air ahead, and stop once the end wall closes inside 2 m.
+                        // The walls are only ~3 m either side, so hold the center line.
+                        while ((await drone.getDistanceAhead()) > 2) {
+                            await drone.moveForward(1);
+                        }
+
+                        // Dead-ended. The right-hand wall stops short of the end wall,
+                        // so the way out is due east of where the canyon runs out.
+                        await drone.turn(90);
+                        console.log('Exit reads', await drone.getDistanceAhead(), 'm of open air.');
+
+                        await drone.moveForward(6);
 
                         await drone.land();
                     }
@@ -608,6 +853,29 @@ final class CourseSeeder extends Seeder
                         await drone.moveTo(pos.x + 6, 1.5, pos.z);
 
                         // One more offset leg, then navigate home.
+
+                        await drone.land();
+                    }
+                    JS,
+                'solution_code' => <<<'JS'
+                    async function main(drone) {
+                        await drone.takeoff();
+
+                        // Remember the pad before flying anywhere - this is what makes
+                        // the last leg a homing run instead of a guess.
+                        const home = await drone.getPosition();
+                        console.log('Home pad at', home.x, home.z);
+
+                        // Leg 1: 6 m east of wherever we are right now.
+                        let here = await drone.getPosition();
+                        await drone.moveTo(here.x + 6, 1.5, here.z);
+
+                        // Leg 2: 6 m south of wherever that put us.
+                        here = await drone.getPosition();
+                        await drone.moveTo(here.x, 1.5, here.z - 6);
+
+                        // Leg 3: straight back to the remembered pad.
+                        await drone.moveTo(home.x, 1.5, home.z);
 
                         await drone.land();
                     }
@@ -662,6 +930,27 @@ final class CourseSeeder extends Seeder
                         await drone.land();
                     }
                     JS,
+                'solution_code' => <<<'JS'
+                    async function main(drone) {
+                        await drone.takeoff();
+
+                        // Run the open center lane past the west building, then cut in
+                        // behind it for the first drop.
+                        await drone.moveTo(0, 1.5, -8);
+                        await drone.moveTo(-4, 1.5, -8);
+
+                        // Drop two is behind the building across the street. Square the
+                        // route off instead of cutting the diagonal - the straight line
+                        // between the two pads shaves the east building's corner.
+                        await drone.moveTo(-4, 1.5, -12);
+                        await drone.moveTo(4, 1.5, -12);
+
+                        // Depot pad at the end of the block.
+                        await drone.moveTo(0, 1.5, -15);
+
+                        await drone.land();
+                    }
+                    JS,
                 'environment' => [
                     'start' => ['x' => 0, 'y' => 0, 'z' => 0, 'yaw' => 0],
                     'bounds' => ['width' => 20, 'depth' => 36, 'height' => 10],
@@ -706,6 +995,26 @@ final class CourseSeeder extends Seeder
                         await drone.land();
                     }
                     JS,
+                'solution_code' => <<<'JS'
+                    async function main(drone) {
+                        await drone.takeoff();
+
+                        // Climb before crossing, not while crossing: the tower is 6 m
+                        // and the drop marker sits at 7 m, a metre clear of the roof.
+                        await drone.setAltitude(7);
+                        await drone.moveTo(0, 7, -8);
+
+                        // Hold over the rooftop marker for the drop.
+                        await drone.hover(1);
+
+                        // Clear the far face at altitude first, then descend on the
+                        // street side. Descending over the roof would just land on it.
+                        await drone.moveTo(0, 7, -13);
+                        await drone.moveTo(0, 1.5, -13);
+
+                        await drone.land();
+                    }
+                    JS,
                 'environment' => [
                     'start' => ['x' => 0, 'y' => 0, 'z' => 0, 'yaw' => 0],
                     'bounds' => ['width' => 20, 'depth' => 32, 'height' => 12],
@@ -743,6 +1052,30 @@ final class CourseSeeder extends Seeder
                         await drone.moveTo(-6, 1.5, -4);
 
                         // Three more stops: (6, -8), (-6, -12), then (0, -16).
+
+                        await drone.land();
+                    }
+                    JS,
+                'solution_code' => <<<'JS'
+                    async function main(drone) {
+                        await drone.takeoff();
+
+                        // The columns all stand on the center line, and every leg here
+                        // is a diagonal that crosses it a long way from any of them -
+                        // so the whole route can be flown flat out.
+                        await drone.setSpeed(8);
+
+                        const stops = [
+                            [-6, -4],
+                            [6, -8],
+                            [-6, -12],
+                            [0, -16],
+                        ];
+
+                        for (const [x, z] of stops) {
+                            await drone.moveTo(x, 1.5, z);
+                            console.log('Delivered:', x, z);
+                        }
 
                         await drone.land();
                     }
@@ -808,6 +1141,36 @@ final class CourseSeeder extends Seeder
                         // Tip: probe with `await drone.getDistanceAhead()` before you commit.
 
                         // Home — thread back to the central avenue and run south to the depot.
+
+                        await drone.land();
+                    }
+                    JS,
+                'solution_code' => <<<'JS'
+                    async function main(drone) {
+                        await drone.takeoff(2);
+
+                        // Stop 1 - street pickup in the avenue mouth. The towers leave a
+                        // clear lane between x = -4 and x = +4, so the center line is safe.
+                        await drone.moveTo(0, 2, -6);
+
+                        // Stop 2 - rooftop drop on the low NE block. Climb clear of the
+                        // 8 m roof BEFORE sliding over it; 9 m also banks the altitude
+                        // requirement the mission grades on.
+                        await drone.setAltitude(9);
+                        await drone.moveTo(8, 9, -8);
+                        await drone.hover(1);
+
+                        // Stop 3 - curb delivery on the east service street. Stay high
+                        // all the way out and past the parked service van, then drop
+                        // straight down onto the marker on a clear column.
+                        await drone.moveTo(14, 9, -18);
+                        await drone.moveTo(14, 1.6, -18);
+
+                        // Home - back to the corridor between the tower rows at z = -18,
+                        // which is south of the north pair and north of the south pair,
+                        // then straight down the avenue to the depot.
+                        await drone.moveTo(0, 1.6, -18);
+                        await drone.moveTo(0, 1.5, -30);
 
                         await drone.land();
                     }
@@ -885,6 +1248,46 @@ final class CourseSeeder extends Seeder
                         await drone.land();
                     }
                     JS,
+                'solution_code' => <<<'JS'
+                    async function main(drone) {
+                        await drone.takeoff(2);
+
+                        // The scanner sees through walls: every contact within 30 m,
+                        // nearest first, each one { kind, label, x, y, z, distance,
+                        // bearingDeg }. Nothing about the van is hard-coded below.
+                        const contacts = await drone.scan(30);
+                        console.log('Contacts on scope:', contacts.length);
+
+                        const van = contacts.find((contact) => contact.label === 'delivery-van');
+
+                        if (!van) {
+                            console.error('No delivery van in range - aborting.');
+                            await drone.land();
+
+                            return;
+                        }
+
+                        console.log('Van located at', van.x, van.z, '-', van.distance, 'm out.');
+
+                        // The city blocks top out at 7 m, so cross the block at 9 m and
+                        // only descend once the drone is over open street.
+                        await drone.setAltitude(9);
+                        await drone.moveTo(van.x + 4, 9, van.z);
+                        await drone.moveTo(van.x + 4, 2.4, van.z);
+
+                        // Standing 4 m east of the van, well inside the 5 m the photo
+                        // has to be shot from. Swing the nose west onto it and fire.
+                        await drone.turn(-90);
+                        await drone.takePhoto('delivery-van');
+
+                        // Home the same way: back up over the rooftops, then down.
+                        await drone.setAltitude(9);
+                        await drone.moveTo(0, 9, 0);
+                        await drone.moveTo(0, 2, 0);
+
+                        await drone.land();
+                    }
+                    JS,
                 'environment' => [
                     'start' => ['x' => 0, 'y' => 0, 'z' => 0, 'yaw' => 0],
                     'bounds' => ['width' => 36, 'depth' => 48, 'height' => 14],
@@ -944,6 +1347,39 @@ final class CourseSeeder extends Seeder
                         await drone.land();
                     }
                     JS,
+                'solution_code' => <<<'JS'
+                    async function main(drone) {
+                        await drone.takeoff();
+
+                        // Survey the crate yard at 3 m. The markers sit at 2 m, right on
+                        // top of the crates - their capture rings are 1.5 m across, so
+                        // 3 m still scores them while flying a metre above the lids.
+                        await drone.setAltitude(3);
+
+                        // Approach down the open lane first, then west along z = -14:
+                        // the site office sits between the pad and the yard, and this
+                        // route goes around it rather than over it.
+                        await drone.moveTo(0, 3, -14);
+                        await drone.moveTo(-8, 3, -14);
+                        await drone.moveTo(-4, 3, -19);
+
+                        // Line up outside the tunnel's south mouth. The tunnel runs
+                        // north-south at x = 8 with mouths at z = -14 and z = -6.
+                        await drone.moveTo(8, 3, -16);
+                        await drone.setAltitude(1.6);
+
+                        // Straight through: both wash beams have to see the drone pass,
+                        // and the opening is 4.5 m wide by 3.5 m tall, so keep it dead
+                        // center and low. Stop short of the parked cars beyond the exit.
+                        await drone.moveTo(8, 1.6, -5);
+
+                        // Clean airframe - climb over the street furniture and go home.
+                        await drone.setAltitude(6);
+                        await drone.moveTo(0, 6, 0);
+
+                        await drone.land();
+                    }
+                    JS,
                 'environment' => [
                     'start' => ['x' => 0, 'y' => 0, 'z' => 0, 'yaw' => 0],
                     'bounds' => ['width' => 30, 'depth' => 44, 'height' => 12],
@@ -996,6 +1432,45 @@ final class CourseSeeder extends Seeder
 
                         // Shot 3: the HQ rooftop at (0, -26). The roof is 8 m up -
                         // climb first (try 9.5 m), slide over the roof, then shoot.
+
+                        await drone.land();
+                    }
+                    JS,
+                'solution_code' => <<<'JS'
+                    async function main(drone) {
+                        await drone.takeoff(2);
+
+                        // Transit at 9.5 m for the whole run. Nothing in the city is
+                        // taller than the 8 m HQ tower, so every crossing is clear, and
+                        // it banks the 9 m ceiling the mission grades on up front.
+                        const transit = 9.5;
+
+                        await drone.setAltitude(transit);
+
+                        // Shot 1 - the plaza fountain. Hold 2 m north of it, facing
+                        // south (the launch heading), so the fountain fills the frame
+                        // and the drone stays inside the beacon ring.
+                        await drone.moveTo(-10, transit, -6);
+                        await drone.setAltitude(2.5);
+                        await drone.takePhoto('fountain');
+
+                        // Shot 2 - the supply yard. Same trick: stand 2 m short of the
+                        // cache and shoot it head-on. The crate is 2 m tall, so hold
+                        // 3.5 m rather than dropping to the beacon's own height.
+                        await drone.setAltitude(transit);
+                        await drone.moveTo(12, transit, -12);
+                        await drone.setAltitude(3.5);
+                        await drone.takePhoto('supply-cache');
+
+                        // Shot 3 - the HQ rooftop. The roof tops out at 8 m and the ring
+                        // is tight, so this one is shot from directly overhead at
+                        // transit height.
+                        await drone.setAltitude(transit);
+                        await drone.moveTo(0, transit, -26);
+                        await drone.takePhoto('hq-rooftop');
+
+                        // Home down the middle, still above the skyline.
+                        await drone.moveTo(0, transit, 0);
 
                         await drone.land();
                     }
@@ -1065,6 +1540,65 @@ final class CourseSeeder extends Seeder
                         // 4. Wash cycle: tunnel at x = 16, mouths at z = -30 and z = -22.
 
                         // 5. South depot: land on the pad at (0, -30).
+                        await drone.land();
+                    }
+                    JS,
+                'solution_code' => <<<'JS'
+                    async function main(drone) {
+                        await drone.takeoff(2);
+
+                        // The four towers stand in two rows, leaving two open corridors:
+                        // the avenue at x = 0 and the cross street at z = -14. Every leg
+                        // below stays in one of them or flies above the low NE block.
+                        const transit = 9.5;
+
+                        // 1. Street pickup in the avenue mouth.
+                        await drone.moveTo(0, 2, -6);
+
+                        // 2. Rooftop drop on the NE block. It is 8 m tall, so climb
+                        // first - which also banks the 9 m ceiling the run is graded on.
+                        await drone.setAltitude(transit);
+                        await drone.moveTo(8, transit, -8);
+                        await drone.hover(1);
+
+                        // 3. Find the van. The scanner reaches 40 m and reports labels,
+                        // so nothing about its position is hard-coded.
+                        const contacts = await drone.scan(40);
+                        const van = contacts.find((contact) => contact.label === 'target-van');
+
+                        if (!van) {
+                            console.error('No target van on scope - aborting.');
+                            await drone.land();
+
+                            return;
+                        }
+
+                        console.log('Target van at', van.x, van.z);
+
+                        // Cross to it through the corridor - a straight line from the
+                        // rooftop would fly into the 14 m NW tower.
+                        await drone.moveTo(0, transit, -14);
+                        await drone.moveTo(van.x, transit, -14);
+
+                        // Drop to camera height 4 m north of the van, facing south onto
+                        // it - well inside the 5 m the photo has to be shot from.
+                        await drone.moveTo(van.x, 3, van.z + 4);
+                        await drone.takePhoto('target-van');
+
+                        // 4. Wash cycle. Back along the corridor to the east service
+                        // street, then down the column between the parked car and the
+                        // tunnel's north mouth.
+                        await drone.setAltitude(transit);
+                        await drone.moveTo(16, transit, -14);
+                        await drone.moveTo(16, transit, -21);
+                        await drone.setAltitude(1.6);
+
+                        // Straight through the tunnel: both beams have to see the drone.
+                        await drone.moveTo(16, 1.6, -31);
+
+                        // 5. Home to the south depot, running west below the tower row.
+                        await drone.moveTo(0, 1.6, -30);
+
                         await drone.land();
                     }
                     JS,

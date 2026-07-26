@@ -30,6 +30,7 @@ final class ChallengeFactory extends Factory
             'order' => fake()->numberBetween(0, 10),
             'difficulty' => fake()->randomElement(['beginner', 'intermediate', 'advanced']),
             'starter_code' => "async function main(drone) {\n  await drone.takeoff();\n  await drone.land();\n}\n",
+            'solution_code' => "async function main(drone) {\n  await drone.takeoff();\n  await drone.hover(1);\n  await drone.land();\n}\n",
             'environment' => [
                 'start' => ['x' => 0, 'y' => 0.5, 'z' => 0],
                 'obstacles' => [],
@@ -52,6 +53,16 @@ final class ChallengeFactory extends Factory
     {
         return $this->state(fn (array $attributes): array => [
             'is_published' => false,
+        ]);
+    }
+
+    /**
+     * A challenge nobody has written a reference solution for yet.
+     */
+    public function withoutSolution(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'solution_code' => null,
         ]);
     }
 }

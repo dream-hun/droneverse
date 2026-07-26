@@ -13,6 +13,7 @@ import { CodeEditor } from '@/components/simulator/code-editor';
 import { ConsolePanel } from '@/components/simulator/console-panel';
 import { ResultModal } from '@/components/simulator/result-modal';
 import { SimulatorCanvas } from '@/components/simulator/simulator-canvas';
+import { SolutionPanel } from '@/components/simulator/solution-panel';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { droneEngine } from '@/lib/simulator/engine-audio';
@@ -28,6 +29,7 @@ import { show as showCourse } from '@/routes/courses';
 import type {
     ChallengeDetail,
     ChallengeProgress,
+    ChallengeSolution,
     CourseDetail,
 } from '@/types/simulator';
 
@@ -35,9 +37,15 @@ type PlayProps = {
     course: CourseDetail;
     challenge: ChallengeDetail;
     progress: ChallengeProgress;
+    solution: ChallengeSolution;
 };
 
-export default function Play({ course, challenge, progress }: PlayProps) {
+export default function Play({
+    course,
+    challenge,
+    progress,
+    solution,
+}: PlayProps) {
     setLayoutProps({
         breadcrumbs: [
             { title: 'Courses', href: '/courses' },
@@ -89,6 +97,12 @@ export default function Play({ course, challenge, progress }: PlayProps) {
                             </Badge>
                         )}
                     </div>
+
+                    <SolutionPanel
+                        solution={solution}
+                        attempts={progress.attempts}
+                        onLoad={setCode}
+                    />
                 </div>
 
                 <div className="flex min-w-0 flex-col gap-3">

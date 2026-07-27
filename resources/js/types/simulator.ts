@@ -105,6 +105,17 @@ export type CourseSummary = {
     completedCount: number;
 };
 
+/**
+ * A course as the landing page advertises it: no viewer, so no progress.
+ */
+export type MarketingCourse = {
+    title: string;
+    slug: string;
+    description: string;
+    difficulty: string;
+    challengesCount: number;
+};
+
 export type CourseDetail = {
     title: string;
     slug: string;

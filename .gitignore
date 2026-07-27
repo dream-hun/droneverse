@@ -27,6 +27,9 @@ yarn-error.log
 /CLAUDE.md
 /.claude
 /.mcp.json
+/AGENTS.md
+/.agents
+/.codex
 /.fleet
 /.idea
 /.nova

@@ -40,6 +40,14 @@ type PlayProps = {
     solution: ChallengeSolution;
 };
 
+/**
+ * Mission cockpit.
+ *
+ * The viewport spans the full width across the top because the flight is
+ * what the pilot watches; the brief and the editor sit underneath it as a
+ * reading column and a writing column, so code and the mission text stay
+ * side by side while the drone flies above both.
+ */
 export default function Play({
     course,
     challenge,
@@ -78,11 +86,32 @@ export default function Play({
         <>
             <Head title={`${challenge.title} · ${course.title}`} />
 
-            <div className="grid h-[calc(100vh-4rem)] grid-cols-1 gap-4 p-4 lg:grid-cols-[280px_1fr_1fr]">
-                <div className="min-w-0 overflow-y-auto rounded-xl border p-4">
-                    <BriefingPanel challenge={challenge} />
+            <div className="flex min-h-[calc(100vh-4rem)] flex-col gap-3 p-4 lg:h-[calc(100vh-4rem)] lg:min-h-0">
+                <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                        size="sm"
+                        disabled={isRunning}
+                        onClick={() => session.run(code)}
+                    >
+                        <PlayIcon /> Run
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!isRunning}
+                        onClick={() => session.stop()}
+                    >
+                        <Square /> Stop
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setCode(challenge.starterCode)}
+                    >
+                        <RotateCcw /> Reset code
+                    </Button>
 
-                    <div className="mt-4 flex flex-wrap gap-2">
+                    <div className="ml-auto flex flex-wrap items-center gap-2">
                         <Badge variant="outline" className="capitalize">
                             {progress.status.replace('_', ' ')}
                         </Badge>
@@ -96,44 +125,10 @@ export default function Play({
                                 {'★'.repeat(progress.stars)}
                             </Badge>
                         )}
-                    </div>
-
-                    <SolutionPanel
-                        solution={solution}
-                        attempts={progress.attempts}
-                        onLoad={setCode}
-                    />
-                </div>
-
-                <div className="flex min-w-0 flex-col gap-3">
-                    <div className="flex items-center gap-2">
-                        <Button
-                            size="sm"
-                            disabled={isRunning}
-                            onClick={() => session.run(code)}
-                        >
-                            <PlayIcon /> Run
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={!isRunning}
-                            onClick={() => session.stop()}
-                        >
-                            <Square /> Stop
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setCode(challenge.starterCode)}
-                        >
-                            <RotateCcw /> Reset code
-                        </Button>
                         {droneEngine.isSupported() && (
                             <Button
                                 size="sm"
                                 variant="ghost"
-                                className="ml-auto"
                                 aria-pressed={engineEnabled}
                                 title={
                                     engineEnabled
@@ -154,9 +149,6 @@ export default function Play({
                             <Button
                                 size="sm"
                                 variant="ghost"
-                                className={
-                                    droneEngine.isSupported() ? '' : 'ml-auto'
-                                }
                                 aria-pressed={voiceEnabled}
                                 title={
                                     voiceEnabled
@@ -170,21 +162,9 @@ export default function Play({
                             </Button>
                         )}
                     </div>
-
-                    <div className="min-h-0 flex-1 overflow-hidden rounded-xl border">
-                        <CodeEditor
-                            value={code}
-                            onChange={setCode}
-                            readOnly={isRunning}
-                        />
-                    </div>
-
-                    <div className="h-40">
-                        <ConsolePanel session={session} />
-                    </div>
                 </div>
 
-                <div className="min-w-0 overflow-hidden rounded-xl border">
+                <div className="h-[42vh] min-h-64 shrink-0 overflow-hidden rounded-xl border lg:h-[46%]">
                     <LazySimulatorCanvas
                         session={session}
                         environment={challenge.environment}
@@ -193,6 +173,32 @@ export default function Play({
                         attemptUrl={attemptUrl}
                         photoUrl={photoUrl}
                     />
+                </div>
+
+                <div className="grid min-h-0 grid-cols-1 gap-3 lg:flex-1 lg:grid-cols-[320px_1fr]">
+                    <div className="min-w-0 overflow-y-auto rounded-xl border p-4">
+                        <BriefingPanel challenge={challenge} />
+
+                        <SolutionPanel
+                            solution={solution}
+                            attempts={progress.attempts}
+                            onLoad={setCode}
+                        />
+                    </div>
+
+                    <div className="flex min-h-0 min-w-0 flex-col gap-3">
+                        <div className="h-96 overflow-hidden rounded-xl border lg:h-auto lg:min-h-0 lg:flex-1">
+                            <CodeEditor
+                                value={code}
+                                onChange={setCode}
+                                readOnly={isRunning}
+                            />
+                        </div>
+
+                        <div className="h-32 shrink-0">
+                            <ConsolePanel session={session} />
+                        </div>
+                    </div>
                 </div>
             </div>
 

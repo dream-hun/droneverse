@@ -39,7 +39,7 @@ export default defineConfig({
                  * meaningful, so the next chunk to cross 500 kB is a real
                  * regression rather than this one again.
                  */
-                advancedChunks: {
+                codeSplitting: {
                     groups: [
                         {
                             name: 'three-core',

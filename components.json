@@ -6,7 +6,7 @@
   "tailwind": {
     "config": "",
     "css": "resources/css/app.css",
-    "baseColor": "stone",
+    "baseColor": "neutral",
     "cssVariables": true,
     "prefix": ""
   },
@@ -19,7 +19,7 @@
   },
   "iconLibrary": "lucide",
   "rtl": false,
-  "menuColor": "default",
+  "menuColor": "inverted-translucent",
   "menuAccent": "subtle",
   "registries": {}
 }

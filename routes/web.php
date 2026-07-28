@@ -16,3 +16,4 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
 
 require __DIR__.'/settings.php';
 require __DIR__.'/courses.php';
+require __DIR__.'/billing.php';

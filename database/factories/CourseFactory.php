@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
+use App\Enums\Plan;
 use App\Models\Course;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -26,6 +27,7 @@ final class CourseFactory extends Factory
             'slug' => (string) str($title)->slug(),
             'description' => fake()->paragraph(),
             'difficulty' => fake()->randomElement(['beginner', 'intermediate', 'advanced']),
+            'required_plan' => Plan::Starter->value,
             'order' => fake()->numberBetween(0, 10),
             'is_published' => true,
         ];
@@ -35,6 +37,17 @@ final class CourseFactory extends Factory
     {
         return $this->state(fn (array $attributes): array => [
             'is_published' => false,
+        ]);
+    }
+
+    /**
+     * Put the course behind a plan. Its missions inherit unless they say
+     * otherwise.
+     */
+    public function requiring(Plan $plan): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'required_plan' => $plan->value,
         ]);
     }
 }

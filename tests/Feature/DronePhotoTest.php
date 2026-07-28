@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Enums\Plan;
 use App\Models\Challenge;
 use App\Models\Course;
 use App\Models\DronePhoto;
@@ -18,6 +19,25 @@ final class DronePhotoTest extends TestCase
 
     /** A real 1x1 PNG so image validation exercises actual decoding. */
     private const string TINY_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+    public function test_a_photo_cannot_be_uploaded_to_a_mission_the_plan_does_not_cover(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        $course = Course::factory()->requiring(Plan::Pro)->create();
+        $challenge = Challenge::factory()->for($course)->create();
+
+        $response = $this->actingAs($user)->postJson(
+            route('challenges.photos.store', [$course, $challenge]),
+            $this->payload(),
+        );
+
+        $response->assertForbidden();
+
+        $this->assertSame(0, DronePhoto::query()->count());
+        Storage::disk('public')->assertDirectoryEmpty('/');
+    }
 
     public function test_guests_cannot_store_photos(): void
     {

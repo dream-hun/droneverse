@@ -1,4 +1,5 @@
 import { Link } from '@inertiajs/react';
+import { PlanLockBadge } from '@/components/plan-lock-badge';
 import { Badge } from '@/components/ui/badge';
 import {
     Card,
@@ -24,12 +25,14 @@ export function CourseCard({ course }: { course: CourseSummary }) {
                 <CardHeader>
                     <div className="flex items-center justify-between gap-2">
                         <CardTitle>{course.title}</CardTitle>
-                        <Badge
-                            variant="outline"
-                            className="shrink-0 capitalize"
-                        >
-                            {course.difficulty}
-                        </Badge>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                            {course.locked && (
+                                <PlanLockBadge plan={course.requiredPlan} />
+                            )}
+                            <Badge variant="outline" className="capitalize">
+                                {course.difficulty}
+                            </Badge>
+                        </div>
                     </div>
                     {course.description && (
                         <CardDescription>{course.description}</CardDescription>

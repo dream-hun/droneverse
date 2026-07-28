@@ -12,7 +12,10 @@ createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),
     layout: (name) => {
         switch (true) {
+            // Both are public marketing pages that bring their own chrome; the
+            // app shell assumes a signed-in pilot and would break for a guest.
             case name === 'welcome':
+            case name === 'pricing':
                 return null;
             case name.startsWith('auth/'):
                 return AuthLayout;

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
+use App\Enums\Plan;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -31,11 +32,22 @@ final class UserFactory extends Factory
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
             'password' => self::$password ??= Hash::make('password'),
+            'plan_override' => null,
             'remember_token' => Str::random(10),
             'two_factor_secret' => null,
             'two_factor_recovery_codes' => null,
             'two_factor_confirmed_at' => null,
         ];
+    }
+
+    /**
+     * Grant a plan directly, the way a comped or academic account is set up.
+     */
+    public function onPlan(Plan $plan): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'plan_override' => $plan->value,
+        ]);
     }
 
     /**

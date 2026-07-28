@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Enums\Plan;
 use App\Http\Resources\ChallengeSummaryResource;
 use App\Http\Resources\CourseCatalogResource;
 use App\Models\Course;
@@ -30,12 +31,20 @@ final class CourseController extends Controller
             : collect();
 
         return Inertia::render('courses/index', [
-            'courses' => CourseCatalogResource::collection($courses, $completedByCourse),
+            'courses' => CourseCatalogResource::collection(
+                $courses,
+                $completedByCourse,
+                $user?->plan() ?? Plan::Starter,
+            ),
         ]);
     }
 
     /**
      * Display the challenges within a course.
+     *
+     * Open to every viewer, whatever tier the course sits in. Locked missions
+     * are rendered as locked rather than hidden, and the plan check that
+     * actually matters lives on the mission routes.
      */
     public function show(Request $request, Course $course): Response
     {
@@ -43,7 +52,7 @@ final class CourseController extends Controller
 
         $challenges = $course->challenges()
             ->published()
-            ->get(['id', 'title', 'slug', 'briefing', 'difficulty']);
+            ->get(['id', 'title', 'slug', 'briefing', 'difficulty', 'required_plan']);
 
         return Inertia::render('courses/show', [
             'course' => [
@@ -51,10 +60,13 @@ final class CourseController extends Controller
                 'slug' => $course->slug,
                 'description' => $course->description,
                 'difficulty' => $course->difficulty,
+                'requiredPlan' => $course->requiredPlan()->value,
             ],
             'challenges' => ChallengeSummaryResource::collection(
                 $challenges,
                 $this->progressByChallenge($request->user(), $challenges->pluck('id')),
+                $course,
+                $request->user()?->plan() ?? Plan::Starter,
             ),
         ]);
     }

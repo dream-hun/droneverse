@@ -1,3 +1,5 @@
+import type { PlanValue } from '@/types/auth';
+
 export type ObstacleConfig = {
     type: 'box' | 'cylinder';
     x: number;
@@ -101,6 +103,14 @@ export type CourseSummary = {
     /** Present on the course catalog; the dashboard's compact cards omit it. */
     description?: string;
     difficulty: string;
+    /** The tier this course's content belongs to. */
+    requiredPlan: PlanValue;
+    /**
+     * The viewer's plan does not reach that tier. The card is still shown and
+     * still followed — the course page is open to everyone — so this only
+     * changes how the card is badged.
+     */
+    locked: boolean;
     challengesCount: number;
     completedCount: number;
 };
@@ -121,6 +131,7 @@ export type CourseDetail = {
     slug: string;
     description: string;
     difficulty: string;
+    requiredPlan: PlanValue;
 };
 
 export type ChallengeSummary = {
@@ -128,6 +139,10 @@ export type ChallengeSummary = {
     slug: string;
     briefing: string;
     difficulty: string;
+    /** The plan needed to fly this mission, inherited from the course unless set. */
+    requiredPlan: PlanValue;
+    /** The viewer cannot fly it: render an upgrade prompt, not a link. */
+    locked: boolean;
     status: ChallengeStatus;
     bestScore: number;
     stars: number;

@@ -27,6 +27,7 @@ final class DashboardController extends Controller
             'courses' => CourseCardResource::collection(
                 $courses,
                 UserChallengeProgress::completedCountsByCourse($user),
+                $user->plan(),
             ),
             'continue' => $this->continueCard($user),
             'stats' => UserChallengeProgress::statsFor($user),
@@ -36,8 +37,11 @@ final class DashboardController extends Controller
     /**
      * The "pick up where you left off" card, or null with nothing in flight.
      *
-     * The card must never link to content the simulator route would 404 on,
-     * so only a published challenge in a published course counts.
+     * The card must never link to content the simulator route would turn away,
+     * so only a published challenge in a published course counts — and, since
+     * gating landed, only one the pilot's plan still reaches. A pilot who
+     * downgrades keeps the progress rows from missions they can no longer fly,
+     * and offering to resume one would be a link straight into a 403.
      *
      * @return array{courseSlug: string, challengeSlug: string, challengeTitle: string}|null
      */
@@ -54,6 +58,10 @@ final class DashboardController extends Controller
         $challenge = $progress?->challenge;
 
         if ($challenge === null || $challenge->course === null) {
+            return null;
+        }
+
+        if (! $challenge->isUnlockedFor($user, $challenge->course)) {
             return null;
         }
 

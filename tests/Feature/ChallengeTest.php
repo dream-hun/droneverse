@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Enums\ChallengeStatus;
+use App\Enums\Plan;
 use App\Models\Challenge;
 use App\Models\Course;
 use App\Models\User;
@@ -148,6 +149,106 @@ final class ChallengeTest extends TestCase
         $response = $this->actingAs($user)->get(route('challenges.show', [$course, $challenge]));
 
         $response->assertNotFound();
+    }
+
+    public function test_a_mission_inherits_its_courses_tier(): void
+    {
+        $user = User::factory()->create();
+        $course = Course::factory()->requiring(Plan::Pro)->create();
+        $challenge = Challenge::factory()->for($course)->create();
+
+        $this->actingAs($user)
+            ->get(route('challenges.show', [$course, $challenge]))
+            ->assertForbidden();
+    }
+
+    public function test_a_mission_may_require_more_than_the_course_it_sits_in(): void
+    {
+        $user = User::factory()->create();
+        $course = Course::factory()->create();
+        $free = Challenge::factory()->for($course)->create();
+        $paid = Challenge::factory()->for($course)->requiring(Plan::Pro)->create();
+
+        $this->actingAs($user)
+            ->get(route('challenges.show', [$course, $free]))
+            ->assertOk();
+
+        $this->actingAs($user)
+            ->get(route('challenges.show', [$course, $paid]))
+            ->assertForbidden();
+    }
+
+    public function test_a_paid_pilot_can_open_a_locked_mission(): void
+    {
+        $user = User::factory()->onPlan(Plan::Pro)->create();
+        $course = Course::factory()->requiring(Plan::Pro)->create();
+        $challenge = Challenge::factory()->for($course)->create();
+
+        $this->actingAs($user)
+            ->get(route('challenges.show', [$course, $challenge]))
+            ->assertOk();
+    }
+
+    /**
+     * Access is a question about catalogue depth, not about the exact tier: a
+     * plan ranked above the one a mission requires reaches it too.
+     */
+    public function test_a_pilot_on_a_higher_tier_reaches_pro_missions(): void
+    {
+        $user = User::factory()->onPlan(Plan::Team)->create();
+        $course = Course::factory()->requiring(Plan::Pro)->create();
+        $challenge = Challenge::factory()->for($course)->create();
+
+        $this->actingAs($user)
+            ->get(route('challenges.show', [$course, $challenge]))
+            ->assertOk();
+    }
+
+    public function test_a_starter_pilot_cannot_post_an_attempt_to_a_locked_mission(): void
+    {
+        $user = User::factory()->create();
+        $course = Course::factory()->requiring(Plan::Pro)->create();
+        $challenge = Challenge::factory()->for($course)->create();
+
+        $response = $this->actingAs($user)->postJson(
+            route('challenges.attempts.store', [$course, $challenge]),
+            $this->flight(),
+        );
+
+        $response->assertForbidden();
+
+        $this->assertDatabaseMissing('user_challenge_progress', [
+            'user_id' => $user->id,
+            'challenge_id' => $challenge->id,
+        ]);
+    }
+
+    public function test_a_paid_pilot_can_post_an_attempt_to_a_locked_mission(): void
+    {
+        $user = User::factory()->onPlan(Plan::Pro)->create();
+        $course = Course::factory()->requiring(Plan::Pro)->create();
+        $challenge = Challenge::factory()->for($course)->create();
+
+        $this->actingAs($user)->postJson(
+            route('challenges.attempts.store', [$course, $challenge]),
+            $this->flight(),
+        )->assertOk();
+
+        $this->assertDatabaseHas('user_challenge_progress', [
+            'user_id' => $user->id,
+            'challenge_id' => $challenge->id,
+        ]);
+    }
+
+    public function test_an_unpublished_locked_mission_is_still_not_found_rather_than_forbidden(): void
+    {
+        $user = User::factory()->create();
+        $course = Course::factory()->requiring(Plan::Pro)->create();
+        $challenge = Challenge::factory()->for($course)->unpublished()->create();
+
+        $this->actingAs($user)
+            ->get(route('challenges.show', [$course, $challenge]))
+            ->assertNotFound();
     }
 
     public function test_submitting_a_run_creates_progress(): void
@@ -818,8 +919,9 @@ final class ChallengeTest extends TestCase
 
         $path = [['t' => 0.0, 'x' => (float) $corners[0][0], 'y' => (float) $corners[0][1], 'z' => (float) $corners[0][2]]];
         $t = 0.0;
+        $counter = count($corners);
 
-        for ($i = 1; $i < count($corners); $i++) {
+        for ($i = 1; $i < $counter; $i++) {
             [$fromX, $fromY, $fromZ] = $corners[$i - 1];
             [$toX, $toY, $toZ] = $corners[$i];
 

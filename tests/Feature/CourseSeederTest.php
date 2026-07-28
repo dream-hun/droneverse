@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Enums\Plan;
 use App\Models\Challenge;
 use App\Models\Course;
 use Database\Seeders\CourseSeeder;
@@ -194,6 +195,59 @@ final class CourseSeederTest extends TestCase
         $this->assertNotEmpty($shift->success_criteria['photo_targets']);
         $this->assertNotEmpty($shift->success_criteria['waypoints']);
         $this->assertArrayHasKey('carwash', $shift->environment);
+    }
+
+    /**
+     * The numbers the Starter tier is sold on, asserted against the data that
+     * has to honour them.
+     *
+     * docs/pricing.md promises "3 beginner courses (5 missions)". If this test
+     * fails, either the seeder or the pricing copy moved without the other, and
+     * one of the two is now a lie to a paying customer.
+     */
+    public function test_the_starter_split_matches_the_pricing_copy(): void
+    {
+        $this->seed(CourseSeeder::class);
+
+        $starterCourses = Course::query()
+            ->where('required_plan', Plan::Starter->value)
+            ->orderBy('order')
+            ->pluck('slug')
+            ->all();
+
+        $this->assertSame(
+            ['drone-basics', 'precision-flight', 'sensor-flight'],
+            $starterCourses,
+        );
+
+        $flyable = Challenge::query()
+            ->with('course')
+            ->get()
+            ->filter(fn (Challenge $challenge): bool => Plan::Starter->covers(
+                $challenge->requiredPlanIn($challenge->course),
+            ));
+
+        $this->assertCount(5, $flyable, 'Starter must be able to fly exactly five missions.');
+        $this->assertSame(
+            ['drone-basics'],
+            $flyable->pluck('course.slug')->unique()->values()->all(),
+            'The five free missions should be one complete course, not five scattered ones.',
+        );
+    }
+
+    public function test_every_seeded_mission_resolves_to_a_real_plan(): void
+    {
+        $this->seed(CourseSeeder::class);
+
+        Challenge::query()->with('course')->get()->each(function (Challenge $challenge): void {
+            $plan = $challenge->requiredPlanIn($challenge->course);
+
+            $this->assertContains(
+                $plan,
+                [Plan::Starter, Plan::Pro],
+                sprintf('mission %s resolves to an unexpected tier', $challenge->slug),
+            );
+        });
     }
 
     /**

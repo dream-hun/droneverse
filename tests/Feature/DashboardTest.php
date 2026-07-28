@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Enums\ChallengeStatus;
+use App\Enums\Plan;
 use App\Models\Challenge;
 use App\Models\Course;
 use App\Models\User;
@@ -79,6 +80,41 @@ final class DashboardTest extends TestCase
 
         $response->assertInertia(fn ($page) => $page
             ->where('continue.challengeSlug', $publishedChallenge->slug));
+    }
+
+    public function test_continue_is_empty_when_the_started_challenge_is_no_longer_covered_by_the_plan(): void
+    {
+        $user = User::factory()->create();
+        $course = Course::factory()->requiring(Plan::Pro)->create();
+        $challenge = Challenge::factory()->for($course)->create();
+
+        UserChallengeProgress::factory()->create([
+            'user_id' => $user->id,
+            'challenge_id' => $challenge->id,
+            'status' => ChallengeStatus::InProgress,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('dashboard'));
+
+        $response->assertInertia(fn ($page) => $page->where('continue', null));
+    }
+
+    public function test_continue_offers_a_locked_mission_to_a_pilot_whose_plan_covers_it(): void
+    {
+        $user = User::factory()->onPlan(Plan::Pro)->create();
+        $course = Course::factory()->requiring(Plan::Pro)->create();
+        $challenge = Challenge::factory()->for($course)->create();
+
+        UserChallengeProgress::factory()->create([
+            'user_id' => $user->id,
+            'challenge_id' => $challenge->id,
+            'status' => ChallengeStatus::InProgress,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('dashboard'));
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('continue.challengeSlug', $challenge->slug));
     }
 
     public function test_continue_is_empty_when_the_started_challenge_is_in_an_unpublished_course(): void

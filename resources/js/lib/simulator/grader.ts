@@ -1,5 +1,5 @@
-import type { RunResult, SuccessCriteria } from '@/types/simulator';
 import type { RunTelemetry } from './commands';
+import type { RunResult, SuccessCriteria } from '@/types/simulator';
 
 /**
  * Scoring policy, out of 100 before scaling to the challenge's max score:

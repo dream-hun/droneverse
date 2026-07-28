@@ -1,6 +1,6 @@
-import type { EnvironmentConfig } from '@/types/simulator';
 import type { ScanContact, Vector3 } from './commands';
 import { classifyObstacle } from './obstacles';
+import type { EnvironmentConfig } from '@/types/simulator';
 
 export const DEFAULT_SCAN_RANGE = 15; // meters
 export const MIN_SCAN_RANGE = 2;

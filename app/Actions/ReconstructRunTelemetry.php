@@ -345,20 +345,26 @@ final class ReconstructRunTelemetry
                 // Cheapest rejection first: a sample further than the radius
                 // on any one axis cannot be within it in three.
                 $dx = $xs[$i] - $px;
-
-                if ($dx > $radius || $dx < -$radius) {
+                if ($dx > $radius) {
+                    continue;
+                }
+                if ($dx < -$radius) {
                     continue;
                 }
 
                 $dy = $ys[$i] - $py;
-
-                if ($dy > $radius || $dy < -$radius) {
+                if ($dy > $radius) {
+                    continue;
+                }
+                if ($dy < -$radius) {
                     continue;
                 }
 
                 $dz = $zs[$i] - $pz;
-
-                if ($dz > $radius || $dz < -$radius) {
+                if ($dz > $radius) {
+                    continue;
+                }
+                if ($dz < -$radius) {
                     continue;
                 }
 
@@ -443,8 +449,10 @@ final class ReconstructRunTelemetry
 
         for ($i = 0; $i < $samples; $i++) {
             $y = $ys[$i];
-
-            if ($y < 0 || $y > $height) {
+            if ($y < 0) {
+                continue;
+            }
+            if ($y > $height) {
                 continue;
             }
 
@@ -452,8 +460,10 @@ final class ReconstructRunTelemetry
             $dz = $zs[$i] - $originZ;
 
             $localX = $dx * $cos - $dz * $sin;
-
-            if ($localX > $halfWidth || $localX < -$halfWidth) {
+            if ($localX > $halfWidth) {
+                continue;
+            }
+            if ($localX < -$halfWidth) {
                 continue;
             }
 
@@ -532,8 +542,13 @@ final class ReconstructRunTelemetry
             $halfX = ((float) ($obstacle['sx'] ?? ($obstacle['radius'] ?? 0.5) * 2)) / 2 - self::INTRUSION_MARGIN;
             $halfY = ((float) ($obstacle['sy'] ?? $obstacle['height'] ?? 1)) / 2 - self::INTRUSION_MARGIN;
             $halfZ = ((float) ($obstacle['sz'] ?? ($obstacle['radius'] ?? 0.5) * 2)) / 2 - self::INTRUSION_MARGIN;
-
-            if ($halfX <= 0 || $halfY <= 0 || $halfZ <= 0) {
+            if ($halfX <= 0) {
+                continue;
+            }
+            if ($halfY <= 0) {
+                continue;
+            }
+            if ($halfZ <= 0) {
                 continue;
             }
 
@@ -555,12 +570,22 @@ final class ReconstructRunTelemetry
             $maxY = $centreY + $halfY;
             $minZ = $centreZ - $worldHalfZ;
             $maxZ = $centreZ + $worldHalfZ;
-
-            if (
-                $maxX < $pathMinX || $minX > $pathMaxX
-                || $maxY < $pathMinY || $minY > $pathMaxY
-                || $maxZ < $pathMinZ || $minZ > $pathMaxZ
-            ) {
+            if ($maxX < $pathMinX) {
+                continue;
+            }
+            if ($minX > $pathMaxX) {
+                continue;
+            }
+            if ($maxY < $pathMinY) {
+                continue;
+            }
+            if ($minY > $pathMaxY) {
+                continue;
+            }
+            if ($maxZ < $pathMinZ) {
+                continue;
+            }
+            if ($minZ > $pathMaxZ) {
                 continue;
             }
 

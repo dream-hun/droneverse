@@ -28,6 +28,7 @@ final class ChallengeController extends Controller
     public function show(Request $request, Course $course, Challenge $challenge): Response
     {
         abort_unless($challenge->isPlayableIn($course), 404);
+        abort_unless($challenge->isUnlockedFor($request->user(), $course), 403);
 
         $progress = $this->progressFor($request->user(), $challenge);
 
@@ -49,6 +50,11 @@ final class ChallengeController extends Controller
      * are measured against the mission's own geometry and scored here, so a
      * pilot cannot post themselves a perfect run. The graded outcome comes
      * back in the response, which is what the pilot is finally shown.
+     *
+     * The plan check is repeated here rather than left to the page that
+     * normally precedes it. Nothing stops a client posting straight at this
+     * endpoint, and a locked mission that still accepts attempts is not
+     * locked — it just has no link.
      */
     public function store(
         StoreChallengeAttemptRequest $request,
@@ -59,6 +65,7 @@ final class ChallengeController extends Controller
         RecordChallengeAttempt $recordAttempt,
     ): JsonResponse {
         abort_unless($challenge->isPlayableIn($course), 404);
+        abort_unless($challenge->isUnlockedFor($request->user(), $course), 403);
 
         $run = $request->run();
         $result = $grade->handle($reconstruct->handle($challenge, $run), $challenge);

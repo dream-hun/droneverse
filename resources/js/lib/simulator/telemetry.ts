@@ -1,5 +1,5 @@
-import type { WaypointConfig } from '@/types/simulator';
 import type { SimulationBridge, Vector3 } from './commands';
+import type { WaypointConfig } from '@/types/simulator';
 
 /**
  * Seconds between flight-path samples sent to the server for grading.

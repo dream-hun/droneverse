@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\ChallengeStatus;
+use App\Enums\Plan;
 use Database\Factories\ChallengeFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -23,6 +24,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $briefing
  * @property int $order
  * @property string $difficulty
+ * @property string|null $required_plan
  * @property string $starter_code
  * @property string|null $solution_code
  * @property array<string, mixed> $environment
@@ -30,7 +32,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $max_score
  * @property bool $is_published
  */
-#[Fillable(['course_id', 'title', 'slug', 'briefing', 'order', 'difficulty', 'starter_code', 'solution_code', 'environment', 'success_criteria', 'max_score', 'is_published'])]
+#[Fillable(['course_id', 'title', 'slug', 'briefing', 'order', 'difficulty', 'required_plan', 'starter_code', 'solution_code', 'environment', 'success_criteria', 'max_score', 'is_published'])]
 #[Hidden(['solution_code'])]
 final class Challenge extends Model
 {
@@ -63,6 +65,33 @@ final class Challenge extends Model
         return $this->is_published
             && $course->is_published
             && $this->course_id === $course->id;
+    }
+
+    /**
+     * The plan a pilot needs to fly this mission as part of the given course.
+     *
+     * A mission normally states no tier of its own and takes its course's,
+     * which keeps a course and its missions from drifting apart. Setting a
+     * value is the deliberate exception: it is how Precision Flight stays a
+     * browsable Starter course whose missions are all Pro.
+     *
+     * The course is passed in rather than read off the relation because every
+     * caller already has it from the route, and reaching for `$this->course`
+     * here would fire a query per row on a course page.
+     */
+    public function requiredPlanIn(Course $course): Plan
+    {
+        return Plan::tryFrom($this->required_plan ?? '') ?? $course->requiredPlan();
+    }
+
+    /**
+     * Whether this viewer's plan reaches the mission. Guests get Starter.
+     */
+    public function isUnlockedFor(?User $user, Course $course): bool
+    {
+        $plan = $user?->plan() ?? Plan::Starter;
+
+        return $plan->covers($this->requiredPlanIn($course));
     }
 
     /**

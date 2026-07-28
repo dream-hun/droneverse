@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Enums\Plan;
 use App\Models\Course;
 use Illuminate\Database\Seeder;
 
@@ -11,6 +12,18 @@ final class CourseSeeder extends Seeder
 {
     /**
      * Run the database seeds.
+     *
+     * The Starter split (decision 1 in docs/pricing-implementation-plan.md):
+     * the three beginner courses sit in the Starter tier so their briefings
+     * are readable without paying, and Drone Basics' five missions are the
+     * five a Starter pilot can actually fly. Precision Flight and Sensor
+     * Flight are browsable but every mission in them states Pro for itself,
+     * which is what the per-challenge override exists for. Delivery Ops and
+     * City Operations are Pro outright and their missions simply inherit it.
+     *
+     * Finishing a whole free course is the upgrade moment, which is why the
+     * five free missions are one complete course rather than five scattered
+     * across three.
      */
     public function run(): void
     {
@@ -21,6 +34,7 @@ final class CourseSeeder extends Seeder
                     'title' => $definition['title'],
                     'description' => $definition['description'],
                     'difficulty' => $definition['difficulty'],
+                    'required_plan' => $definition['required_plan'],
                     'order' => $order,
                     'is_published' => true,
                 ],
@@ -34,6 +48,7 @@ final class CourseSeeder extends Seeder
                         'briefing' => $challenge['briefing'],
                         'order' => $challengeOrder,
                         'difficulty' => $challenge['difficulty'],
+                        'required_plan' => $definition['challenges_required_plan'],
                         'starter_code' => $challenge['starter_code'],
                         'solution_code' => $challenge['solution_code'],
                         'environment' => $challenge['environment'],
@@ -47,6 +62,9 @@ final class CourseSeeder extends Seeder
     }
 
     /**
+     * `required_plan` is the course's own tier; `challenges_required_plan` is
+     * what its missions store, where null means "inherit the course".
+     *
      * @return array<int, array<string, mixed>>
      */
     private function courses(): array
@@ -57,6 +75,8 @@ final class CourseSeeder extends Seeder
                 'title' => 'Drone Basics',
                 'description' => 'Learn to pilot a drone with code: takeoff and landing, waypoint navigation, obstacle avoidance, gate racing, and search patterns.',
                 'difficulty' => 'beginner',
+                'required_plan' => Plan::Starter->value,
+                'challenges_required_plan' => null,
                 'challenges' => $this->droneBasicsChallenges(),
             ],
             [
@@ -64,6 +84,8 @@ final class CourseSeeder extends Seeder
                 'title' => 'Precision Flight',
                 'description' => 'Tight tolerances and exact flying: altitude control, slalom lines, low ceilings, and pinpoint landings.',
                 'difficulty' => 'intermediate',
+                'required_plan' => Plan::Starter->value,
+                'challenges_required_plan' => Plan::Pro->value,
                 'challenges' => $this->precisionFlightChallenges(),
             ],
             [
@@ -71,6 +93,8 @@ final class CourseSeeder extends Seeder
                 'title' => 'Sensor Flight',
                 'description' => 'Fly by feedback instead of fixed scripts: probe with the rangefinder, read position telemetry, and let the data steer the drone.',
                 'difficulty' => 'advanced',
+                'required_plan' => Plan::Starter->value,
+                'challenges_required_plan' => Plan::Pro->value,
                 'challenges' => $this->sensorFlightChallenges(),
             ],
             [
@@ -78,6 +102,8 @@ final class CourseSeeder extends Seeder
                 'title' => 'Delivery Ops',
                 'description' => 'Timed multi-stop delivery routes through a compact city block: plan clean lines, clear the rooftops, beat the clock.',
                 'difficulty' => 'advanced',
+                'required_plan' => Plan::Pro->value,
+                'challenges_required_plan' => null,
                 'challenges' => $this->deliveryOpsChallenges(),
             ],
             [
@@ -85,6 +111,8 @@ final class CourseSeeder extends Seeder
                 'title' => 'City Operations',
                 'description' => 'Full urban mission profiles in a living city block: sweep the streets with the object scanner, shoot survey photos that land in your photo log, run the drone wash, and graduate with a combined full-shift operation.',
                 'difficulty' => 'advanced',
+                'required_plan' => Plan::Pro->value,
+                'challenges_required_plan' => null,
                 'challenges' => $this->cityOperationsChallenges(),
             ],
         ];

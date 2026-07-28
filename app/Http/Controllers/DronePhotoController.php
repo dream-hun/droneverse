@@ -45,6 +45,10 @@ final class DronePhotoController extends Controller
 
     /**
      * Save a photo captured by the simulator's drone camera.
+     *
+     * The second write path into a mission, so it carries the same plan check
+     * as an attempt: a pilot who cannot fly a mission cannot fill their photo
+     * log from it either.
      */
     public function store(
         StoreDronePhotoRequest $request,
@@ -53,6 +57,7 @@ final class DronePhotoController extends Controller
         StoreDronePhoto $storePhoto,
     ): JsonResponse {
         abort_unless($challenge->isPlayableIn($course), 404);
+        abort_unless($challenge->isUnlockedFor($request->user(), $course), 403);
 
         $photo = $storePhoto->handle($request->user(), $challenge, $request->photo());
 

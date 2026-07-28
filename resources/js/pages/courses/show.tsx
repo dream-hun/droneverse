@@ -1,6 +1,7 @@
 import { Head, Link, setLayoutProps } from '@inertiajs/react';
-import { CheckCircle2, Circle, PlayCircle, Route } from 'lucide-react';
+import { CheckCircle2, Circle, Lock, PlayCircle, Route } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
+import { PlanLockBadge, PlanUpgradeHint } from '@/components/plan-lock-badge';
 import { StarRating } from '@/components/star-rating';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
@@ -66,7 +67,75 @@ export default function CourseShow({ course, challenges }: CourseShowProps) {
                 ) : (
                     <div className="space-y-3">
                         {challenges.map((challenge, index) => {
-                            const Icon = STATUS_ICON[challenge.status];
+                            const Icon = challenge.locked
+                                ? Lock
+                                : STATUS_ICON[challenge.status];
+
+                            const card = (
+                                <Card
+                                    className={
+                                        challenge.locked
+                                            ? 'border-dashed'
+                                            : 'transition-shadow hover:shadow-md'
+                                    }
+                                >
+                                    <CardHeader className="flex-row items-center justify-between space-y-0">
+                                        <div className="flex items-center gap-3">
+                                            <Icon
+                                                aria-hidden="true"
+                                                className="size-5 shrink-0 text-muted-foreground"
+                                            />
+                                            <div>
+                                                <CardTitle
+                                                    className={`text-base ${challenge.locked ? 'text-muted-foreground' : ''}`}
+                                                >
+                                                    {index + 1}.{' '}
+                                                    {challenge.title}
+                                                </CardTitle>
+                                                {challenge.locked ? (
+                                                    <PlanUpgradeHint
+                                                        plan={
+                                                            challenge.requiredPlan
+                                                        }
+                                                    />
+                                                ) : (
+                                                    <p className="text-xs text-muted-foreground capitalize">
+                                                        {challenge.difficulty}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {challenge.locked && (
+                                                <PlanLockBadge
+                                                    asLink
+                                                    plan={
+                                                        challenge.requiredPlan
+                                                    }
+                                                />
+                                            )}
+                                            {challenge.stars > 0 && (
+                                                <StarRating
+                                                    value={challenge.stars}
+                                                />
+                                            )}
+                                            {challenge.bestScore > 0 && (
+                                                <Badge variant="outline">
+                                                    {challenge.bestScore}
+                                                </Badge>
+                                            )}
+                                        </div>
+                                    </CardHeader>
+                                </Card>
+                            );
+
+                            // A locked mission is shown in full but is not a
+                            // link: the route would turn the pilot away, and a
+                            // link that 403s reads as a bug rather than a
+                            // paywall.
+                            if (challenge.locked) {
+                                return <div key={challenge.slug}>{card}</div>;
+                            }
 
                             return (
                                 <Link
@@ -77,37 +146,7 @@ export default function CourseShow({ course, challenges }: CourseShowProps) {
                                     ])}
                                     className="block rounded-xl outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                                 >
-                                    <Card className="transition-shadow hover:shadow-md">
-                                        <CardHeader className="flex-row items-center justify-between space-y-0">
-                                            <div className="flex items-center gap-3">
-                                                <Icon
-                                                    aria-hidden="true"
-                                                    className="size-5 shrink-0 text-muted-foreground"
-                                                />
-                                                <div>
-                                                    <CardTitle className="text-base">
-                                                        {index + 1}.{' '}
-                                                        {challenge.title}
-                                                    </CardTitle>
-                                                    <p className="text-xs text-muted-foreground capitalize">
-                                                        {challenge.difficulty}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                {challenge.stars > 0 && (
-                                                    <StarRating
-                                                        value={challenge.stars}
-                                                    />
-                                                )}
-                                                {challenge.bestScore > 0 && (
-                                                    <Badge variant="outline">
-                                                        {challenge.bestScore}
-                                                    </Badge>
-                                                )}
-                                            </div>
-                                        </CardHeader>
-                                    </Card>
+                                    {card}
                                 </Link>
                             );
                         })}

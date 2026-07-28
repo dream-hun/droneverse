@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
+use App\Enums\Plan;
 use App\Models\Challenge;
 use App\Models\Course;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -29,6 +30,7 @@ final class ChallengeFactory extends Factory
             'briefing' => fake()->paragraphs(2, true),
             'order' => fake()->numberBetween(0, 10),
             'difficulty' => fake()->randomElement(['beginner', 'intermediate', 'advanced']),
+            'required_plan' => null,
             'starter_code' => "async function main(drone) {\n  await drone.takeoff();\n  await drone.land();\n}\n",
             'solution_code' => "async function main(drone) {\n  await drone.takeoff();\n  await drone.hover(1);\n  await drone.land();\n}\n",
             'environment' => [
@@ -53,6 +55,16 @@ final class ChallengeFactory extends Factory
     {
         return $this->state(fn (array $attributes): array => [
             'is_published' => false,
+        ]);
+    }
+
+    /**
+     * Put the mission behind a plan of its own, overriding its course's.
+     */
+    public function requiring(Plan $plan): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'required_plan' => $plan->value,
         ]);
     }
 

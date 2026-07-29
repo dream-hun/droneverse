@@ -348,6 +348,7 @@ final class ReconstructRunTelemetry
                 if ($dx > $radius) {
                     continue;
                 }
+
                 if ($dx < -$radius) {
                     continue;
                 }
@@ -356,6 +357,7 @@ final class ReconstructRunTelemetry
                 if ($dy > $radius) {
                     continue;
                 }
+
                 if ($dy < -$radius) {
                     continue;
                 }
@@ -364,6 +366,7 @@ final class ReconstructRunTelemetry
                 if ($dz > $radius) {
                     continue;
                 }
+
                 if ($dz < -$radius) {
                     continue;
                 }
@@ -452,6 +455,7 @@ final class ReconstructRunTelemetry
             if ($y < 0) {
                 continue;
             }
+
             if ($y > $height) {
                 continue;
             }
@@ -463,6 +467,7 @@ final class ReconstructRunTelemetry
             if ($localX > $halfWidth) {
                 continue;
             }
+
             if ($localX < -$halfWidth) {
                 continue;
             }
@@ -545,9 +550,11 @@ final class ReconstructRunTelemetry
             if ($halfX <= 0) {
                 continue;
             }
+
             if ($halfY <= 0) {
                 continue;
             }
+
             if ($halfZ <= 0) {
                 continue;
             }
@@ -573,18 +580,23 @@ final class ReconstructRunTelemetry
             if ($maxX < $pathMinX) {
                 continue;
             }
+
             if ($minX > $pathMaxX) {
                 continue;
             }
+
             if ($maxY < $pathMinY) {
                 continue;
             }
+
             if ($minY > $pathMaxY) {
                 continue;
             }
+
             if ($maxZ < $pathMinZ) {
                 continue;
             }
+
             if ($minZ > $pathMaxZ) {
                 continue;
             }

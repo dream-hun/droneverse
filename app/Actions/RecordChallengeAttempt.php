@@ -9,6 +9,7 @@ use App\Models\Challenge;
 use App\Models\User;
 use App\Models\UserChallengeProgress;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 final class RecordChallengeAttempt
 {
@@ -23,6 +24,8 @@ final class RecordChallengeAttempt
      * the same user cannot produce lost updates.
      *
      * @param  array{score: int, stars: int, completed: bool, code: string}  $attempt
+     *
+     * @throws Throwable
      */
     public function handle(User $user, Challenge $challenge, array $attempt): UserChallengeProgress
     {
@@ -59,7 +62,7 @@ final class RecordChallengeAttempt
         });
 
         // This run may have moved the pilot up the board, so no cached view
-        // of it can be trusted any more.
+        // of it can be trusted anymore.
         UserChallengeProgress::forgetBoard();
 
         return $progress;

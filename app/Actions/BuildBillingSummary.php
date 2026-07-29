@@ -136,12 +136,19 @@ final readonly class BuildBillingSummary
      * A subscription can carry several items once Phase 7's per-seat pricing
      * lands. The first is the one that names the plan; the seat item rides
      * alongside it and says nothing about which tier was bought.
+     *
+     * Ordered explicitly, because "the first" is only true of an ordered query
+     * — an unordered one returns whichever row the database hands back, and
+     * naming the subscription from the seat price would report the wrong tier.
      */
     private function subscribedPriceId(Subscription $subscription): ?string
     {
-        return SubscriptionItem::query()
+        $priceId = SubscriptionItem::query()
             ->where('subscription_id', $subscription->id)
+            ->orderBy('id')
             ->value('price_id');
+
+        return is_string($priceId) && $priceId !== '' ? $priceId : null;
     }
 
     /**
@@ -153,7 +160,7 @@ final readonly class BuildBillingSummary
     {
         return Transaction::query()
             ->whereMorphedTo('billable', $user)
-            ->orderByDesc('billed_at')
+            ->latest('billed_at')
             ->limit(24)
             ->get()
             ->map(fn (Transaction $transaction): array => [

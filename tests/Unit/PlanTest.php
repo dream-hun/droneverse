@@ -207,7 +207,7 @@ final class PlanTest extends TestCase
             foreach ($plan->variants() as $variant) {
                 $this->assertIsInt(
                     $plan->amount($variant),
-                    "{$plan->value}.{$variant} is offered but has no amount in config/plans.php.",
+                    sprintf('%s.%s is offered but has no amount in config/plans.php.', $plan->value, $variant),
                 );
             }
         }

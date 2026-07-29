@@ -88,8 +88,8 @@ final class PaddleWebhookTest extends TestCase
         $this->call(
             'POST',
             route('cashier.webhook'),
-            content: json_encode($payload),
             server: $this->signature($payload),
+            content: json_encode($payload),
         )->assertForbidden();
 
         $this->assertDatabaseCount('subscriptions', 0);
@@ -102,8 +102,8 @@ final class PaddleWebhookTest extends TestCase
         $this->call(
             'POST',
             route('cashier.webhook'),
-            content: json_encode($payload),
             server: $this->signature($payload, 'pdl_ntfset_someone_elses_secret'),
+            content: json_encode($payload),
         )->assertForbidden();
 
         $this->assertDatabaseCount('subscriptions', 0);
@@ -121,8 +121,8 @@ final class PaddleWebhookTest extends TestCase
         $this->call(
             'POST',
             route('cashier.webhook'),
-            content: json_encode($payload),
             server: $this->signature($payload, timestamp: time() - 3600),
+            content: json_encode($payload),
         )->assertForbidden();
     }
 
@@ -130,7 +130,7 @@ final class PaddleWebhookTest extends TestCase
     {
         $user = User::factory()->create();
 
-        Customer::create([
+        Customer::query()->create([
             'billable_id' => $user->id,
             'billable_type' => $user->getMorphClass(),
             'paddle_id' => 'ctm_signed',
@@ -143,8 +143,8 @@ final class PaddleWebhookTest extends TestCase
         $this->call(
             'POST',
             route('cashier.webhook'),
-            content: json_encode($payload),
             server: $this->signature($payload),
+            content: json_encode($payload),
         )->assertOk();
 
         $this->assertDatabaseHas('subscriptions', [
@@ -169,10 +169,10 @@ final class PaddleWebhookTest extends TestCase
     {
         $timestamp ??= time();
         $body = json_encode($payload);
-        $hash = hash_hmac('sha256', "{$timestamp}:{$body}", $secret);
+        $hash = hash_hmac('sha256', sprintf('%d:%s', $timestamp, $body), $secret);
 
         return [
-            'HTTP_PADDLE_SIGNATURE' => "ts={$timestamp};h1={$hash}",
+            'HTTP_PADDLE_SIGNATURE' => sprintf('ts=%d;h1=%s', $timestamp, $hash),
             'CONTENT_TYPE' => 'application/json',
         ];
     }

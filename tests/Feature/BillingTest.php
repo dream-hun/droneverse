@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Enums\Plan;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -262,9 +263,46 @@ final class BillingTest extends TestCase
             ->assertRedirect('https://paddle.test/update');
     }
 
+    /**
+     * The billing page reaches this route with an Inertia <Link>, which is an
+     * XHR. A plain 302 is followed by the browser and answered with Paddle's
+     * HTML, which carries no X-Inertia header — Inertia rejects that as an
+     * invalid response rather than navigating, so the subscriber can never
+     * reach the page. The 409 below is the only answer it acts on.
+     */
+    public function test_the_payment_method_page_is_reachable_from_an_inertia_visit(): void
+    {
+        $user = User::factory()->create();
+        $subscription = $this->subscribe($user, 'pri_pro_monthly');
+
+        Http::fake([
+            Cashier::apiUrl().'/subscriptions/'.$subscription->paddle_id => Http::response([
+                'data' => [
+                    'management_urls' => ['update_payment_method' => 'https://paddle.test/update'],
+                ],
+            ]),
+        ]);
+
+        /*
+         * Resolved through the app's own middleware rather than hardcoded: a
+         * version the middleware disagrees with is answered with its own 409
+         * pointing back at this page, which would pass a laxer assertion for
+         * entirely the wrong reason.
+         */
+        $version = app(HandleInertiaRequests::class)->version($this->app['request']);
+
+        $this->actingAs($user)
+            ->get(route('payment-method.edit'), [
+                'X-Inertia' => 'true',
+                'X-Inertia-Version' => (string) $version,
+            ])
+            ->assertStatus(409)
+            ->assertHeader('X-Inertia-Location', 'https://paddle.test/update');
+    }
+
     private function subscribe(User $user, string $priceId): Subscription
     {
-        $subscription = Subscription::create([
+        $subscription = Subscription::query()->create([
             'billable_id' => $user->id,
             'billable_type' => $user->getMorphClass(),
             'type' => Subscription::DEFAULT_TYPE,
@@ -288,7 +326,7 @@ final class BillingTest extends TestCase
         string $total = '1900',
         string $billedAt = '2026-06-01 10:00:00',
     ): Transaction {
-        return Transaction::create([
+        return Transaction::query()->create([
             'billable_id' => $user->id,
             'billable_type' => $user->getMorphClass(),
             'paddle_id' => $paddleId,

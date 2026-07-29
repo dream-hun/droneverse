@@ -157,6 +157,28 @@ final class PricingTest extends TestCase
         $response->assertJsonPath('checkout.customer.id', $user->customer->paddle_id);
     }
 
+    /**
+     * A successUrl navigates the browser away the instant Paddle has the money,
+     * which tears the pricing page down before its checkout.completed handler
+     * can poll for the entitlement — and the plan is granted by a webhook that
+     * has not necessarily arrived, so the buyer lands on a fresh page still
+     * showing the plan they just paid to leave.
+     *
+     * allowLogout is asserted alongside it because array_filter would drop it:
+     * the value it needs to send is false, and false does not survive a filter.
+     */
+    public function test_checkout_leaves_the_browser_on_the_pricing_page(): void
+    {
+        $user = $this->customerFor(User::factory()->create());
+
+        $response = $this->actingAs($user)
+            ->postJson(route('checkout.store'), ['plan' => 'pro', 'variant' => 'monthly']);
+
+        $response->assertOk();
+        $response->assertJsonMissingPath('checkout.settings.successUrl');
+        $response->assertJsonPath('checkout.settings.allowLogout', false);
+    }
+
     public function test_checkout_refuses_a_billing_period_the_plan_does_not_sell(): void
     {
         $user = $this->customerFor(User::factory()->create());
@@ -209,7 +231,7 @@ final class PricingTest extends TestCase
      */
     private function customerFor(User $user): User
     {
-        Customer::create([
+        Customer::query()->create([
             'billable_id' => $user->id,
             'billable_type' => $user->getMorphClass(),
             'paddle_id' => 'ctm_test_'.$user->id,

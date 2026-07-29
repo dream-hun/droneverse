@@ -44,11 +44,20 @@ final class CheckoutRequest extends FormRequest
 
     public function plan(): Plan
     {
-        return Plan::from((string) $this->validated('plan'));
+        $plan = $this->enum('plan', Plan::class);
+
+        /*
+         * The enum rule above has already rejected anything Plan cannot be
+         * built from, so the fallback is unreachable. It resolves to Starter
+         * rather than to a paid tier because that is the direction a bug here
+         * should fail: Starter is not self-serve, so ResolveCheckoutPrice
+         * refuses it and nobody is charged for a plan we misread.
+         */
+        return $plan instanceof Plan ? $plan : Plan::Starter;
     }
 
     public function variant(): string
     {
-        return (string) $this->validated('variant');
+        return $this->string('variant')->toString();
     }
 }

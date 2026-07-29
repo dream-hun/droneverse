@@ -24,7 +24,7 @@ enum Plan: string
      * The plan a subscribed Paddle price ID grants.
      *
      * The reverse of priceIds(), and the branch ResolvePlanForUser leans on
-     * most. An unrecognised price ID resolves to null rather than to a default
+     * most. An unrecognized price ID resolves to null rather than to a default
      * plan: an ID we cannot account for is a configuration error, and silently
      * granting Pro for it would be worse than granting nothing.
      */

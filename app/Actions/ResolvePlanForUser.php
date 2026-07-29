@@ -74,10 +74,15 @@ final class ResolvePlanForUser
             ->pluck('price_id')
             ->all();
 
-        $plans = array_filter(array_map(
-            static fn (string $priceId): ?Plan => Plan::fromPriceId($priceId),
-            $priceIds,
-        ));
+        $plans = [];
+
+        foreach ($priceIds as $priceId) {
+            $plan = Plan::fromPriceId(is_string($priceId) ? $priceId : null);
+
+            if ($plan instanceof Plan) {
+                $plans[] = $plan;
+            }
+        }
 
         return array_reduce(
             $plans,

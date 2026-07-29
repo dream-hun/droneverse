@@ -28,7 +28,7 @@ final readonly class StartCheckout
      *
      * @return array<string, mixed>|null
      */
-    public function handle(User $user, Plan $plan, string $variant, string $returnTo): ?array
+    public function handle(User $user, Plan $plan, string $variant): ?array
     {
         $priceId = $this->prices->handle($user, $plan, $variant);
 
@@ -50,7 +50,6 @@ final readonly class StartCheckout
          * has never paid for anything gets one here rather than mid-overlay.
          */
         $options = $user->checkout($priceId)
-            ->returnTo($returnTo)
             ->customData([
                 'plan' => $plan->value,
                 'variant' => $variant,
@@ -58,18 +57,38 @@ final readonly class StartCheckout
             ->options();
 
         /*
+         * Cashier types options() as a bare array. Rebuilding it under string
+         * keys is what makes the shape this method promises checkable.
+         */
+        $checkout = [];
+
+        foreach ($options as $key => $value) {
+            $checkout[(string) $key] = $value;
+        }
+
+        /*
          * Cashier builds its options for the inline `<x-paddle-checkout>` Blade
          * component, which needs a frame on the page to render into. The React
          * pricing page has no such frame and wants the overlay, so the display
          * settings are replaced rather than merged — an inline frameStyle left
          * behind would silently apply to the overlay.
+         *
+         * No successUrl, deliberately. Paddle navigates the browser there the
+         * moment payment completes, which tears down the page before the
+         * `checkout.completed` handler on the pricing page can poll for the
+         * entitlement — and the plan is granted by a webhook that has not
+         * necessarily landed yet, so the buyer would arrive at a freshly
+         * rendered page still showing their old plan. Letting the overlay close
+         * on its own keeps that handler alive to do the waiting.
+         *
+         * Not array_filter'd, equally deliberately: `allowLogout => false` is
+         * falsy, so filtering drops the very setting it is there to send.
          */
-        $options['settings'] = array_filter([
+        $checkout['settings'] = [
             'displayMode' => 'overlay',
-            'successUrl' => $returnTo,
             'allowLogout' => false,
-        ]);
+        ];
 
-        return $options;
+        return $checkout;
     }
 }

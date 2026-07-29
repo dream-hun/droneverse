@@ -7,11 +7,12 @@ namespace App\Concerns;
 use App\Actions\ResolvePlanForUser;
 use App\Enums\Feature;
 use App\Enums\Plan;
+use App\Models\User;
 
 /**
  * Entitlement questions, answered on the User model.
  *
- * @mixin \App\Models\User
+ * @mixin User
  */
 trait HasPlan
 {
@@ -27,7 +28,7 @@ trait HasPlan
 
     public function plan(): Plan
     {
-        return $this->resolvedPlan ??= app(ResolvePlanForUser::class)->handle($this);
+        return $this->resolvedPlan ??= resolve(ResolvePlanForUser::class)->handle($this);
     }
 
     public function hasFeature(Feature $feature): bool

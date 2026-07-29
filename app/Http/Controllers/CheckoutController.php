@@ -6,6 +6,8 @@ namespace App\Http\Controllers;
 
 use App\Actions\StartCheckout;
 use App\Http\Requests\CheckoutRequest;
+use App\Models\User;
+use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
 
@@ -19,16 +21,11 @@ final class CheckoutController extends Controller
      * so a pilot who closes the overlay is back on the page they were reading
      * rather than on a re-rendered copy of it.
      */
-    public function store(CheckoutRequest $request, StartCheckout $checkout): JsonResponse
+    public function store(CheckoutRequest $request, StartCheckout $checkout, #[CurrentUser] User $user): JsonResponse
     {
         $plan = $request->plan();
 
-        $options = $checkout->handle(
-            $request->user(),
-            $plan,
-            $request->variant(),
-            route('pricing'),
-        );
+        $options = $checkout->handle($user, $plan, $request->variant());
 
         if ($options === null) {
             /*

@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
-
 use App\Concerns\HasPlan;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -37,8 +37,8 @@ use Laravel\Paddle\Transaction;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Customer|null $customer
- * @property-read \Illuminate\Database\Eloquent\Collection<int, Subscription> $subscriptions
- * @property-read \Illuminate\Database\Eloquent\Collection<int, Transaction> $transactions
+ * @property-read Collection<int, Subscription> $subscriptions
+ * @property-read Collection<int, Transaction> $transactions
  */
 #[Fillable(['name', 'email', 'password'])]
 #[Hidden(['password', 'plan_override', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]

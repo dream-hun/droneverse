@@ -7,10 +7,12 @@ namespace App\Http\Controllers\Settings;
 use App\Actions\CancelSubscription;
 use App\Actions\ResumeSubscription;
 use App\Http\Controllers\Controller;
+use App\Models\User;
+use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Laravel\Paddle\Subscription;
+use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
 final class SubscriptionController extends Controller
@@ -18,16 +20,16 @@ final class SubscriptionController extends Controller
     /**
      * Call off a pending cancellation.
      */
-    public function update(Request $request, ResumeSubscription $resume): RedirectResponse
+    public function update(#[CurrentUser] User $user, ResumeSubscription $resume): RedirectResponse
     {
-        $subscription = $this->subscriptionFor($request);
+        $subscription = $this->subscriptionFor($user);
 
-        if ($subscription === null) {
+        if (! $subscription instanceof Subscription) {
             return $this->failed(__('There is no subscription to resume.'));
         }
 
         try {
-            $resumed = $resume->handle($request->user(), $subscription);
+            $resumed = $resume->handle($user, $subscription);
         } catch (Throwable) {
             return $this->failed(__('Paddle could not resume your subscription. Please try again.'));
         }
@@ -44,16 +46,16 @@ final class SubscriptionController extends Controller
     /**
      * Cancel at the end of the current billing period.
      */
-    public function destroy(Request $request, CancelSubscription $cancel): RedirectResponse
+    public function destroy(#[CurrentUser] User $user, CancelSubscription $cancel): RedirectResponse
     {
-        $subscription = $this->subscriptionFor($request);
+        $subscription = $this->subscriptionFor($user);
 
-        if ($subscription === null) {
+        if (! $subscription instanceof Subscription) {
             return $this->failed(__('There is no subscription to cancel.'));
         }
 
         try {
-            $canceled = $cancel->handle($request->user(), $subscription);
+            $canceled = $cancel->handle($user, $subscription);
         } catch (Throwable) {
             return $this->failed(__('Paddle could not cancel your subscription. Please try again.'));
         }
@@ -75,17 +77,24 @@ final class SubscriptionController extends Controller
      *
      * Hosted rather than an overlay of our own: card details should never touch
      * a page we render, and the URL is single-use and subscription-scoped.
+     *
+     * Inertia::location() rather than a plain away-redirect: the billing page
+     * reaches this with an Inertia <Link>, which is an XHR. The browser follows
+     * a 302 transparently, and Paddle's HTML comes back without the X-Inertia
+     * header — Inertia rejects that as an invalid response instead of
+     * navigating. This answers an Inertia visit with the 409 and
+     * X-Inertia-Location it acts on, and a plain request with the 302 it wants.
      */
-    public function edit(Request $request): RedirectResponse
+    public function edit(#[CurrentUser] User $user): Response
     {
-        $subscription = $this->subscriptionFor($request);
+        $subscription = $this->subscriptionFor($user);
 
-        if ($subscription === null) {
+        if (! $subscription instanceof Subscription) {
             return $this->failed(__('There is no subscription to update.'));
         }
 
         try {
-            return redirect()->away($subscription->paymentMethodUpdateUrl());
+            return Inertia::location($subscription->paymentMethodUpdateUrl());
         } catch (Throwable) {
             return $this->failed(__('Paddle could not open the payment method page. Please try again.'));
         }
@@ -98,10 +107,10 @@ final class SubscriptionController extends Controller
      * parameter, so there is no subscription identifier for a request to
      * substitute someone else's.
      */
-    private function subscriptionFor(Request $request): ?Subscription
+    private function subscriptionFor(User $user): ?Subscription
     {
         return Subscription::query()
-            ->whereMorphedTo('billable', $request->user())
+            ->whereMorphedTo('billable', $user)
             ->where('type', Subscription::DEFAULT_TYPE)
             ->latest('id')
             ->first();

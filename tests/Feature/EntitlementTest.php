@@ -41,7 +41,7 @@ final class EntitlementTest extends TestCase
 
     public function test_a_guest_resolves_to_starter(): void
     {
-        $this->assertSame(Plan::Starter, app(ResolvePlanForUser::class)->handle(null));
+        $this->assertSame(Plan::Starter, resolve(ResolvePlanForUser::class)->handle(null));
     }
 
     public function test_a_plan_override_resolves_to_that_plan(): void
@@ -179,7 +179,7 @@ final class EntitlementTest extends TestCase
                 ->where('auth.plan.label', 'Pro')
                 ->where('auth.plan.isPaid', true)
                 ->where('auth.features', fn (Collection $features): bool => $features->contains('python_runtime')
-                    && ! $features->contains('team_management')));
+                    && $features->doesntContain('team_management')));
     }
 
     public function test_guests_are_shared_the_starter_plan(): void
@@ -220,7 +220,7 @@ final class EntitlementTest extends TestCase
 
     private function resolve(User $user): Plan
     {
-        return app(ResolvePlanForUser::class)->handle($user->fresh());
+        return resolve(ResolvePlanForUser::class)->handle($user->fresh());
     }
 
     /**
@@ -232,7 +232,7 @@ final class EntitlementTest extends TestCase
         string $status = Subscription::STATUS_ACTIVE,
         string $type = 'default',
     ): Subscription {
-        $subscription = Subscription::create([
+        $subscription = Subscription::query()->create([
             'billable_id' => $user->id,
             'billable_type' => $user->getMorphClass(),
             'type' => $type,

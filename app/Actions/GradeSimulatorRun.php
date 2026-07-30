@@ -19,7 +19,7 @@ use App\Models\Challenge;
  * weights below are the shared contract, and ChallengeTest pins the cases
  * that would drift first.
  */
-final class GradeSimulatorRun
+final readonly class GradeSimulatorRun
 {
     /**
      * Scoring policy out of 100, before scaling to the challenge's max score:

@@ -53,7 +53,7 @@ use App\Models\Challenge;
  * per photo. Nothing about what is measured changes; it is the same
  * geometry over a cheaper representation of the same points.
  */
-final class ReconstructRunTelemetry
+final readonly class ReconstructRunTelemetry
 {
     /** Drone centre height when it is sitting on the pad, from physics.ts. */
     private const float REST_HEIGHT = 0.15;

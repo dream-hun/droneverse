@@ -11,7 +11,7 @@ use App\Models\UserChallengeProgress;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
-final class RecordChallengeAttempt
+final readonly class RecordChallengeAttempt
 {
     private const int MAX_STARS = 3;
 

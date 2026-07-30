@@ -17,9 +17,9 @@ export function ConsolePanel({ session }: { session: SimulatorSession }) {
                     Console output will appear here when you run your code.
                 </p>
             )}
-            {logs.map((line, index) => (
+            {logs.map((line) => (
                 <div
-                    key={index}
+                    key={line.id}
                     className={cn(
                         line.level === 'error' && 'text-red-400',
                         line.level === 'warn' && 'text-yellow-400',

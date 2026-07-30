@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
-final class StoreDronePhoto
+final readonly class StoreDronePhoto
 {
     /** A generous ceiling so one pilot cannot fill the disk. */
     private const int MAX_PHOTOS_PER_USER = 500;

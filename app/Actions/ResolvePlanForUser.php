@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Laravel\Paddle\Subscription;
 use Laravel\Paddle\SubscriptionItem;
 
-final class ResolvePlanForUser
+final readonly class ResolvePlanForUser
 {
     /**
      * Work out which plan a user is entitled to right now.
@@ -28,7 +28,7 @@ final class ResolvePlanForUser
      * Guests resolve to Starter too, so callers sharing entitlements with an
      * unauthenticated view do not need a null branch of their own.
      *
-     * Results are memoised on the User instance by App\Concerns\HasPlan, which
+     * Results are memorized on the User instance by App\Concerns\HasPlan, which
      * makes this per request without a cache to invalidate.
      */
     public function handle(?User $user): Plan

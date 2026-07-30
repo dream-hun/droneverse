@@ -77,6 +77,13 @@ final class CourseController extends Controller
      * One query for the whole page rather than one per row; a guest skips
      * the trip entirely.
      *
+     * Only the four columns the rows are rendered from. `last_code` is on
+     * this table too, and it is a longText holding the pilot's whole editor
+     * buffer — up to twenty kilobytes per mission. Selecting `*` read the
+     * saved code for every mission in the course, off disk and into a
+     * hydrated model, to render a status badge and a star count. The play
+     * page is where saved code is actually wanted, and it asks for one row.
+     *
      * @param  Collection<int, int>  $challengeIds
      * @return Collection<int, UserChallengeProgress>
      */
@@ -88,7 +95,7 @@ final class CourseController extends Controller
 
         return $user->challengeProgress()
             ->whereIn('challenge_id', $challengeIds)
-            ->get()
+            ->get(['challenge_id', 'status', 'best_score', 'stars'])
             ->keyBy('challenge_id');
     }
 }

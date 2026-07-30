@@ -47,8 +47,20 @@ final class DashboardController extends Controller
      */
     private function continueCard(User $user): ?array
     {
+        /*
+         * Three narrow rows rather than three wide ones. A challenge carries
+         * its environment, success criteria, starter code and solution code
+         * — tens of kilobytes of JSON and source per row — and a progress row
+         * carries the pilot's saved editor buffer. This card renders two
+         * slugs and a title, and needs only the plan columns behind them to
+         * decide whether to render at all.
+         */
         $progress = $user->challengeProgress()
-            ->with('challenge.course')
+            ->select(['id', 'challenge_id'])
+            ->with(['challenge' => fn ($challenge) => $challenge
+                ->select(['id', 'course_id', 'title', 'slug', 'required_plan'])
+                ->with(['course' => fn ($course) => $course->select(['id', 'slug', 'required_plan'])]),
+            ])
             ->where('status', '!=', ChallengeStatus::Completed)
             ->whereRelation('challenge', 'is_published', true)
             ->whereRelation('challenge.course', 'is_published', true)

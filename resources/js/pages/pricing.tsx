@@ -269,7 +269,7 @@ export default function Pricing({
         <div
             key={plan.value}
             className={cn(
-                'flex h-full flex-col rounded-2xl border bg-card p-6',
+                'flex h-full flex-col rounded-xl border bg-card p-6',
                 plan.isPopular
                     ? 'border-foreground/40 shadow-[0_20px_60px_-30px_oklch(0.145_0_0/0.5)]'
                     : 'border-border',

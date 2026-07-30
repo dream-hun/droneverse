@@ -28,6 +28,29 @@ function takeSnapshot(flightState: FlightVisualState): HudSnapshot {
     };
 }
 
+/**
+ * Whether two snapshots would draw the same strip.
+ *
+ * Compared at the precision the readouts are *printed* at, not the
+ * precision they are held at. Altitude is rendered to one decimal and
+ * heading to a whole degree, so a hovering drone whose altitude wanders by
+ * a ten-thousandth of a metre produces an identical strip — and the poll
+ * below turns that into a re-render only when it would show.
+ */
+function isSameReadout(a: HudSnapshot, b: HudSnapshot): boolean {
+    return (
+        a.mode === b.mode &&
+        a.photosTaken === b.photosTaken &&
+        a.altitude.toFixed(1) === b.altitude.toFixed(1) &&
+        a.groundSpeed.toFixed(1) === b.groundSpeed.toFixed(1) &&
+        a.verticalSpeed.toFixed(1) === b.verticalSpeed.toFixed(1) &&
+        a.windSpeed.toFixed(1) === b.windSpeed.toFixed(1) &&
+        Math.round(a.headingDeg) === Math.round(b.headingDeg) &&
+        Math.round(a.windHeadingDeg) === Math.round(b.windHeadingDeg) &&
+        Math.round(a.batteryPct) === Math.round(b.batteryPct)
+    );
+}
+
 function modeChipClass(mode: string): string {
     if (mode === 'STANDBY') {
         return 'text-slate-300';
@@ -60,6 +83,14 @@ function batteryBarClass(batteryPct: number): string {
  * DJI-style telemetry strip over the 3D view. Polls the mutable flight
  * state at 10 Hz — plenty for numeric readouts without re-rendering the
  * page at frame rate.
+ *
+ * The poll is a poll, not a change notification: the flight state is
+ * mutated in place by the physics loop and says nothing when it moves. So
+ * the snapshot it produces is kept only when it would actually change what
+ * is on screen. Handed to `setState` unconditionally, a fresh object every
+ * 100 ms was ten renders a second for the whole strip — for the entire time
+ * the page was open, including the STANDBY drone sitting on its pad before
+ * anyone has written a line of code.
  */
 export function FlightHud({ flightState }: { flightState: FlightVisualState }) {
     const [snapshot, setSnapshot] = useState<HudSnapshot>(() =>
@@ -67,10 +98,15 @@ export function FlightHud({ flightState }: { flightState: FlightVisualState }) {
     );
 
     useEffect(() => {
-        const id = window.setInterval(
-            () => setSnapshot(takeSnapshot(flightState)),
-            100,
-        );
+        const id = window.setInterval(() => {
+            setSnapshot((previous) => {
+                const next = takeSnapshot(flightState);
+
+                // Returning the identical object is React's own bail-out:
+                // no re-render is scheduled at all.
+                return isSameReadout(previous, next) ? previous : next;
+            });
+        }, 100);
 
         return () => window.clearInterval(id);
     }, [flightState]);

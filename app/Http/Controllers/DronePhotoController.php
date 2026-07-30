@@ -28,9 +28,19 @@ final class DronePhotoController extends Controller
      */
     public function index(Request $request): Response
     {
+        /*
+         * A page of the log is twenty-four photos, each naming the mission it
+         * was taken on. Eager loading the whole challenge to read a title and
+         * a slug pulled its environment, success criteria, starter code and
+         * solution code along with it — twenty-four times over, for four
+         * strings a page.
+         */
         $photos = $request->user()
             ->dronePhotos()
-            ->with('challenge.course')
+            ->with(['challenge' => fn ($challenge) => $challenge
+                ->select(['id', 'course_id', 'title', 'slug'])
+                ->with(['course' => fn ($course) => $course->select(['id', 'slug'])]),
+            ])
             ->latest()
             ->latest('id')
             ->paginate(self::PER_PAGE);

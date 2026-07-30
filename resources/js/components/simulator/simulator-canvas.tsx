@@ -2,7 +2,7 @@ import { OrbitControls, Sky } from '@react-three/drei';
 import { Canvas } from '@react-three/fiber';
 import { Physics } from '@react-three/rapier';
 import type { RapierRigidBody } from '@react-three/rapier';
-import { useRef, useState } from 'react';
+import { memo, useRef, useState } from 'react';
 import { CameraRig, DEFAULT_FOV } from '@/components/simulator/camera-rig';
 import type { CameraMode } from '@/components/simulator/camera-rig';
 import { DroneRig } from '@/components/simulator/drone-rig';
@@ -32,7 +32,21 @@ const CAMERA_MODES: { id: CameraMode; label: string }[] = [
 // One late-morning sun direction shared by the sky shader and the shadow light.
 const SUN_DIRECTION: [number, number, number] = [0.75, 1, 0.46];
 
-export function SimulatorCanvas({
+/**
+ * Memoised because the page above it owns the editor buffer.
+ *
+ * Every keystroke in Monaco is a `setState` on the mission page, so without
+ * this the viewport re-rendered on each one — and a re-render here is not
+ * cheap markup, it is React reconciling the whole R3F tree: the physics
+ * world, the drone rig, and every mesh in the city below. The pilot paid
+ * for that in the editor, as typing latency, on the page where they spend
+ * the most time typing.
+ *
+ * Every prop is stable across those renders: `session` and `environment`
+ * come from `useState`/Inertia page props by reference, the URLs are equal
+ * strings, and `maxScore` is a number — so the shallow compare bails.
+ */
+function SimulatorCanvasComponent({
     environment,
     ...props
 }: SimulatorCanvasProps) {
@@ -125,3 +139,5 @@ export function SimulatorCanvas({
         </div>
     );
 }
+
+export const SimulatorCanvas = memo(SimulatorCanvasComponent);

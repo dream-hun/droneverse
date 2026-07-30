@@ -4,7 +4,7 @@ import {
     CylinderCollider,
     RigidBody,
 } from '@react-three/rapier';
-import { useEffect, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
 import {
     BoxGeometry,
@@ -547,7 +547,18 @@ function WaypointBeacon({
     );
 }
 
-export function EnvironmentObjects({
+/**
+ * The scene is fixed for the whole mission, so it is built once.
+ *
+ * A mission's environment never changes while it is being flown — the
+ * obstacles, gates, beacons and props are authored data — but this subtree
+ * is the largest in the application, and anything that re-renders the
+ * viewport around it (switching camera mode, a keystroke reaching the page
+ * above) would otherwise walk every one of those meshes again. The
+ * `environment` prop arrives by reference from the Inertia page props, so
+ * the compare below holds until the pilot navigates to another mission.
+ */
+function EnvironmentObjectsComponent({
     environment,
 }: {
     environment: EnvironmentConfig;
@@ -643,3 +654,5 @@ export function EnvironmentObjects({
         </>
     );
 }
+
+export const EnvironmentObjects = memo(EnvironmentObjectsComponent);

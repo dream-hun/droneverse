@@ -11,11 +11,41 @@ use App\Models\Course;
 use App\Models\User;
 use App\Models\UserChallengeProgress;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 final class ChallengeTest extends TestCase
 {
     use RefreshDatabase;
+
+    /**
+     * @return array<string, array{0: array<int, array<string, mixed>>}>
+     */
+    public static function malformedPaths(): array
+    {
+        return [
+            'a sample missing an axis' => [[
+                ['t' => 0, 'x' => 0, 'y' => 0.15, 'z' => 0],
+                ['t' => 1, 'x' => 0, 'z' => 0],
+            ]],
+            'a coordinate that is not a number' => [[
+                ['t' => 0, 'x' => 0, 'y' => 0.15, 'z' => 0],
+                ['t' => 1, 'x' => 'over there', 'y' => 1.5, 'z' => 0],
+            ]],
+            'a coordinate off any map' => [[
+                ['t' => 0, 'x' => 0, 'y' => 0.15, 'z' => 0],
+                ['t' => 1, 'x' => 0, 'y' => 1.5, 'z' => 250000],
+            ]],
+            'a timestamp before the run began' => [[
+                ['t' => -1, 'x' => 0, 'y' => 0.15, 'z' => 0],
+                ['t' => 0, 'x' => 0, 'y' => 1.5, 'z' => 0],
+            ]],
+            'a sample that is not a sample' => [[
+                ['t' => 0, 'x' => 0, 'y' => 0.15, 'z' => 0],
+                ['nope'],
+            ]],
+        ];
+    }
 
     public function test_guests_are_redirected_to_the_login_page(): void
     {
@@ -779,6 +809,54 @@ final class ChallengeTest extends TestCase
             'user_id' => $user->id,
             'challenge_id' => $challenge->id,
         ]);
+    }
+
+    /**
+     * Every sample has to be a point before the path can be a recording.
+     *
+     * The shape check and the cadence check are one pass over the array
+     * rather than a validation rule per coordinate, so this covers what the
+     * per-coordinate rules used to: a sample missing an axis, carrying
+     * something that is not a number on one, or claiming a position off any
+     * map, is not a sample.
+     *
+     * @param  array<int, array<string, mixed>>  $path
+     */
+    #[DataProvider('malformedPaths')]
+    public function test_a_path_whose_samples_are_not_points_is_rejected(array $path): void
+    {
+        $user = User::factory()->create();
+        $course = Course::factory()->create();
+        $challenge = Challenge::factory()->for($course)->create();
+
+        $response = $this->actingAs($user)->postJson(
+            route('challenges.attempts.store', [$course, $challenge]),
+            $this->flight(['path' => $path]),
+        );
+
+        $response->assertUnprocessable();
+        $response->assertJsonValidationErrors('path');
+        $this->assertDatabaseEmpty('user_challenge_progress');
+    }
+
+    /**
+     * A photo still has to name a place, even though the path is what
+     * decides whether the drone was ever at it.
+     */
+    public function test_a_photo_taken_nowhere_is_rejected(): void
+    {
+        $user = User::factory()->create();
+        $course = Course::factory()->create();
+        $challenge = Challenge::factory()->for($course)->create();
+
+        $response = $this->actingAs($user)->postJson(
+            route('challenges.attempts.store', [$course, $challenge]),
+            $this->flight(['photos' => [['x' => 1, 'y' => 'up', 'z' => 3]]]),
+        );
+
+        $response->assertUnprocessable();
+        $response->assertJsonValidationErrors('photos');
+        $this->assertDatabaseEmpty('user_challenge_progress');
     }
 
     public function test_a_run_without_a_flight_path_is_rejected(): void

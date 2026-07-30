@@ -61,6 +61,25 @@ const TILT_SMOOTHING_TAU = 0.22; // seconds
 const BATTERY_IDLE_DRAIN = 0.04; // %/s with motors idle
 const BATTERY_THROTTLE_DRAIN = 0.22; // additional %/s at full throttle
 
+/**
+ * Scratch vectors for the frame loop.
+ *
+ * The loop below runs sixty times a second for the length of a flight and
+ * every vector in it was a fresh object literal — the commanded velocity,
+ * the angular velocity, the still-air gust, the copy of last frame's
+ * velocity. None of them outlives the frame that makes them: Rapier reads
+ * the velocities synchronously inside `setLinvel`/`setAngvel`, and the
+ * previous-velocity copy is read once, next frame, and overwritten. So they
+ * are written into these instead, and the loop allocates nothing at all.
+ *
+ * Module scope rather than refs because there is one flight at a time, and
+ * nothing here holds a value across a frame boundary except
+ * `previousVelocity`, which is rewritten from scratch each frame anyway.
+ */
+const NO_GUST: Vector3 = { x: 0, y: 0, z: 0 };
+const appliedVelocity: Vector3 = { x: 0, y: 0, z: 0 };
+const appliedSpin: Vector3 = { x: 0, y: 0, z: 0 };
+
 function modeLabel(
     active: ActiveCommand | null,
     control: ControlState,
@@ -469,38 +488,39 @@ export function useDroneSimulation({
         // Gusts push the airborne drone around; the position loop above
         // constantly corrects, producing realistic station-keeping wander.
         const elapsed = bridge.telemetry.elapsedSeconds;
-        const gust =
-            control.airborne && wind
-                ? wind.gust(elapsed)
-                : { x: 0, y: 0, z: 0 };
-        const applied = {
-            x: step.linvel.x + gust.x,
-            y: step.linvel.y + gust.y,
-            z: step.linvel.z + gust.z,
-        };
+        const gust = control.airborne && wind ? wind.gust(elapsed) : NO_GUST;
 
-        body.setLinvel(applied, true);
-        body.setAngvel({ x: 0, y: step.angvel, z: 0 }, true);
+        appliedVelocity.x = step.linvel.x + gust.x;
+        appliedVelocity.y = step.linvel.y + gust.y;
+        appliedVelocity.z = step.linvel.z + gust.z;
+        appliedSpin.y = step.angvel;
+
+        body.setLinvel(appliedVelocity, true);
+        body.setAngvel(appliedSpin, true);
 
         // --- Visual flight state: tilt, throttle, rotors, battery, HUD ---
         const previous = previousVelocityRef.current;
-        const accelX = (control.velocity.x - previous.x) / dt;
-        const accelZ = (control.velocity.z - previous.z) / dt;
-        previousVelocityRef.current = { ...control.velocity };
+        const velocity = control.velocity;
+        const accelX = (velocity.x - previous.x) / dt;
+        const accelZ = (velocity.z - previous.z) / dt;
+        previous.x = velocity.x;
+        previous.y = velocity.y;
+        previous.z = velocity.z;
 
+        // The body's right-hand axis is the forward axis turned a quarter
+        // turn, so it is two sign flips rather than a vector of its own.
         const forward = forwardVector(yaw);
-        const right = { x: -forward.z, z: forward.x };
+        const rightX = -forward.z;
+        const rightZ = forward.x;
         const forwardAccel =
             accelX * forward.x +
             accelZ * forward.z +
             DRAG_TILT_COEFFICIENT *
-                (control.velocity.x * forward.x +
-                    control.velocity.z * forward.z);
+                (velocity.x * forward.x + velocity.z * forward.z);
         const rightAccel =
-            accelX * right.x +
-            accelZ * right.z +
-            DRAG_TILT_COEFFICIENT *
-                (control.velocity.x * right.x + control.velocity.z * right.z);
+            accelX * rightX +
+            accelZ * rightZ +
+            DRAG_TILT_COEFFICIENT * (velocity.x * rightX + velocity.z * rightZ);
 
         const targetPitch = clamp(
             -Math.atan2(forwardAccel, GRAVITY),
@@ -551,21 +571,19 @@ export function useDroneSimulation({
         fs.armed = true;
         fs.airborne = control.airborne;
         fs.altitude = Math.max(0, position.y - REST_HEIGHT);
-        fs.groundSpeed = Math.hypot(applied.x, applied.z);
-        fs.verticalSpeed = applied.y;
+        fs.groundSpeed = Math.hypot(appliedVelocity.x, appliedVelocity.z);
+        fs.verticalSpeed = appliedVelocity.y;
         fs.headingDeg = compassDegrees(yaw);
         fs.mode = modeLabel(bridge.active, control, fs.mode);
 
         droneEngine.setState(fs.throttle, fs.rotorSpeed, fs.groundSpeed);
 
         if (wind) {
-            const along = {
-                x: Math.sin(wind.directionRad),
-                z: -Math.cos(wind.directionRad),
-            };
+            const alongX = Math.sin(wind.directionRad);
+            const alongZ = -Math.cos(wind.directionRad);
             fs.windSpeed = Math.hypot(
-                along.x * wind.meanSpeed + gust.x,
-                along.z * wind.meanSpeed + gust.z,
+                alongX * wind.meanSpeed + gust.x,
+                alongZ * wind.meanSpeed + gust.z,
             );
             fs.windHeadingDeg = normalizeDegrees(
                 (wind.directionRad * 180) / Math.PI,

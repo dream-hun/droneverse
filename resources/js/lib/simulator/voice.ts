@@ -55,11 +55,7 @@ function phraseFor(command: DroneCommand): string | null {
 }
 
 export type DroneVoiceEvent =
-    | 'armed'
-    | 'complete'
-    | 'aborted'
-    | 'fault'
-    | 'washed';
+    'armed' | 'complete' | 'aborted' | 'fault' | 'washed';
 
 const EVENT_PHRASES: Record<DroneVoiceEvent, string> = {
     armed: 'Systems online. Ready for flight.',

@@ -55,10 +55,7 @@ function propSeed(prop: PropConfig): number {
 }
 
 function boxGeometry(x: number, y: number, z: number) {
-    return sharedGeometry(
-        `box:${x}:${y}:${z}`,
-        () => new BoxGeometry(x, y, z),
-    );
+    return sharedGeometry(`box:${x}:${y}:${z}`, () => new BoxGeometry(x, y, z));
 }
 
 function planeGeometry(width: number, height: number) {
@@ -114,20 +111,18 @@ function Lamp({
         <mesh
             position={position}
             geometry={boxGeometry(0.3, 0.14, 0.04)}
-            material={sharedMaterial(
-                `lamp:${kind}`,
-                () =>
-                    kind === 'head'
-                        ? new MeshStandardMaterial({
-                              color: '#f5f2d4',
-                              emissive: '#fff7c2',
-                              emissiveIntensity: 0.5,
-                          })
-                        : new MeshStandardMaterial({
-                              color: '#5c1310',
-                              emissive: '#e0362c',
-                              emissiveIntensity: 0.6,
-                          }),
+            material={sharedMaterial(`lamp:${kind}`, () =>
+                kind === 'head'
+                    ? new MeshStandardMaterial({
+                          color: '#f5f2d4',
+                          emissive: '#fff7c2',
+                          emissiveIntensity: 0.5,
+                      })
+                    : new MeshStandardMaterial({
+                          color: '#5c1310',
+                          emissive: '#e0362c',
+                          emissiveIntensity: 0.6,
+                      }),
             )}
         />
     );
@@ -207,7 +202,11 @@ function VanVisual({ color }: { color: string }) {
 }
 
 /** Foliage and trunk shapes, shared across every tree on the map. */
-function foliage(radius: number, widthSegments: number, heightSegments: number) {
+function foliage(
+    radius: number,
+    widthSegments: number,
+    heightSegments: number,
+) {
     return sharedGeometry(
         `foliage:${radius}:${widthSegments}:${heightSegments}`,
         () => new SphereGeometry(radius, widthSegments, heightSegments),
@@ -424,8 +423,7 @@ function Brush({
                     castShadow
                     geometry={sharedGeometry(
                         `brush:${radius}:${length}`,
-                        () =>
-                            new CylinderGeometry(radius, radius, length, 18),
+                        () => new CylinderGeometry(radius, radius, length, 18),
                     )}
                     material={sharedMaterial(
                         `brush:${color}`,
@@ -509,8 +507,7 @@ function CurtainFlaps({
                             `flap:${i % 2}`,
                             () =>
                                 new MeshStandardMaterial({
-                                    color:
-                                        i % 2 === 0 ? '#1d4ed8' : '#3b82f6',
+                                    color: i % 2 === 0 ? '#1d4ed8' : '#3b82f6',
                                     roughness: 0.85,
                                     side: DoubleSide,
                                 }),

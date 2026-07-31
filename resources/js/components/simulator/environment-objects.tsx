@@ -71,8 +71,7 @@ function cylinderGeometry(
 ) {
     return sharedGeometry(
         `cyl:${topRadius}:${radius}:${height}:${segments}`,
-        () =>
-            new CylinderGeometry(topRadius, radius, height, segments),
+        () => new CylinderGeometry(topRadius, radius, height, segments),
     );
 }
 

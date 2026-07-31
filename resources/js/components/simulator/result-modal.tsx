@@ -93,9 +93,7 @@ export function ResultModal({ result, onClose, onRetry }: ResultModalProps) {
                         {result.washRequired && (
                             <Stat
                                 label="Drone wash"
-                                value={
-                                    result.washed ? 'Complete' : 'Skipped'
-                                }
+                                value={result.washed ? 'Complete' : 'Skipped'}
                             />
                         )}
                     </div>

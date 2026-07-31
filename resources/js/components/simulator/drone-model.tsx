@@ -47,8 +47,7 @@ const MOTOR_POSITIONS: [number, number][] = [
 const ARM_ROOT: [number, number] = [0.11, 0.145];
 
 // The X frame is symmetric, so every arm is the same length.
-const ARM_LENGTH =
-    Math.hypot(0.24 - ARM_ROOT[0], 0.24 - ARM_ROOT[1]) + 0.06;
+const ARM_LENGTH = Math.hypot(0.24 - ARM_ROOT[0], 0.24 - ARM_ROOT[1]) + 0.06;
 
 function clamp(value: number, min: number, max: number): number {
     return Math.min(max, Math.max(min, value));

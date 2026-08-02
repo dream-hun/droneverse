@@ -10,6 +10,7 @@ use App\Http\Resources\CourseCatalogResource;
 use App\Models\Course;
 use App\Models\User;
 use App\Models\UserChallengeProgress;
+use App\Queries\Leaderboard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
@@ -20,14 +21,14 @@ final class CourseController extends Controller
     /**
      * Display a listing of the published courses.
      */
-    public function index(Request $request): Response
+    public function index(Request $request, Leaderboard $leaderboard): Response
     {
         $user = $request->user();
         $courses = Course::catalog()->get();
 
         // The catalog is public, so a guest simply has no progress to merge.
         $completedByCourse = $user instanceof User
-            ? UserChallengeProgress::completedCountsByCourse($user)
+            ? $leaderboard->completedCountsByCourse($user)
             : collect();
 
         return Inertia::render('courses/index', [

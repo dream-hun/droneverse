@@ -19,7 +19,7 @@ final class DronePhotoResource
 {
     /**
      * @param  Collection<int, DronePhoto>  $photos  with `challenge.course` eager loaded
-     * @return array<int, array{id: int, url: string, label: string|null, challengeTitle: string|null, courseSlug: string|null, challengeSlug: string|null, position: array{x: float, y: float, z: float, headingDeg: float}|null, takenAt: string}>
+     * @return array<int, array{id: string, url: string, label: string|null, challengeTitle: string|null, courseSlug: string|null, challengeSlug: string|null, position: array{x: float, y: float, z: float, headingDeg: float}|null, takenAt: string}>
      */
     public static function collection(Collection $photos): array
     {
@@ -27,12 +27,15 @@ final class DronePhotoResource
     }
 
     /**
-     * @return array{id: int, url: string, label: string|null, challengeTitle: string|null, courseSlug: string|null, challengeSlug: string|null, position: array{x: float, y: float, z: float, headingDeg: float}|null, takenAt: string}
+     * The `id` the client sees is the photo's uuid, which is the only
+     * identifier it can act on — `photos.destroy` binds by route key.
+     *
+     * @return array{id: string, url: string, label: string|null, challengeTitle: string|null, courseSlug: string|null, challengeSlug: string|null, position: array{x: float, y: float, z: float, headingDeg: float}|null, takenAt: string}
      */
     public static function one(DronePhoto $photo): array
     {
         return [
-            'id' => $photo->id,
+            'id' => $photo->uuid,
             'url' => $photo->url(),
             'label' => $photo->label,
             'challengeTitle' => $photo->challenge?->title,

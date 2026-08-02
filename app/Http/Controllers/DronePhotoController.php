@@ -72,7 +72,7 @@ final class DronePhotoController extends Controller
         $photo = $storePhoto->handle($request->user(), $challenge, $request->photo());
 
         return response()->json([
-            'id' => $photo->id,
+            'id' => $photo->uuid,
             'url' => $photo->url(),
             'label' => $photo->label,
         ], 201);

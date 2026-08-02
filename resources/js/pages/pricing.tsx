@@ -1,11 +1,20 @@
 import { Head, Link, router, useHttp, usePage } from '@inertiajs/react';
 import { ArrowRight, Check, Minus } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import CheckoutController from '@/actions/App/Http/Controllers/CheckoutController';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+    Table,
+    TableBody,
+    TableCaption,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 import { usePaddle } from '@/hooks/use-paddle';
 import { cn } from '@/lib/utils';
 import { dashboard, login, register } from '@/routes';
@@ -142,6 +151,7 @@ export default function Pricing({
 }: PricingProps) {
     const { auth } = usePage().props;
     const [variant, setVariant] = useState<PlanVariant>('monthly');
+    const comparisonCaptionId = useId();
 
     const checkout = useHttp<
         { plan: string; variant: string },
@@ -194,7 +204,21 @@ export default function Pricing({
         );
     }, []);
 
-    const { ready, openCheckout } = usePaddle(paddle, onCheckoutCompleted);
+    /**
+     * Say why the overlay gave up.
+     *
+     * Paddle's frame renders its own "Something went wrong" and closes on the
+     * buyer's next click, so this is the only trace the page keeps of a
+     * checkout that never opened.
+     */
+    const onCheckoutFailed = useCallback((message: string) => {
+        toast.error(message);
+    }, []);
+
+    const { ready, openCheckout } = usePaddle(paddle, {
+        onCompleted: onCheckoutCompleted,
+        onFailed: onCheckoutFailed,
+    });
 
     /**
      * Ask the server to open a checkout.
@@ -393,39 +417,51 @@ export default function Pricing({
                             cost, on every plan below that grants them.
                         </p>
 
-                        <div className="mt-8 overflow-x-auto rounded-2xl border border-border bg-card">
-                            <table className="w-full min-w-3xl border-collapse text-sm">
-                                <caption className="sr-only">
+                        {/*
+                         * A matrix, not a list of records, so it stays on the
+                         * Table primitives rather than DataTable: every row
+                         * leads with a `scope="row"` header, and re-sorting
+                         * capabilities alphabetically would help nobody.
+                         *
+                         * The container carries role/name/tabIndex because it
+                         * scrolls — at `min-w-3xl` the right-hand plans are
+                         * off-screen on a phone, and without a tab stop a
+                         * keyboard user cannot reach them.
+                         */}
+                        <div
+                            role="region"
+                            aria-labelledby={comparisonCaptionId}
+                            tabIndex={0}
+                            className="mt-8 overflow-x-auto rounded-2xl border border-border bg-card focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                        >
+                            <Table className="min-w-3xl">
+                                <TableCaption
+                                    id={comparisonCaptionId}
+                                    className="sr-only"
+                                >
                                     Capabilities granted by each plan
-                                </caption>
-                                <thead>
-                                    <tr className="border-b border-border">
-                                        <th
-                                            scope="col"
-                                            className="p-4 text-left font-medium"
-                                        >
+                                </TableCaption>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="p-4 text-sm text-foreground">
                                             Capability
-                                        </th>
+                                        </TableHead>
                                         {plans.map((plan) => (
-                                            <th
+                                            <TableHead
                                                 key={plan.value}
-                                                scope="col"
-                                                className="p-4 text-center font-medium whitespace-nowrap"
+                                                className="p-4 text-center text-sm text-foreground"
                                             >
                                                 {plan.label}
-                                            </th>
+                                            </TableHead>
                                         ))}
-                                    </tr>
-                                </thead>
-                                <tbody>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
                                     {comparison.map((row) => (
-                                        <tr
-                                            key={row.value}
-                                            className="border-b border-border last:border-0"
-                                        >
-                                            <th
+                                        <TableRow key={row.value}>
+                                            <TableHead
                                                 scope="row"
-                                                className="p-4 text-left font-normal"
+                                                className="p-4 text-sm font-normal whitespace-normal text-foreground"
                                             >
                                                 {row.label}
                                                 {!row.available && (
@@ -433,9 +469,9 @@ export default function Pricing({
                                                         coming soon
                                                     </span>
                                                 )}
-                                            </th>
+                                            </TableHead>
                                             {row.plans.map((granted, index) => (
-                                                <td
+                                                <TableCell
                                                     key={plans[index].value}
                                                     className="p-4 text-center"
                                                 >
@@ -450,12 +486,12 @@ export default function Pricing({
                                                             className="mx-auto size-4 text-muted-foreground/50"
                                                         />
                                                     )}
-                                                </td>
+                                                </TableCell>
                                             ))}
-                                        </tr>
+                                        </TableRow>
                                     ))}
-                                </tbody>
-                            </table>
+                                </TableBody>
+                            </Table>
                         </div>
                     </section>
 

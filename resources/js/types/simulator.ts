@@ -212,7 +212,8 @@ export type RunResult = {
 
 /** A saved drone photo as serialized for the photo log page. */
 export type DronePhotoSummary = {
-    id: number;
+    /** The photo's uuid — the only identifier the server will act on. */
+    id: string;
     url: string;
     label: string | null;
     challengeTitle: string | null;

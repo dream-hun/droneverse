@@ -8,12 +8,15 @@ use App\Enums\ChallengeStatus;
 use App\Models\Challenge;
 use App\Models\User;
 use App\Models\UserChallengeProgress;
+use App\Queries\Leaderboard;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
 final readonly class RecordChallengeAttempt
 {
     private const int MAX_STARS = 3;
+
+    public function __construct(private Leaderboard $leaderboard) {}
 
     /**
      * Merge a simulator run into the user's per-challenge progress.
@@ -63,7 +66,7 @@ final readonly class RecordChallengeAttempt
 
         // This run may have moved the pilot up the board, so no cached view
         // of it can be trusted anymore.
-        UserChallengeProgress::forgetBoard();
+        $this->leaderboard->forget();
 
         return $progress;
     }

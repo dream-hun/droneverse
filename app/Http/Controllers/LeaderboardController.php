@@ -6,7 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Course;
 use App\Models\User;
-use App\Models\UserChallengeProgress;
+use App\Queries\Leaderboard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
@@ -22,7 +22,7 @@ final class LeaderboardController extends Controller
     /**
      * Display the ranked pilot standings.
      */
-    public function __invoke(Request $request): Response
+    public function __invoke(Request $request, Leaderboard $leaderboard): Response
     {
         $user = $request->user();
 
@@ -32,7 +32,7 @@ final class LeaderboardController extends Controller
         // rather than 404ing, so an old bookmark still shows something.
         $course = $courses->firstWhere('slug', $request->query('course'));
 
-        $standings = UserChallengeProgress::standings($user, $course, self::TOP_PILOTS);
+        $standings = $leaderboard->standings($user, $course, self::TOP_PILOTS);
 
         return Inertia::render('leaderboard/index', [
             'courses' => $courses->map(fn (Course $course): array => [
@@ -42,8 +42,8 @@ final class LeaderboardController extends Controller
             'courseSlug' => $course?->slug,
             'courseTitle' => $course?->title,
             'standings' => $standings,
-            'you' => $this->viewerStanding($user, $course, $standings),
-            'pilotCount' => UserChallengeProgress::rankedPilotCount($course),
+            'you' => $this->viewerStanding($leaderboard, $user, $course, $standings),
+            'pilotCount' => $leaderboard->rankedPilotCount($course),
             'topPilots' => self::TOP_PILOTS,
         ]);
     }
@@ -58,9 +58,9 @@ final class LeaderboardController extends Controller
      * @param  Collection<int, array{rank: int, name: string, points: int, stars: int, completed: int, isYou: bool}>  $standings
      * @return array{rank: int, name: string, points: int, stars: int, completed: int, isYou: bool}|null
      */
-    private function viewerStanding(User $user, ?Course $course, Collection $standings): ?array
+    private function viewerStanding(Leaderboard $leaderboard, User $user, ?Course $course, Collection $standings): ?array
     {
         return $standings->firstWhere('isYou', true)
-            ?? UserChallengeProgress::standingFor($user, $course);
+            ?? $leaderboard->standingFor($user, $course);
     }
 }

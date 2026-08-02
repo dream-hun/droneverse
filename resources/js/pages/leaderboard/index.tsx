@@ -1,5 +1,7 @@
 import { Head, router } from '@inertiajs/react';
 import { Medal, Star, Trophy } from 'lucide-react';
+import { useMemo } from 'react';
+import { DataTable } from '@/components/data-table';
 import { PageHeader } from '@/components/page-header';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +20,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { useInitials } from '@/hooks/use-initials';
+import type { ColumnDef } from '@/lib/data-table';
 import { cn } from '@/lib/utils';
 import { leaderboard } from '@/routes';
 import type { LeaderboardStanding } from '@/types/simulator';
@@ -94,46 +97,74 @@ function PodiumCard({ standing }: { standing: LeaderboardStanding }) {
     );
 }
 
-function StandingRow({ standing }: { standing: LeaderboardStanding }) {
+/**
+ * Note the absence of `sortValue` on every column.
+ *
+ * This is the top N of a longer board, and re-sorting it client-side would
+ * order the top-by-points slice by stars and present the result as "most
+ * stars", which it is not. A ranked board is the one table that should not be
+ * re-sortable.
+ */
+function useStandingColumns(): ColumnDef<LeaderboardStanding>[] {
     const getInitials = useInitials();
 
-    return (
-        <tr
-            className={cn(
-                'border-t',
-                standing.isYou && 'bg-primary/5 font-medium',
-            )}
-        >
-            <td className="py-2 pr-2 pl-3">
-                <RankBadge rank={standing.rank} />
-            </td>
-            <td className="py-2 pr-2">
-                <div className="flex items-center gap-2">
-                    <Avatar className="size-7">
-                        <AvatarFallback className="bg-muted text-xs">
-                            {getInitials(standing.name)}
-                        </AvatarFallback>
-                    </Avatar>
-                    <span className="truncate">{standing.name}</span>
-                    {standing.isYou && <Badge variant="secondary">You</Badge>}
-                </div>
-            </td>
-            <td className="hidden py-2 pr-2 text-right tabular-nums sm:table-cell">
-                {standing.completed}
-            </td>
-            <td className="py-2 pr-2 text-right tabular-nums">
-                <span className="inline-flex items-center gap-1">
-                    <Star
-                        aria-hidden="true"
-                        className="size-3.5 text-muted-foreground"
-                    />
-                    {standing.stars}
-                </span>
-            </td>
-            <td className="py-2 pr-3 text-right font-mono tabular-nums">
-                {standing.points.toLocaleString()}
-            </td>
-        </tr>
+    return useMemo(
+        () => [
+            {
+                id: 'rank',
+                header: 'Rank',
+                width: 'w-16',
+                cell: (standing) => <RankBadge rank={standing.rank} />,
+            },
+            {
+                id: 'pilot',
+                header: 'Pilot',
+                cell: (standing) => (
+                    <div className="flex items-center gap-2">
+                        <Avatar className="size-7">
+                            <AvatarFallback className="bg-muted text-xs">
+                                {getInitials(standing.name)}
+                            </AvatarFallback>
+                        </Avatar>
+                        <span className="truncate">{standing.name}</span>
+                        {standing.isYou && (
+                            <Badge variant="secondary">You</Badge>
+                        )}
+                    </div>
+                ),
+            },
+            {
+                id: 'completed',
+                header: 'Complete',
+                align: 'end',
+                hideBelow: 'sm',
+                className: 'tabular-nums',
+                cell: (standing) => standing.completed,
+            },
+            {
+                id: 'stars',
+                header: 'Stars',
+                align: 'end',
+                className: 'tabular-nums',
+                cell: (standing) => (
+                    <span className="inline-flex items-center gap-1">
+                        <Star
+                            aria-hidden="true"
+                            className="size-3.5 text-muted-foreground"
+                        />
+                        {standing.stars}
+                    </span>
+                ),
+            },
+            {
+                id: 'points',
+                header: 'Points',
+                align: 'end',
+                className: 'font-mono tabular-nums',
+                cell: (standing) => standing.points.toLocaleString(),
+            },
+        ],
+        [getInitials],
     );
 }
 
@@ -146,6 +177,8 @@ export default function Leaderboard({
     pilotCount,
     topPilots,
 }: LeaderboardProps) {
+    const columns = useStandingColumns();
+
     // A tie at the cut-off can push you off the board while your rank still
     // reads inside it, so go by whether your row actually made the list.
     const youAreListed = standings.some((standing) => standing.isYou);
@@ -220,70 +253,24 @@ export default function Leaderboard({
                             </div>
                         )}
 
-                        <div className="overflow-x-auto rounded-xl border bg-card">
-                            <table className="w-full text-sm">
-                                <caption className="sr-only">
-                                    Pilots ranked by total mission points
-                                    {courseTitle ? ` in ${courseTitle}` : ''}
-                                </caption>
-                                <thead className="text-xs text-muted-foreground">
-                                    <tr>
-                                        <th
-                                            scope="col"
-                                            className="py-2 pr-2 pl-3 text-left font-medium"
-                                        >
-                                            Rank
-                                        </th>
-                                        <th
-                                            scope="col"
-                                            className="py-2 pr-2 text-left font-medium"
-                                        >
-                                            Pilot
-                                        </th>
-                                        <th
-                                            scope="col"
-                                            className="hidden py-2 pr-2 text-right font-medium sm:table-cell"
-                                        >
-                                            Complete
-                                        </th>
-                                        <th
-                                            scope="col"
-                                            className="py-2 pr-2 text-right font-medium"
-                                        >
-                                            Stars
-                                        </th>
-                                        <th
-                                            scope="col"
-                                            className="py-2 pr-3 text-right font-medium"
-                                        >
-                                            Points
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {standings.map((standing, index) => (
-                                        <StandingRow
-                                            key={`${standing.rank}-${index}`}
-                                            standing={standing}
-                                        />
-                                    ))}
-
-                                    {you && !youAreListed && (
-                                        <>
-                                            <tr className="border-t">
-                                                <td
-                                                    colSpan={5}
-                                                    className="py-1 text-center text-xs text-muted-foreground"
-                                                >
-                                                    ···
-                                                </td>
-                                            </tr>
-                                            <StandingRow standing={you} />
-                                        </>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
+                        <DataTable
+                            columns={columns}
+                            rows={standings}
+                            rowKey={(standing, index) =>
+                                `${standing.rank}-${index}`
+                            }
+                            caption={`Pilots ranked by total mission points${courseTitle ? ` in ${courseTitle}` : ''}`}
+                            rowClassName={(standing) =>
+                                standing.isYou
+                                    ? 'bg-primary/5 font-medium'
+                                    : undefined
+                            }
+                            pinned={
+                                you && !youAreListed
+                                    ? { row: you, separator: '···' }
+                                    : undefined
+                            }
+                        />
 
                         {standings.length >= topPilots && (
                             <p className="text-center text-xs text-muted-foreground">

@@ -4,6 +4,7 @@ import { destroy } from '@/actions/Laravel/Passkeys/Http/Controllers/PasskeyRegi
 import Heading from '@/components/heading';
 import PasskeyItem from '@/components/passkey-item';
 import PasskeyRegistration from '@/components/passkey-register';
+import { visitAsPromise } from '@/lib/inertia-promise';
 import type { Passkey } from '@/types/auth';
 
 export type Props = {
@@ -28,12 +29,12 @@ const EmptyState = () => {
 export default function ManagePasskeys(props: Props) {
     const passkeys = props.passkeys ?? [];
 
-    const handleDelete = (id: number, onError: () => void) => {
-        router.delete(destroy.url(id), {
-            preserveScroll: true,
-            onError,
-        });
-    };
+    const handleDelete = (id: number) =>
+        visitAsPromise(
+            (options) => router.delete(destroy.url(id), options),
+            {},
+            'The passkey was not removed',
+        );
 
     const handleRegisterSuccess = () => {
         router.reload();

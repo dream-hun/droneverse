@@ -1,6 +1,7 @@
 import { Form, Head, Link } from '@inertiajs/react';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, Receipt } from 'lucide-react';
 import SubscriptionController from '@/actions/App/Http/Controllers/Settings/SubscriptionController';
+import { DataTable } from '@/components/data-table';
 import Heading from '@/components/heading';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,13 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+    EmptyState,
+    EmptyStateDescription,
+    EmptyStateIcon,
+    EmptyStateTitle,
+} from '@/components/ui/empty-state';
+import type { ColumnDef } from '@/lib/data-table';
 import { pricing } from '@/routes';
 import { edit as editBilling } from '@/routes/billing';
 import { edit as editPaymentMethod } from '@/routes/payment-method';
@@ -39,6 +47,43 @@ function formatDate(value: string | null): string | null {
         ? new Date(value).toLocaleDateString(undefined, DATE_FORMAT)
         : null;
 }
+
+/**
+ * `total` carries no `sortValue` on purpose: Paddle sends it pre-formatted
+ * ("$12.00"), and sorting that as text puts $9 after $10. Sorting it properly
+ * needs a raw minor-unit amount on the payload, which is a backend change.
+ */
+const TRANSACTION_COLUMNS: ColumnDef<BillingTransaction>[] = [
+    {
+        id: 'billedAt',
+        header: 'Date',
+        className: 'whitespace-nowrap',
+        sortValue: (transaction) =>
+            transaction.billedAt ? new Date(transaction.billedAt) : null,
+        cell: (transaction) => formatDate(transaction.billedAt) ?? '—',
+    },
+    {
+        id: 'invoiceNumber',
+        header: 'Invoice',
+        className: 'whitespace-nowrap',
+        sortValue: (transaction) => transaction.invoiceNumber,
+        cell: (transaction) => transaction.invoiceNumber ?? '—',
+    },
+    {
+        id: 'status',
+        header: 'Status',
+        className: 'capitalize',
+        sortValue: (transaction) => transaction.status,
+        cell: (transaction) => transaction.status.replace('_', ' '),
+    },
+    {
+        id: 'total',
+        header: 'Total',
+        align: 'end',
+        className: 'whitespace-nowrap',
+        cell: (transaction) => transaction.total,
+    },
+];
 
 /**
  * The one line at the top that says where the pilot stands.
@@ -236,73 +281,25 @@ export default function Billing({
                     description="Every payment DroneVerse has taken from this account"
                 />
 
-                {transactions.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                        Nothing yet. Receipts appear here the moment a payment
-                        clears.
-                    </p>
-                ) : (
-                    <div className="overflow-x-auto rounded-lg border border-border">
-                        <table className="w-full border-collapse text-sm">
-                            <caption className="sr-only">
-                                Your payment history
-                            </caption>
-                            <thead>
-                                <tr className="border-b border-border">
-                                    <th
-                                        scope="col"
-                                        className="p-3 text-left font-medium"
-                                    >
-                                        Date
-                                    </th>
-                                    <th
-                                        scope="col"
-                                        className="p-3 text-left font-medium"
-                                    >
-                                        Invoice
-                                    </th>
-                                    <th
-                                        scope="col"
-                                        className="p-3 text-left font-medium"
-                                    >
-                                        Status
-                                    </th>
-                                    <th
-                                        scope="col"
-                                        className="p-3 text-right font-medium"
-                                    >
-                                        Total
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {transactions.map((transaction) => (
-                                    <tr
-                                        key={transaction.id}
-                                        className="border-b border-border last:border-0"
-                                    >
-                                        <td className="p-3 whitespace-nowrap">
-                                            {formatDate(transaction.billedAt) ??
-                                                '—'}
-                                        </td>
-                                        <td className="p-3 whitespace-nowrap">
-                                            {transaction.invoiceNumber ?? '—'}
-                                        </td>
-                                        <td className="p-3 capitalize">
-                                            {transaction.status.replace(
-                                                '_',
-                                                ' ',
-                                            )}
-                                        </td>
-                                        <td className="p-3 text-right whitespace-nowrap">
-                                            {transaction.total}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
+                <DataTable
+                    columns={TRANSACTION_COLUMNS}
+                    rows={transactions}
+                    rowKey={(transaction) => transaction.id}
+                    caption="Your payment history"
+                    defaultSort={{ columnId: 'billedAt', direction: 'desc' }}
+                    empty={
+                        <EmptyState className="rounded-none border-0">
+                            <EmptyStateIcon>
+                                <Receipt />
+                            </EmptyStateIcon>
+                            <EmptyStateTitle>No receipts yet</EmptyStateTitle>
+                            <EmptyStateDescription>
+                                Receipts appear here the moment a payment
+                                clears.
+                            </EmptyStateDescription>
+                        </EmptyState>
+                    }
+                />
             </div>
         </>
     );

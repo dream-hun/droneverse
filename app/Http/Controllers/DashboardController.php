@@ -8,7 +8,7 @@ use App\Enums\ChallengeStatus;
 use App\Http\Resources\CourseCardResource;
 use App\Models\Course;
 use App\Models\User;
-use App\Models\UserChallengeProgress;
+use App\Queries\Leaderboard;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -18,7 +18,7 @@ final class DashboardController extends Controller
     /**
      * Handle the incoming request.
      */
-    public function __invoke(Request $request): Response
+    public function __invoke(Request $request, Leaderboard $leaderboard): Response
     {
         $user = $request->user();
         $courses = Course::catalog()->get();
@@ -26,11 +26,11 @@ final class DashboardController extends Controller
         return Inertia::render('dashboard', [
             'courses' => CourseCardResource::collection(
                 $courses,
-                UserChallengeProgress::completedCountsByCourse($user),
+                $leaderboard->completedCountsByCourse($user),
                 $user->plan(),
             ),
             'continue' => $this->continueCard($user),
-            'stats' => UserChallengeProgress::statsFor($user),
+            'stats' => $leaderboard->statsFor($user),
         ]);
     }
 

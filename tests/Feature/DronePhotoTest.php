@@ -11,6 +11,7 @@ use App\Models\DronePhoto;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 final class DronePhotoTest extends TestCase
@@ -188,10 +189,56 @@ final class DronePhotoTest extends TestCase
         $response->assertInertia(fn ($page) => $page
             ->component('photos/index')
             ->count('photos', 1)
-            ->where('photos.0.id', $mine->id)
+            ->where('photos.0.id', $mine->uuid)
             ->where('photos.0.label', 'mine')
             ->where('photos.0.challengeTitle', $challenge->title)
             ->where('total', 1));
+    }
+
+    public function test_a_stored_photo_is_identified_to_the_client_by_its_uuid(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        $course = Course::factory()->create();
+        $challenge = Challenge::factory()->for($course)->create();
+
+        $response = $this->actingAs($user)->postJson(
+            route('challenges.photos.store', [$course, $challenge]),
+            $this->payload(),
+        );
+
+        $response->assertCreated();
+
+        $photo = DronePhoto::query()->sole();
+
+        $this->assertTrue(Str::isUuid($photo->uuid));
+        $response->assertJsonPath('id', $photo->uuid);
+
+        // The auto-increment key must not travel with it: the whole point of
+        // the uuid is that the client never learns the row's position.
+        $this->assertNotSame($photo->id, $response->json('id'));
+    }
+
+    public function test_a_photo_is_addressed_by_uuid_and_not_by_id(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        $photo = DronePhoto::factory()->for($user)->create();
+        Storage::disk('public')->put($photo->path, 'jpeg-bytes');
+
+        $this->assertStringContainsString($photo->uuid, route('photos.destroy', $photo));
+
+        // A malformed key is rejected as content that does not exist, which
+        // is what stops the endpoint from confirming anything about the ids
+        // either side of it.
+        $this->actingAs($user)
+            ->delete(url('/photos/'.$photo->id))
+            ->assertNotFound();
+
+        $this->assertDatabaseHas('drone_photos', ['id' => $photo->id]);
+        Storage::disk('public')->assertExists($photo->path);
     }
 
     public function test_guests_cannot_view_the_photo_log(): void

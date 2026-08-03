@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Enums\Feature;
-use App\Http\Controllers\PaddleWebhookController;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
@@ -14,7 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
-use Laravel\Paddle\Http\Controllers\WebhookController;
+use LemonSqueezy\Laravel\LemonSqueezy;
 
 final class AppServiceProvider extends ServiceProvider
 {
@@ -24,12 +23,23 @@ final class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         /*
-         * Cashier's route resolves its controller from the container, so
-         * substituting ours here makes signature verification unconditional
-         * without touching the route, its name or its exemption from CSRF.
-         * See PaddleWebhookController for why that matters.
+         * The three billing tables are versioned in database/migrations like
+         * every other table this application owns, so the package must not also
+         * load its own copies from the vendor directory — the same schema would
+         * be created twice, and a schema we cannot edit is a schema we cannot
+         * evolve.
          */
-        $this->app->bind(WebhookController::class, PaddleWebhookController::class);
+        LemonSqueezy::ignoreMigrations();
+
+        /*
+         * The package registers its webhook route only wrapped in
+         * `if (config('lemon-squeezy.signing_secret'))` for the signature
+         * middleware, so an environment that forgets the secret would serve an
+         * unauthenticated endpoint that grants paid plans. routes/billing.php
+         * registers the route itself with a signature check that is not
+         * conditional on configuration. See VerifyLemonSqueezyWebhookSignature.
+         */
+        LemonSqueezy::ignoreRoutes();
     }
 
     /**

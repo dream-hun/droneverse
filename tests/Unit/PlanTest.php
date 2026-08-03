@@ -92,27 +92,49 @@ final class PlanTest extends TestCase
         }
     }
 
-    public function test_team_and_enterprise_are_not_self_serve_until_their_features_exist(): void
+    /**
+     * A classroom of ten is a card payment, so Team sells itself alongside Pro.
+     * Enterprise is the only tier a button cannot buy, and not because of what
+     * has shipped: a private deployment and an SLA are terms, and there is no
+     * amount to charge until they are agreed.
+     */
+    public function test_every_tier_but_enterprise_and_the_free_one_sells_itself(): void
     {
         $this->assertTrue(Plan::Pro->isSelfServe());
+        $this->assertTrue(Plan::Team->isSelfServe());
 
-        $this->assertFalse(Plan::Team->isSelfServe());
         $this->assertFalse(Plan::Enterprise->isSelfServe());
         $this->assertFalse(Plan::Starter->isSelfServe());
+    }
+
+    /**
+     * Only changing an existing subscription needs a product ID, so an
+     * environment that has never configured one still sells every tier.
+     */
+    public function test_product_ids_are_read_from_configuration(): void
+    {
+        config(['plans.products' => [
+            'pro' => 'prod_pro',
+            'team' => '',
+        ]]);
+
+        $this->assertSame('prod_pro', Plan::Pro->productId());
+        $this->assertNull(Plan::Team->productId());
+        $this->assertNull(Plan::Starter->productId());
     }
 
     public function test_price_ids_are_read_from_configuration(): void
     {
         config(['plans.prices.pro' => [
-            'monthly' => 'pri_pro_monthly',
-            'yearly' => 'pri_pro_yearly',
+            'monthly' => 'var_pro_monthly',
+            'yearly' => 'var_pro_yearly',
             'monthly_launch' => null,
             'yearly_launch' => '',
         ]]);
 
-        $this->assertSame('pri_pro_monthly', Plan::Pro->priceId('monthly'));
+        $this->assertSame('var_pro_monthly', Plan::Pro->priceId('monthly'));
         $this->assertSame(
-            ['monthly' => 'pri_pro_monthly', 'yearly' => 'pri_pro_yearly'],
+            ['monthly' => 'var_pro_monthly', 'yearly' => 'var_pro_yearly'],
             Plan::Pro->priceIds(),
         );
     }
@@ -130,22 +152,58 @@ final class PlanTest extends TestCase
     public function test_a_price_id_maps_back_to_the_plan_that_sells_it(): void
     {
         config(['plans.prices' => [
-            'pro' => ['monthly' => 'pri_pro_monthly', 'monthly_launch' => 'pri_pro_monthly_launch'],
-            'team' => ['monthly' => 'pri_team_monthly'],
+            'pro' => ['monthly' => 'var_pro_monthly', 'monthly_launch' => 'var_pro_monthly_launch'],
+            'team' => ['monthly' => 'var_team_monthly'],
         ]]);
 
-        $this->assertSame(Plan::Pro, Plan::fromPriceId('pri_pro_monthly'));
-        $this->assertSame(Plan::Pro, Plan::fromPriceId('pri_pro_monthly_launch'));
-        $this->assertSame(Plan::Team, Plan::fromPriceId('pri_team_monthly'));
+        $this->assertSame(Plan::Pro, Plan::fromPriceId('var_pro_monthly'));
+        $this->assertSame(Plan::Pro, Plan::fromPriceId('var_pro_monthly_launch'));
+        $this->assertSame(Plan::Team, Plan::fromPriceId('var_team_monthly'));
     }
 
     public function test_an_unrecognised_price_id_grants_nothing(): void
     {
-        config(['plans.prices' => ['pro' => ['monthly' => 'pri_pro_monthly']]]);
+        config(['plans.prices' => ['pro' => ['monthly' => 'var_pro_monthly']]]);
 
-        $this->assertNull(Plan::fromPriceId('pri_retired_beta_plan'));
+        $this->assertNull(Plan::fromPriceId('var_retired_beta_plan'));
         $this->assertNull(Plan::fromPriceId(null));
         $this->assertNull(Plan::fromPriceId(''));
+    }
+
+    /**
+     * config/plans.php requires price IDs to be unique across plans and nothing
+     * enforces it, so the same variant ID under two tiers is one paste into one
+     * `.env`. Answering with the first match would decide it by the order the
+     * cases are declared in — Pro before Team, for no reason anybody chose — and
+     * hand Pro to every Team subscriber without a word. There is no honest
+     * answer to which of two plans one ID sells, so it grants neither.
+     */
+    public function test_a_price_id_claimed_by_two_plans_grants_neither(): void
+    {
+        config(['plans.prices' => [
+            'pro' => ['monthly' => 'var_shared_by_mistake'],
+            'team' => ['monthly' => 'var_shared_by_mistake', 'yearly' => 'var_team_yearly'],
+        ]]);
+
+        $this->assertNull(Plan::fromPriceId('var_shared_by_mistake'));
+
+        // The slip is contained: every other ID still resolves.
+        $this->assertSame(Plan::Team, Plan::fromPriceId('var_team_yearly'));
+    }
+
+    /**
+     * The same ID twice within one plan is not ambiguous — both periods sell the
+     * same tier, so the tier is still the answer. Only variantFor() has to pick,
+     * and it says so itself.
+     */
+    public function test_a_price_id_repeated_within_one_plan_still_grants_that_plan(): void
+    {
+        config(['plans.prices.pro' => [
+            'monthly' => 'var_pro_everything',
+            'yearly' => 'var_pro_everything',
+        ]]);
+
+        $this->assertSame(Plan::Pro, Plan::fromPriceId('var_pro_everything'));
     }
 
     public function test_unconfigured_price_ids_do_not_collide_on_null(): void
@@ -156,18 +214,18 @@ final class PlanTest extends TestCase
         ]]);
 
         $this->assertNull(Plan::fromPriceId(null));
-        $this->assertNull(Plan::fromPriceId('pri_anything'));
+        $this->assertNull(Plan::fromPriceId('var_anything'));
     }
 
     public function test_a_price_id_maps_back_to_the_billing_period_it_sells(): void
     {
         config(['plans.prices.pro' => [
-            'monthly' => 'pri_pro_monthly',
-            'yearly' => 'pri_pro_yearly',
+            'monthly' => 'var_pro_monthly',
+            'yearly' => 'var_pro_yearly',
         ]]);
 
-        $this->assertSame('yearly', Plan::Pro->variantFor('pri_pro_yearly'));
-        $this->assertNull(Plan::Pro->variantFor('pri_team_monthly'));
+        $this->assertSame('yearly', Plan::Pro->variantFor('var_pro_yearly'));
+        $this->assertNull(Plan::Pro->variantFor('var_team_monthly'));
         $this->assertNull(Plan::Pro->variantFor(null));
         $this->assertNull(Plan::Pro->variantFor(''));
     }

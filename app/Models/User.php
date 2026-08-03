@@ -18,10 +18,10 @@ use Illuminate\Support\Carbon;
 use Laravel\Fortify\Contracts\PasskeyUser;
 use Laravel\Fortify\PasskeyAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
-use Laravel\Paddle\Billable;
-use Laravel\Paddle\Customer;
-use Laravel\Paddle\Subscription;
-use Laravel\Paddle\Transaction;
+use LemonSqueezy\Laravel\Billable;
+use LemonSqueezy\Laravel\Customer;
+use LemonSqueezy\Laravel\Order;
+use LemonSqueezy\Laravel\Subscription;
 
 /**
  * @property int $id
@@ -38,7 +38,7 @@ use Laravel\Paddle\Transaction;
  * @property Carbon|null $updated_at
  * @property-read Customer|null $customer
  * @property-read Collection<int, Subscription> $subscriptions
- * @property-read Collection<int, Transaction> $transactions
+ * @property-read Collection<int, Order> $orders
  */
 #[Fillable(['name', 'email', 'password'])]
 #[Hidden(['password', 'plan_override', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]

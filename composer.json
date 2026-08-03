@@ -11,12 +11,12 @@
     "require": {
         "php": "^8.3",
         "inertiajs/inertia-laravel": "^3.1.1",
-        "laravel/cashier-paddle": "^2.8",
         "laravel/chisel": "^0.1.1",
         "laravel/fortify": "^1.37.2",
         "laravel/framework": "^13.20",
         "laravel/tinker": "^3.0.2",
         "laravel/wayfinder": "^0.1.20",
+        "lemonsqueezy/laravel": "^1.9",
         "opcodesio/log-viewer": "^3.24"
     },
     "require-dev": {

@@ -40,6 +40,28 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Log Viewer Access
+    |--------------------------------------------------------------------------
+    |
+    | Who may read the application's logs through opcodesio/log-viewer, by
+    | email address. Read by the `viewLogViewer` gate in AppServiceProvider,
+    | which is what the package's AuthorizeLogViewer middleware defers to.
+    |
+    | An empty list denies everyone, which is the intended default: logs carry
+    | stack traces, billing payloads, session identifiers and pilots' email
+    | addresses, so reaching them is something an environment has to opt into
+    | by naming people rather than something it gets by forgetting to opt out.
+    | This application has no roles table, so an allowlist is the whole model.
+    |
+    */
+
+    'viewer_emails' => array_values(array_filter(array_map(
+        trim(...),
+        explode(',', (string) env('LOG_VIEWER_ALLOWED_EMAILS', '')),
+    ))),
+
+    /*
+    |--------------------------------------------------------------------------
     | Log Channels
     |--------------------------------------------------------------------------
     |

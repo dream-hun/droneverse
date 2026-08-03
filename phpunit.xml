@@ -38,6 +38,24 @@
         <env name="LEMON_SQUEEZY_API_KEY" value=""/>
         <env name="LEMON_SQUEEZY_STORE" value=""/>
         <env name="LEMON_SQUEEZY_SIGNING_SECRET" value=""/>
+        <!--
+            The log viewer ships disabled in .env.example, which unregisters its
+            routes entirely. That is right for a real environment and wrong for
+            this one: LogViewerAccessTest exists to prove the `viewLogViewer`
+            gate turns those routes away, and it cannot prove anything about
+            routes that were never registered — with the flag off it errors with
+            "Route [log-viewer.index] not defined", which reads like a broken
+            test rather than an unguarded endpoint. Forced on here so the
+            middleware is always exercised, whatever a given .env says.
+        -->
+        <env name="LOG_VIEWER_ENABLED" value="true"/>
+        <!--
+            Blanked for the same reason as the credentials above: the tests
+            assert that an empty allowlist denies everyone, and a developer whose
+            .env names themselves would otherwise disarm that quietly. Tests that
+            need somebody allowed set it with config() for their duration.
+        -->
+        <env name="LOG_VIEWER_ALLOWED_EMAILS" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

@@ -2,21 +2,18 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-/**
- * Deliberately unwrapped: no scroll container of its own.
- *
- * A container that scrolls needs a `role="region"`, an accessible name and a
- * tab stop, or keyboard users cannot reach the columns hiding off the right
- * edge. Only the caller knows the name, so the caller owns the container.
- * `DataTable` builds one; hand-rolled tables should copy it.
- */
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
-    <table
-      data-slot="table"
-      className={cn("w-full caption-bottom border-collapse text-sm", className)}
-      {...props}
-    />
+    <div
+      data-slot="table-container"
+      className="relative w-full overflow-x-auto"
+    >
+      <table
+        data-slot="table"
+        className={cn("w-full caption-bottom text-xs", className)}
+        {...props}
+      />
+    </div>
   )
 }
 
@@ -58,7 +55,7 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
     <tr
       data-slot="table-row"
       className={cn(
-        "border-b border-border transition-colors data-[state=selected]:bg-muted",
+        "border-b transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted",
         className
       )}
       {...props}
@@ -66,22 +63,12 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   )
 }
 
-/**
- * `scope` defaults to `col` because that is the overwhelming majority case and
- * a header cell without one leaves screen readers guessing. Row headers pass
- * `scope="row"` explicitly.
- */
-function TableHead({
-  className,
-  scope = "col",
-  ...props
-}: React.ComponentProps<"th">) {
+function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   return (
     <th
       data-slot="table-head"
-      scope={scope}
       className={cn(
-        "h-10 px-3 text-left align-middle text-xs font-medium whitespace-nowrap text-muted-foreground [&:has([role=checkbox])]:pr-0",
+        "h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0",
         className
       )}
       {...props}
@@ -94,7 +81,7 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
     <td
       data-slot="table-cell"
       className={cn(
-        "p-3 align-middle [&:has([role=checkbox])]:pr-0",
+        "p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
         className
       )}
       {...props}
@@ -109,7 +96,7 @@ function TableCaption({
   return (
     <caption
       data-slot="table-caption"
-      className={cn("mt-4 text-sm text-muted-foreground", className)}
+      className={cn("mt-4 text-xs text-muted-foreground", className)}
       {...props}
     />
   )
@@ -117,11 +104,11 @@ function TableCaption({
 
 export {
   Table,
+  TableHeader,
   TableBody,
-  TableCaption,
-  TableCell,
   TableFooter,
   TableHead,
-  TableHeader,
   TableRow,
+  TableCell,
+  TableCaption,
 }

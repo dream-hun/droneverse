@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Concerns\HasPlan;
 use Database\Factories\UserFactory;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Collection;
@@ -24,6 +24,25 @@ use LemonSqueezy\Laravel\Order;
 use LemonSqueezy\Laravel\Subscription;
 
 /**
+ * MustVerifyEmail below is the contract, not the trait. The methods it names —
+ * hasVerifiedEmail, markEmailAsVerified, sendEmailVerificationNotification —
+ * already arrive through Illuminate\Foundation\Auth\User, which uses the trait
+ * of the same name. Only the interface was missing, and everything that
+ * enforces verification tests for the interface rather than for the methods:
+ * Illuminate\Auth\Middleware\EnsureEmailIsVerified gates on
+ * `$user instanceof MustVerifyEmail`, and Laravel's
+ * SendEmailVerificationNotification listener checks the same thing before
+ * mailing a newly registered user.
+ *
+ * Without it both did nothing, quietly. `verified` admitted every request it
+ * was asked to gate, registration sent no verification mail at all, and
+ * clearing `email_verified_at` on an email change — which ProfileController
+ * still does — cost the account no access. Nothing failed; the routes, the
+ * Fortify feature in config/fortify.php and the verification screens were all
+ * present, and were the only evidence that any of it ran. Removing the
+ * interface again would turn the feature off the same silent way, which is
+ * what Tests\Feature\Auth\EmailVerificationTest asserts against directly.
+ *
  * @property int $id
  * @property string $name
  * @property string $email
@@ -42,7 +61,7 @@ use LemonSqueezy\Laravel\Subscription;
  */
 #[Fillable(['name', 'email', 'password'])]
 #[Hidden(['password', 'plan_override', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
-final class User extends Authenticatable implements PasskeyUser
+final class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
 {
     use Billable;
 

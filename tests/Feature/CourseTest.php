@@ -27,8 +27,12 @@ final class CourseTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn ($page) => $page
             ->component('courses/index')
-            ->has('courses', 1)
-            ->where('courses.0.title', 'Drone Basics'));
+            // The catalog is deferred, so the first response carries the shell
+            // and nothing else; the grid arrives on the follow-up request.
+            ->missing('courses')
+            ->loadDeferredProps(fn ($reload) => $reload
+                ->has('courses', 1)
+                ->where('courses.0.title', 'Drone Basics')));
     }
 
     public function test_guests_can_view_a_published_course_with_its_challenges(): void
@@ -42,10 +46,13 @@ final class CourseTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn ($page) => $page
             ->component('courses/show')
+            // The course header is eager; only the mission list waits.
             ->where('course.slug', $course->slug)
-            ->has('challenges', 1)
-            ->where('challenges.0.title', 'Hover & Land')
-            ->where('challenges.0.status', ChallengeStatus::NotStarted));
+            ->missing('challenges')
+            ->loadDeferredProps(fn ($reload) => $reload
+                ->has('challenges', 1)
+                ->where('challenges.0.title', 'Hover & Land')
+                ->where('challenges.0.status', ChallengeStatus::NotStarted)));
     }
 
     public function test_unpublished_course_returns_not_found(): void
@@ -71,8 +78,9 @@ final class CourseTest extends TestCase
         $response = $this->actingAs($user)->get(route('courses.show', $course));
 
         $response->assertInertia(fn ($page) => $page
-            ->where('challenges.0.status', ChallengeStatus::Completed)
-            ->where('challenges.0.stars', 3));
+            ->loadDeferredProps(fn ($reload) => $reload
+                ->where('challenges.0.status', ChallengeStatus::Completed)
+                ->where('challenges.0.stars', 3)));
     }
 
     public function test_a_locked_course_still_appears_in_the_catalog(): void
@@ -84,13 +92,14 @@ final class CourseTest extends TestCase
 
         $response->assertOk();
         $response->assertInertia(fn ($page) => $page
-            ->has('courses', 2)
-            ->where('courses.0.title', 'Free Course')
-            ->where('courses.0.locked', false)
-            ->where('courses.0.requiredPlan', 'starter')
-            ->where('courses.1.title', 'Paid Course')
-            ->where('courses.1.locked', true)
-            ->where('courses.1.requiredPlan', 'pro'));
+            ->loadDeferredProps(fn ($reload) => $reload
+                ->has('courses', 2)
+                ->where('courses.0.title', 'Free Course')
+                ->where('courses.0.locked', false)
+                ->where('courses.0.requiredPlan', 'starter')
+                ->where('courses.1.title', 'Paid Course')
+                ->where('courses.1.locked', true)
+                ->where('courses.1.requiredPlan', 'pro')));
     }
 
     public function test_a_paid_viewer_sees_nothing_locked(): void
@@ -100,7 +109,9 @@ final class CourseTest extends TestCase
 
         $this->actingAs($user)
             ->get(route('courses.index'))
-            ->assertInertia(fn ($page) => $page->where('courses.0.locked', false));
+            ->assertInertia(fn ($page) => $page
+                ->loadDeferredProps(fn ($reload) => $reload
+                    ->where('courses.0.locked', false)));
     }
 
     public function test_a_pro_courses_page_is_open_to_a_starter_pilot(): void
@@ -113,10 +124,11 @@ final class CourseTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn ($page) => $page
             ->where('course.requiredPlan', 'pro')
-            ->has('challenges', 1)
-            ->where('challenges.0.title', 'Locked Mission')
-            ->where('challenges.0.locked', true)
-            ->where('challenges.0.requiredPlan', 'pro'));
+            ->loadDeferredProps(fn ($reload) => $reload
+                ->has('challenges', 1)
+                ->where('challenges.0.title', 'Locked Mission')
+                ->where('challenges.0.locked', true)
+                ->where('challenges.0.requiredPlan', 'pro')));
     }
 
     public function test_the_briefing_is_still_sent_for_a_locked_mission(): void
@@ -126,8 +138,9 @@ final class CourseTest extends TestCase
 
         $this->get(route('courses.show', $course))
             ->assertInertia(fn ($page) => $page
-                ->where('challenges.0.locked', true)
-                ->where('challenges.0.briefing', $challenge->briefing));
+                ->loadDeferredProps(fn ($reload) => $reload
+                    ->where('challenges.0.locked', true)
+                    ->where('challenges.0.briefing', $challenge->briefing)));
     }
 
     public function test_a_course_page_mixes_locked_and_unlocked_missions(): void
@@ -138,9 +151,10 @@ final class CourseTest extends TestCase
 
         $this->get(route('courses.show', $course))
             ->assertInertia(fn ($page) => $page
-                ->where('challenges.0.title', 'Free')
-                ->where('challenges.0.locked', false)
-                ->where('challenges.1.title', 'Paid')
-                ->where('challenges.1.locked', true));
+                ->loadDeferredProps(fn ($reload) => $reload
+                    ->where('challenges.0.title', 'Free')
+                    ->where('challenges.0.locked', false)
+                    ->where('challenges.1.title', 'Paid')
+                    ->where('challenges.1.locked', true)));
     }
 }

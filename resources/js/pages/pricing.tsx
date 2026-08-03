@@ -3,7 +3,9 @@ import { ArrowRight, Check, Minus } from 'lucide-react';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import CheckoutController from '@/actions/App/Http/Controllers/CheckoutController';
+import SubscriptionController from '@/actions/App/Http/Controllers/Settings/SubscriptionController';
 import AppLogoIcon from '@/components/app-logo-icon';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,12 +17,13 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { usePaddle } from '@/hooks/use-paddle';
+import { useLemonSqueezy } from '@/hooks/use-lemon-squeezy';
 import { cn } from '@/lib/utils';
 import { dashboard, login, register } from '@/routes';
+import { edit as editBilling } from '@/routes/billing';
 import { index as coursesIndex } from '@/routes/courses';
 import type {
-    PaddleConfig,
+    LemonSqueezyConfig,
     PlanComparisonRow,
     PlanVariant,
     PricingPlan,
@@ -30,17 +33,22 @@ type PricingProps = {
     plans: PricingPlan[];
     comparison: PlanComparisonRow[];
     salesEmail: string | null;
-    paddle: PaddleConfig;
+    lemonSqueezy: LemonSqueezyConfig;
 };
 
+/**
+ * The server mints a whole checkout URL, so there is nothing here to assemble.
+ * That URL is also a working standalone page, which is what lets the hook fall
+ * back to a navigation when the overlay script never arrives.
+ */
 type CheckoutResponse = {
-    checkout: Record<string, unknown>;
+    checkout: { url: string };
 };
 
 const FAQS = [
     {
-        question: 'Can I upgrade later?',
-        answer: 'Yes. Move from Starter to Pro whenever you like — your progress, photos and scores come with you.',
+        question: 'Can I change plan later?',
+        answer: 'Yes, in either direction and at any time. Upgrading, downgrading and moving to yearly billing all change the subscription you already have rather than starting a second one, and the difference is settled on your next renewal.',
     },
     {
         question: 'Can I cancel my subscription?',
@@ -147,7 +155,7 @@ export default function Pricing({
     plans,
     comparison,
     salesEmail,
-    paddle,
+    lemonSqueezy,
 }: PricingProps) {
     const { auth } = usePage().props;
     const [variant, setVariant] = useState<PlanVariant>('monthly');
@@ -163,10 +171,10 @@ export default function Pricing({
             ?.savingPercent ?? null;
 
     /*
-     * The overlay closes the moment Paddle has the money, which is not the
-     * moment we know about it — the plan is granted by a webhook arriving
+     * The overlay closes the moment Lemon Squeezy has the money, which is not
+     * the moment we know about it — the plan is granted by a webhook arriving
      * separately. Read through a ref so the callback below, registered once
-     * when Paddle.js initialises, can still see the current one.
+     * when lemon.js is set up, can still see the current one.
      */
     const currentPlan = useRef(auth.plan.value);
 
@@ -204,34 +212,30 @@ export default function Pricing({
         );
     }, []);
 
-    /**
-     * Say why the overlay gave up.
-     *
-     * Paddle's frame renders its own "Something went wrong" and closes on the
-     * buyer's next click, so this is the only trace the page keeps of a
-     * checkout that never opened.
-     */
-    const onCheckoutFailed = useCallback((message: string) => {
-        toast.error(message);
-    }, []);
-
-    const { ready, openCheckout } = usePaddle(paddle, {
+    const { ready, openCheckout } = useLemonSqueezy(lemonSqueezy, {
         onCompleted: onCheckoutCompleted,
-        onFailed: onCheckoutFailed,
     });
 
     /**
      * Ask the server to open a checkout.
      *
      * The request carries a tier and a period; the price it resolves to is the
-     * server's business. The overlay is opened from the response rather than
-     * from anything this page knows.
+     * server's business. The overlay is opened from the URL in the response
+     * rather than from anything this page knows.
+     *
+     * The error branch is the whole of this page's failure reporting. Lemon
+     * Squeezy publishes no checkout-failure event of any kind, so once the
+     * overlay is open the app is blind to whatever happens inside it. Every
+     * failure anybody will hear about is one this request returned: a plan that
+     * is not for sale, a variant with no configured ID, or a provider the
+     * server could not reach. Swallowing an error here would leave a buyer
+     * clicking a button that visibly does nothing.
      */
     const startCheckout = (plan: PricingPlan) => {
         checkout.setData({ plan: plan.value, variant });
 
         checkout.post(CheckoutController.store.url(), {
-            onSuccess: (response) => openCheckout(response.checkout),
+            onSuccess: (response) => openCheckout(response.checkout.url),
             onError: (errors) =>
                 toast.error(
                     errors.plan ??
@@ -239,6 +243,38 @@ export default function Pricing({
                 ),
         });
     };
+
+    /**
+     * Move the subscription this pilot already holds onto another plan.
+     *
+     * Never a checkout: a second subscription would bill them twice for one
+     * account and grant nothing the first one did not. The server decides that
+     * this viewer is in a position to switch — the button only appears when it
+     * said so — and it answers with a redirect to billing settings, where the
+     * new plan and its renewal date are spelled out.
+     *
+     * The promise is what keeps the dialog open until the request settles, so a
+     * rejected change leaves the pilot somewhere they can read the error.
+     */
+    const switchPlan = (plan: PricingPlan) =>
+        new Promise<void>((resolve, reject) => {
+            router.put(
+                SubscriptionController.swap.url(),
+                { plan: plan.value, variant },
+                {
+                    onSuccess: () => resolve(),
+                    onError: (errors) => {
+                        toast.error(
+                            errors.plan ??
+                                errors.variant ??
+                                'Your plan could not be changed. Please try again.',
+                        );
+
+                        reject(new Error('The plan change was refused.'));
+                    },
+                },
+            );
+        });
 
     const renderCta = (plan: PricingPlan) => {
         const emphasis = plan.isPopular ? 'default' : 'outline';
@@ -268,17 +304,70 @@ export default function Pricing({
                     </Button>
                 );
 
-            case 'checkout':
+            case 'checkout': {
+                /*
+                 * The server decides that the tier is buyable by this viewer;
+                 * whether the period they are looking at is buyable is a
+                 * separate answer, and it changes under the toggle without
+                 * another round trip. A tier half-listed in the Lemon Squeezy
+                 * store — monthly created, yearly not yet — would otherwise
+                 * offer a button that can only ever come back as an error
+                 * toast.
+                 */
+                const purchasable = plan.prices[variant]?.purchasable === true;
+
                 return (
                     <Button
                         className="w-full"
                         variant={emphasis}
-                        disabled={!ready || checkout.processing}
+                        disabled={!ready || !purchasable || checkout.processing}
                         onClick={() => startCheckout(plan)}
                     >
-                        {ready ? plan.cta.label : 'Checkout unavailable'}
+                        {!ready
+                            ? 'Checkout unavailable'
+                            : purchasable
+                              ? plan.cta.label
+                              : 'Not yet available'}
                     </Button>
                 );
+            }
+
+            case 'manage':
+                return (
+                    <Button asChild className="w-full" variant="outline">
+                        <Link href={editBilling()}>{plan.cta.label}</Link>
+                    </Button>
+                );
+
+            case 'switch': {
+                /*
+                 * The same per-period check checkout makes, for the same
+                 * reason: the card was decided once, and the toggle moves under
+                 * it without asking the server again.
+                 */
+                const purchasable = plan.prices[variant]?.purchasable === true;
+
+                return (
+                    <ConfirmDialog
+                        trigger={
+                            <Button
+                                className="w-full"
+                                variant={emphasis}
+                                disabled={!purchasable}
+                            >
+                                {purchasable
+                                    ? plan.cta.label
+                                    : 'Not yet available'}
+                            </Button>
+                        }
+                        title={`${plan.cta.label}?`}
+                        description={`Your subscription moves to ${plan.label}, ${variant === 'yearly' ? 'billed yearly' : 'billed monthly'}. Nothing is charged today — the difference between what you have paid for and what you are moving to is settled on your next renewal.`}
+                        confirmLabel={plan.cta.label}
+                        pendingLabel="Changing…"
+                        onConfirm={() => switchPlan(plan)}
+                    />
+                );
+            }
 
             default:
                 return (

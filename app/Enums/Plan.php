@@ -21,12 +21,28 @@ enum Plan: string
     case Enterprise = 'enterprise';
 
     /**
-     * The plan a subscribed Paddle price ID grants.
+     * The plan a subscribed price ID grants.
+     *
+     * "Price ID" is the provider-neutral name for whatever identifies the thing
+     * being sold, and under Lemon Squeezy that is a variant ID — the value read
+     * off a subscription's `variant_id` column. It is not this application's
+     * sense of "variant", which is a billing period; see variantFor().
      *
      * The reverse of priceIds(), and the branch ResolvePlanForUser leans on
      * most. An unrecognized price ID resolves to null rather than to a default
      * plan: an ID we cannot account for is a configuration error, and silently
      * granting Pro for it would be worse than granting nothing.
+     *
+     * An ID claimed by more than one plan is the same kind of error and gets the
+     * same answer. config/plans.php requires these to be unique across plans and
+     * nothing enforces it, so the same variant ID pasted under two tiers is one
+     * slip in one `.env` file. Returning the first match would answer it out of
+     * the order the cases happen to be declared in — which nobody reading this
+     * file thinks of as billing logic, and which would quietly grant Pro to
+     * every Team subscriber if the declarations were ever reordered. There is no
+     * honest answer to "which plan did they buy" when one ID sells two, and the
+     * ID sells exactly one thing in the Lemon Squeezy store whatever this
+     * configuration claims, so nobody is entitled by it until it is fixed.
      */
     public static function fromPriceId(?string $priceId): ?self
     {
@@ -34,13 +50,12 @@ enum Plan: string
             return null;
         }
 
-        foreach (self::cases() as $plan) {
-            if (in_array($priceId, $plan->priceIds(), true)) {
-                return $plan;
-            }
-        }
+        $matches = array_values(array_filter(
+            self::cases(),
+            static fn (self $plan): bool => in_array($priceId, $plan->priceIds(), true),
+        ));
 
-        return null;
+        return count($matches) === 1 ? $matches[0] : null;
     }
 
     public function label(): string
@@ -61,7 +76,7 @@ enum Plan: string
         return match ($this) {
             self::Starter => 'Everything you need to find out whether flying code is for you.',
             self::Pro => 'The whole catalogue, every language, and the tools that come with them.',
-            self::Team => 'Pro for a classroom, with the dashboard an instructor actually needs.',
+            self::Team => 'Everything Pro gives one pilot, on its way to a whole classroom.',
             self::Enterprise => 'Your own deployment, your own identity provider, your own terms.',
         };
     }
@@ -71,9 +86,15 @@ enum Plan: string
      *
      * Deliberately not derived from features(): a card sells outcomes, and half
      * of what a card should say — catalogue depth, support, seat counts — is not
-     * a Feature case at all. The capability grid below the cards is the place
-     * that reads features(), and it is the place that has to stay honest about
-     * what has shipped.
+     * a Feature case at all. The capability grid below the cards is the one that
+     * reads features(), and it is the one that marks an unbuilt capability
+     * automatically.
+     *
+     * Which means these bullets have to keep themselves honest, by hand, and a
+     * bullet describing something unbuilt says so in its own words. That is not
+     * hypothetical: Team is on sale before its classroom tools exist, and a card
+     * promising an instructor dashboard that opens nowhere is the difference
+     * between a roadmap and a chargeback.
      *
      * @return array<int, string>
      */
@@ -93,11 +114,20 @@ enum Plan: string
                 'Premium certificates and advanced analytics',
                 'Priority support and beta access',
             ],
+            /*
+             * Team is sold today and its classroom tools are not built yet, so
+             * every bullet that describes one says so. The tier is worth buying
+             * on the first two lines alone; the rest is a roadmap, and a card
+             * that presented it as shipped would be selling a screen nobody can
+             * open. The "coming soon" wording is the same phrase the capability
+             * grid uses for an unavailable Feature, so the two agree.
+             */
             self::Team => [
-                'Everything in Pro for up to 10 students',
-                'Instructor dashboard and student analytics',
-                'Assignments, shared workspaces, private classrooms',
-                '$5/month per additional seat',
+                'Everything in Pro',
+                'Priority support and beta access',
+                'Instructor dashboard and student analytics — coming soon',
+                'Seats for 10 students, assignments and shared workspaces — coming soon',
+                '$5/month per additional seat, once seats ship',
             ],
             self::Enterprise => [
                 'Unlimited users and teams',
@@ -189,21 +219,25 @@ enum Plan: string
      * Whether checkout may be opened for this plan, or whether its CTA has to
      * point at contact-sales instead.
      *
-     * Team and Enterprise sell classroom tools and SSO, neither of which exists
-     * until Phases 7-8. Taking money for them before then is a chargeback, so
-     * the ordering rule is enforced here rather than trusted to the pricing
-     * page's markup.
+     * Team sells itself: a classroom of ten is a card payment, and docs/pricing.md
+     * has always promised the upgrade is available at any time. Its seat pricing
+     * is bought the same way once Phase 7 lands — a second subscription against
+     * the seat variants — which does not change how the base tier is sold.
+     *
+     * Enterprise stays sales-led, and not because of what has shipped. A private
+     * deployment, an identity provider and an SLA are terms nobody agrees to
+     * through a card form, and there is no amount to charge until they are.
      */
     public function isSelfServe(): bool
     {
         return match ($this) {
-            self::Pro => true,
-            self::Starter, self::Team, self::Enterprise => false,
+            self::Pro, self::Team => true,
+            self::Starter, self::Enterprise => false,
         };
     }
 
     /**
-     * The Paddle price ID selling a given variant of this plan.
+     * The Lemon Squeezy variant ID selling a given billing period of this plan.
      *
      * Returns null when the variant is unconfigured, which is the normal state
      * in tests and on a fresh checkout. Callers that are about to charge must
@@ -231,6 +265,24 @@ enum Plan: string
         $variant = array_search($priceId, $this->priceIds(), true);
 
         return is_string($variant) ? $variant : null;
+    }
+
+    /**
+     * The Lemon Squeezy product every variant of this plan belongs to.
+     *
+     * Nothing that sells a first subscription needs this — a variant ID is the
+     * whole of what a checkout takes. Only App\Actions\SwapSubscription does,
+     * because Lemon Squeezy's update endpoint takes a product and a variant
+     * together and refuses a pairing that does not match.
+     *
+     * Null when unconfigured, which is the normal state in tests and in any
+     * environment set up before plan switching existed.
+     */
+    public function productId(): ?string
+    {
+        $productId = config('plans.products.'.$this->value);
+
+        return is_string($productId) && $productId !== '' ? $productId : null;
     }
 
     /**

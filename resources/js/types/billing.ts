@@ -11,7 +11,20 @@ export type PlanVariant = 'monthly' | 'yearly';
  * not in a position to answer either.
  */
 export type PlanCtaAction =
-    'signup' | 'current' | 'included' | 'contact' | 'checkout' | 'unavailable';
+    | 'signup'
+    | 'current'
+    | 'included'
+    | 'contact'
+    | 'checkout'
+    /** Move the subscription this viewer already holds onto this plan. */
+    | 'switch'
+    /**
+     * Their subscription needs attention before any plan can change — it is
+     * cancelled and running out its grace period, which is neither switchable
+     * nor a state to sell a second subscription into.
+     */
+    | 'manage'
+    | 'unavailable';
 
 export type PlanPrice = {
     /** Minor units, for comparisons the page would rather not parse back out. */
@@ -19,6 +32,14 @@ export type PlanPrice = {
     formatted: string;
     /** Only ever set on the yearly variant. */
     savingPercent: number | null;
+    /**
+     * Whether a checkout can be opened on this period specifically.
+     *
+     * Separate from `cta.action`, which is decided once per card while the
+     * period is picked afterwards by the toggle: a tier can sell monthly and
+     * not yearly, and only this says so. A quoted price is not an offer.
+     */
+    purchasable: boolean;
 };
 
 export type PricingPlan = {
@@ -42,12 +63,15 @@ export type PlanComparisonRow = {
 };
 
 /**
- * Enough to boot Paddle.js. A null token means Paddle is unconfigured here and
- * no checkout can open, whatever the cards say.
+ * Whether a checkout can open at all in this environment.
+ *
+ * Lemon.js needs no public token: everything a checkout needs is baked into
+ * the URL the server mints, so the only thing the page has to know is whether
+ * a store and an API key are configured behind it. False means no checkout can
+ * open, whatever the cards say.
  */
-export type PaddleConfig = {
-    token: string | null;
-    sandbox: boolean;
+export type LemonSqueezyConfig = {
+    configured: boolean;
 };
 
 /** Why the pilot holds the plan they hold. */
@@ -66,20 +90,58 @@ export type BillingSubscription = {
     variant: string | null;
     valid: boolean;
     onGracePeriod: boolean;
-    canceled: boolean;
+    cancelled: boolean;
     paused: boolean;
     pastDue: boolean;
     onTrial: boolean;
     endsAt: string | null;
     trialEndsAt: string | null;
-    /** Null whenever Paddle would not answer — never treat it as "no charge". */
-    nextPayment: { amount: string; date: string | null } | null;
+    /**
+     * When the subscription bills again, mirrored locally from the webhook.
+     *
+     * A date and nothing else: Lemon Squeezy publishes no forthcoming amount,
+     * so the page can say when the next charge lands but never how much it is.
+     */
+    renewsAt: string | null;
+    /** The card on file, as last reported by a webhook. Null before one lands. */
+    cardBrand: string | null;
+    cardLastFour: string | null;
 };
 
-export type BillingTransaction = {
+/** One billing period a subscription could be moved onto. */
+export type SwitchableVariant = {
+    value: PlanVariant;
+    /** Minor units, for comparisons the page would rather not parse back out. */
+    amount: number;
+    formatted: string;
+    /** Whether the subscription already sells exactly this price. */
+    isCurrent: boolean;
+};
+
+/**
+ * A plan a subscriber can move to, with the periods that can be moved onto.
+ *
+ * Only periods with a configured price appear, so anything listed here can
+ * actually be switched to. An empty array means there is nothing to switch —
+ * no subscription, or one already winding down — and the page offers no
+ * change-plan control at all.
+ */
+export type SwitchablePlan = {
+    value: PlanValue;
+    label: string;
+    tagline: string;
+    variants: SwitchableVariant[];
+};
+
+/** One paid order, i.e. one receipt. */
+export type BillingOrder = {
     id: string;
-    invoiceNumber: string | null;
+    orderNumber: number;
     status: string;
+    /** Pre-formatted by the server, currency and all. */
     total: string;
-    billedAt: string | null;
+    /** Lemon Squeezy hosts the receipt; there is nothing to render in-app. */
+    receiptUrl: string | null;
+    refunded: boolean;
+    orderedAt: string | null;
 };

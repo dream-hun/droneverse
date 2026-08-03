@@ -1,8 +1,11 @@
 import { Form, Head, Link } from '@inertiajs/react';
 import { ExternalLink, Receipt } from 'lucide-react';
+import { useState } from 'react';
 import SubscriptionController from '@/actions/App/Http/Controllers/Settings/SubscriptionController';
 import { DataTable } from '@/components/data-table';
+import { FormDialog } from '@/components/form-dialog';
 import Heading from '@/components/heading';
+import InputError from '@/components/input-error';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,20 +23,37 @@ import {
     EmptyStateIcon,
     EmptyStateTitle,
 } from '@/components/ui/empty-state';
+import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import type { ColumnDef } from '@/lib/data-table';
 import { pricing } from '@/routes';
 import { edit as editBilling } from '@/routes/billing';
 import { edit as editPaymentMethod } from '@/routes/payment-method';
+import type { PlanValue } from '@/types/auth';
 import type {
+    BillingOrder,
     BillingPlan,
     BillingSubscription,
-    BillingTransaction,
+    PlanVariant,
+    SwitchablePlan,
 } from '@/types/billing';
 
 type BillingProps = {
     plan: BillingPlan;
     subscription: BillingSubscription | null;
-    transactions: BillingTransaction[];
+    switchable: SwitchablePlan[];
+    orders: BillingOrder[];
+};
+
+const VARIANT_LABELS: Record<PlanVariant, string> = {
+    monthly: 'Monthly',
+    yearly: 'Yearly',
 };
 
 const DATE_FORMAT: Intl.DateTimeFormatOptions = {
@@ -49,39 +69,73 @@ function formatDate(value: string | null): string | null {
 }
 
 /**
- * `total` carries no `sortValue` on purpose: Paddle sends it pre-formatted
+ * `total` carries no `sortValue` on purpose: it arrives pre-formatted
  * ("$12.00"), and sorting that as text puts $9 after $10. Sorting it properly
  * needs a raw minor-unit amount on the payload, which is a backend change.
+ *
+ * `orderNumber` has no such problem — Lemon Squeezy counts orders with an
+ * integer, and it is sent as one — so that column sorts on the number itself.
  */
-const TRANSACTION_COLUMNS: ColumnDef<BillingTransaction>[] = [
+const ORDER_COLUMNS: ColumnDef<BillingOrder>[] = [
     {
-        id: 'billedAt',
+        id: 'orderedAt',
         header: 'Date',
         className: 'whitespace-nowrap',
-        sortValue: (transaction) =>
-            transaction.billedAt ? new Date(transaction.billedAt) : null,
-        cell: (transaction) => formatDate(transaction.billedAt) ?? '—',
+        sortValue: (order) =>
+            order.orderedAt ? new Date(order.orderedAt) : null,
+        cell: (order) => formatDate(order.orderedAt) ?? '—',
     },
     {
-        id: 'invoiceNumber',
-        header: 'Invoice',
-        className: 'whitespace-nowrap',
-        sortValue: (transaction) => transaction.invoiceNumber,
-        cell: (transaction) => transaction.invoiceNumber ?? '—',
+        id: 'orderNumber',
+        header: 'Order',
+        className: 'whitespace-nowrap tabular-nums',
+        sortValue: (order) => order.orderNumber,
+        cell: (order) => `#${order.orderNumber}`,
     },
     {
         id: 'status',
         header: 'Status',
         className: 'capitalize',
-        sortValue: (transaction) => transaction.status,
-        cell: (transaction) => transaction.status.replace('_', ' '),
+        sortValue: (order) => order.status,
+        cell: (order) => (
+            <span className="flex items-center gap-2">
+                <span>{order.status.replace('_', ' ')}</span>
+                {order.refunded && <Badge variant="secondary">Refunded</Badge>}
+            </span>
+        ),
     },
     {
         id: 'total',
         header: 'Total',
         align: 'end',
         className: 'whitespace-nowrap',
-        cell: (transaction) => transaction.total,
+        cell: (order) => order.total,
+    },
+    {
+        /*
+         * Lemon Squeezy hosts the receipt itself and there is no PDF to serve
+         * from here, so this is a link out rather than a download. An order
+         * that has none — one that never reached `paid` — shows nothing at all
+         * rather than a link that would 404 on arrival.
+         */
+        id: 'receipt',
+        header: '',
+        srHeader: 'Receipt',
+        align: 'end',
+        width: 'w-16',
+        cell: (order) =>
+            order.receiptUrl ? (
+                <Button asChild variant="ghost" size="sm">
+                    <a
+                        href={order.receiptUrl}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                    >
+                        Receipt
+                        <ExternalLink aria-hidden />
+                    </a>
+                </Button>
+            ) : null,
     },
 ];
 
@@ -100,7 +154,7 @@ function PlanSummary({
     subscription: BillingSubscription | null;
 }) {
     const endsAt = formatDate(subscription?.endsAt ?? null);
-    const renewsAt = formatDate(subscription?.nextPayment?.date ?? null);
+    const renewsAt = formatDate(subscription?.renewsAt ?? null);
 
     const detail = (() => {
         switch (plan.source) {
@@ -129,9 +183,13 @@ function PlanSummary({
                         : 'On trial.';
                 }
 
-                return renewsAt && subscription?.nextPayment
-                    ? `Renews ${renewsAt} for ${subscription.nextPayment.amount}.`
-                    : 'Active.';
+                /*
+                 * The date and nothing more. Lemon Squeezy mirrors `renews_at`
+                 * onto the subscription but publishes no forthcoming amount,
+                 * and quoting the last order's total as the next one would be
+                 * wrong the first time a price or a seat count changed.
+                 */
+                return renewsAt ? `Renews ${renewsAt}.` : 'Active.';
             default:
                 return 'The free tier: three beginner courses and five missions, for as long as you like.';
         }
@@ -159,6 +217,138 @@ function PlanSummary({
 
             <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
         </div>
+    );
+}
+
+/**
+ * Move the subscription onto another plan or billing period.
+ *
+ * Both directions and both periods through one control, because to the pilot
+ * they are one decision: an upgrade, a downgrade and a move to annual billing
+ * differ only in what Lemon Squeezy prorates afterwards.
+ *
+ * The selects are controlled but the values they submit are the plain `plan`
+ * and `variant` fields the server validates — Radix renders a hidden input per
+ * `name`, so Inertia's `<Form>` serializes them like any other field and this
+ * component never assembles a request of its own.
+ */
+function ChangePlanDialog({ plans }: { plans: SwitchablePlan[] }) {
+    const current = plans.find((plan) =>
+        plan.variants.some((variant) => variant.isCurrent),
+    );
+
+    const [planValue, setPlanValue] = useState(
+        current?.value ?? plans[0]?.value,
+    );
+    const [variantValue, setVariantValue] = useState<PlanVariant | undefined>(
+        current?.variants.find((variant) => variant.isCurrent)?.value,
+    );
+
+    /*
+     * Derived rather than stored, so switching to a plan that does not sell the
+     * period currently picked cannot leave the form holding one that is not on
+     * offer. There is always something selected: a plan reaches this list only
+     * with at least one switchable period on it.
+     */
+    const plan = plans.find((option) => option.value === planValue) ?? plans[0];
+    const variant =
+        plan.variants.find((option) => option.value === variantValue) ??
+        plan.variants[0];
+
+    return (
+        <FormDialog
+            {...SubscriptionController.swap.form()}
+            trigger={
+                <Button
+                    variant="outline"
+                    size="sm"
+                    data-test="change-plan-button"
+                >
+                    Change plan
+                </Button>
+            }
+            title="Change your plan"
+            description="Nothing is charged today. Lemon Squeezy works out what the rest of your current period is worth and settles the difference on your next renewal."
+            submitLabel="Change plan"
+            pendingLabel="Changing…"
+            submitProps={{
+                'data-test': 'confirm-change-plan-button',
+                // The one selection that cannot go anywhere. Submitting it is
+                // harmless — the server answers "you are already on that plan"
+                // — but a button that does nothing is worse than one that is
+                // visibly unavailable.
+                disabled: variant.isCurrent,
+            }}
+        >
+            {({ errors }) => (
+                <div className="grid gap-4">
+                    <div className="grid gap-2">
+                        <Label htmlFor="plan">Plan</Label>
+                        <Select
+                            name="plan"
+                            value={plan.value}
+                            onValueChange={(value) =>
+                                setPlanValue(value as PlanValue)
+                            }
+                        >
+                            <SelectTrigger id="plan" className="w-full">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {plans.map((option) => (
+                                    <SelectItem
+                                        key={option.value}
+                                        value={option.value}
+                                    >
+                                        {option.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <p className="text-sm text-muted-foreground">
+                            {plan.tagline}
+                        </p>
+                        <InputError message={errors.plan} />
+                    </div>
+
+                    <div className="grid gap-2">
+                        <Label htmlFor="variant">Billing period</Label>
+                        <Select
+                            name="variant"
+                            value={variant.value}
+                            onValueChange={(value) =>
+                                setVariantValue(value as PlanVariant)
+                            }
+                        >
+                            <SelectTrigger id="variant" className="w-full">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {plan.variants.map((option) => (
+                                    <SelectItem
+                                        key={option.value}
+                                        value={option.value}
+                                    >
+                                        {VARIANT_LABELS[option.value]} —{' '}
+                                        {option.formatted}
+                                        {option.value === 'yearly'
+                                            ? '/year'
+                                            : '/month'}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <InputError message={errors.variant} />
+                    </div>
+
+                    {variant.isCurrent && (
+                        <p className="text-sm text-muted-foreground">
+                            This is the plan you are on already.
+                        </p>
+                    )}
+                </div>
+            )}
+        </FormDialog>
     );
 }
 
@@ -215,13 +405,24 @@ function CancelSubscriptionDialog() {
 export default function Billing({
     plan,
     subscription,
-    transactions,
+    switchable,
+    orders,
 }: BillingProps) {
     const canCancel = Boolean(
-        subscription && subscription.valid && !subscription.canceled,
+        subscription && subscription.valid && !subscription.cancelled,
     );
     const canResume = Boolean(subscription?.onGracePeriod);
     const hasSubscription = plan.source === 'subscription';
+
+    /*
+     * Lemon Squeezy keeps the card's brand and last four on the subscription
+     * row, so the page can name the card being charged without a network call.
+     * Both are absent until the first webhook lands, hence the pair check.
+     */
+    const card =
+        subscription?.cardBrand && subscription.cardLastFour
+            ? `${subscription.cardBrand} ending ${subscription.cardLastFour}`
+            : null;
 
     return (
         <>
@@ -239,13 +440,28 @@ export default function Billing({
                 <PlanSummary plan={plan} subscription={subscription} />
 
                 {hasSubscription && (
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                         <Button asChild variant="outline" size="sm">
                             <Link href={editPaymentMethod()}>
                                 Update payment method
                                 <ExternalLink aria-hidden />
                             </Link>
                         </Button>
+
+                        {card && (
+                            <span className="text-sm text-muted-foreground capitalize">
+                                {card}
+                            </span>
+                        )}
+
+                        {/*
+                         * Absent while there is nothing to move — a cancelled
+                         * subscription is resumed before it is repriced, and the
+                         * server says so by sending an empty list.
+                         */}
+                        {switchable.length > 0 && (
+                            <ChangePlanDialog plans={switchable} />
+                        )}
 
                         {canResume && (
                             <Form
@@ -282,11 +498,11 @@ export default function Billing({
                 />
 
                 <DataTable
-                    columns={TRANSACTION_COLUMNS}
-                    rows={transactions}
-                    rowKey={(transaction) => transaction.id}
+                    columns={ORDER_COLUMNS}
+                    rows={orders}
+                    rowKey={(order) => order.id}
                     caption="Your payment history"
-                    defaultSort={{ columnId: 'billedAt', direction: 'desc' }}
+                    defaultSort={{ columnId: 'orderedAt', direction: 'desc' }}
                     empty={
                         <EmptyState className="rounded-none border-0">
                             <EmptyStateIcon>

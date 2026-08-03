@@ -6,9 +6,7 @@ namespace App\Actions;
 
 use App\Enums\Plan;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
-use Laravel\Paddle\Subscription;
-use Laravel\Paddle\SubscriptionItem;
+use LemonSqueezy\Laravel\Subscription;
 
 final readonly class ResolvePlanForUser
 {
@@ -19,10 +17,10 @@ final readonly class ResolvePlanForUser
      *
      *   1. `plan_override` — set by hand for comped, staff and academic
      *      accounts, and for pre-launch users backfilled when gating lands. It
-     *      outranks Paddle deliberately: an override exists precisely to say
-     *      something billing does not know.
-     *   2. An active Paddle subscription, mapped back to a plan through the
-     *      price ID in config/plans.php.
+     *      outranks Lemon Squeezy deliberately: an override exists precisely to
+     *      say something billing does not know.
+     *   2. An active Lemon Squeezy subscription, mapped back to a plan through
+     *      the variant ID in config/plans.php.
      *   3. Starter. Everyone has an account, so everyone has a plan.
      *
      * Guests resolve to Starter too, so callers sharing entitlements with an
@@ -69,14 +67,9 @@ final readonly class ResolvePlanForUser
      */
     private function fromSubscription(User $user): ?Plan
     {
-        $priceIds = SubscriptionItem::query()
-            ->whereIn('subscription_id', $this->validSubscriptionIds($user))
-            ->pluck('price_id')
-            ->all();
-
         $plans = [];
 
-        foreach ($priceIds as $priceId) {
+        foreach ($this->validPriceIds($user) as $priceId) {
             $plan = Plan::fromPriceId(is_string($priceId) ? $priceId : null);
 
             if ($plan instanceof Plan) {
@@ -91,20 +84,34 @@ final readonly class ResolvePlanForUser
     }
 
     /**
-     * IDs of the user's subscriptions Cashier still considers valid — active or
-     * trialing, plus past due unless Cashier is set to deactivate it.
+     * The variant IDs behind the user's still-valid subscriptions — active or
+     * trialing, plus past due, a free pause, and the grace period after a
+     * cancellation.
+     *
+     * A Lemon Squeezy subscription names the variant it sells on the row
+     * itself, so there is no join here; Paddle's subscription_items table has
+     * no counterpart in this schema.
+     *
+     * Filtered in PHP rather than in SQL because `valid()` exists only as an
+     * instance method — the package ships scopes for the individual statuses
+     * but none that reproduces the union of them, and re-expressing it as a
+     * `whereIn` would leave two definitions of "valid" to drift apart. The set
+     * is one user's subscriptions, so it is small enough that the difference
+     * does not matter.
      *
      * Querying Subscription directly rather than reading `$user->subscriptions`
      * keeps resolution clear of the lazy-loading guard, which is armed
      * everywhere but production.
      *
-     * @return Builder<Subscription>
+     * @return array<int, mixed>
      */
-    private function validSubscriptionIds(User $user): Builder
+    private function validPriceIds(User $user): array
     {
         return Subscription::query()
             ->whereMorphedTo('billable', $user)
-            ->valid()
-            ->select('id');
+            ->get()
+            ->filter(fn (Subscription $subscription): bool => $subscription->valid())
+            ->pluck('variant_id')
+            ->all();
     }
 }

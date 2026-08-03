@@ -8,13 +8,18 @@ use App\Enums\Plan;
 use App\Models\User;
 
 /**
- * The Paddle price ID a given buyer should be charged for a given plan.
+ * The Lemon Squeezy variant ID a given buyer should be charged for a given plan.
  *
  * The one place a price ID is chosen, and deliberately the only one: the client
  * posts a plan and a billing period, never an ID, so no request can nominate
  * what it pays. Every discount the pricing copy promises lands here rather than
  * in a controller — Phase 4's launch pricing narrows this method, which is what
  * keeps the quoted price and the charged price the same number.
+ *
+ * "Price ID" is the provider-neutral name this application uses for whatever
+ * identifies the thing being sold; under Lemon Squeezy that is a variant ID.
+ * The `$variant` argument means something else entirely — a billing period,
+ * one of the keys in config/plans.php — and the two are not related.
  */
 final readonly class ResolveCheckoutPrice
 {

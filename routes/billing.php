@@ -6,7 +6,10 @@ use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\PricingController;
 use App\Http\Controllers\Settings\BillingController;
 use App\Http\Controllers\Settings\SubscriptionController;
+use App\Http\Middleware\PreventLemonSqueezyWebhookRetryLoops;
+use App\Http\Middleware\VerifyLemonSqueezyWebhookSignature;
 use Illuminate\Support\Facades\Route;
+use LemonSqueezy\Laravel\Http\Controllers\WebhookController;
 
 /*
  * Public: every lock badge in the catalog points here, and most of the pilots
@@ -14,10 +17,43 @@ use Illuminate\Support\Facades\Route;
  */
 Route::get('pricing', PricingController::class)->name('pricing');
 
+/*
+ * Lemon Squeezy posts here as a server, not as a browser: no session, no cookie,
+ * no CSRF token. This file is required from routes/web.php, so it inherits the
+ * whole `web` group, and the group is dropped wholesale for this one route
+ * rather than only its CSRF middleware. Nothing in the group applies — a session
+ * that is started and immediately discarded on every webhook is churn, and
+ * Inertia has no part in a machine-to-machine POST — and excluding the group by
+ * name cannot drift the way naming one middleware class can. (It already did:
+ * the CSRF middleware is Illuminate\Foundation\Http\Middleware\PreventRequestForgery
+ * as of Laravel 13, ValidateCsrfToken being only a deprecated subclass of it, so
+ * excluding the old name would have silently left CSRF enabled here.)
+ *
+ * The signature is what authenticates the caller, and
+ * VerifyLemonSqueezyWebhookSignature applies it unconditionally — unlike the
+ * package's own route registration, which checks a signature only when a secret
+ * happens to be configured. AppServiceProvider calls LemonSqueezy::ignoreRoutes()
+ * so this is the only registration of this endpoint.
+ *
+ * PreventLemonSqueezyWebhookRetryLoops sits behind the signature check, so it
+ * reads only bodies that have already been authenticated. It answers the
+ * deliveries the controller would otherwise refuse forever — one already
+ * recorded, one naming an account we do not have — because Lemon Squeezy
+ * redelivers everything that is not 2xx and neither of those improves with
+ * repetition.
+ */
+Route::post('lemon-squeezy/webhook', WebhookController::class)
+    ->withoutMiddleware('web')
+    ->middleware([
+        VerifyLemonSqueezyWebhookSignature::class,
+        PreventLemonSqueezyWebhookRetryLoops::class,
+    ])
+    ->name('lemon-squeezy.webhook');
+
 Route::middleware(['auth'])->group(function (): void {
     /*
-     * Throttled because each call creates a Paddle customer on first use and
-     * an abandoned overlay costs an API round trip either way.
+     * Throttled because each call creates a Lemon Squeezy customer on first use
+     * and an abandoned overlay costs an API round trip either way.
      */
     Route::post('checkout', [CheckoutController::class, 'store'])
         ->middleware('throttle:20,1')
@@ -30,4 +66,15 @@ Route::middleware(['auth'])->group(function (): void {
 
     Route::put('settings/subscription', [SubscriptionController::class, 'update'])->name('subscription.update');
     Route::delete('settings/subscription', [SubscriptionController::class, 'destroy'])->name('subscription.destroy');
+
+    /*
+     * Changing plan is a live PATCH to Lemon Squeezy that reprices a
+     * subscription, so it is throttled the way checkout is. Its own route
+     * rather than another shape of `subscription.update`, which already means
+     * "call off a cancellation": one endpoint answering to both would decide
+     * which by whether a body happened to be posted.
+     */
+    Route::put('settings/subscription/plan', [SubscriptionController::class, 'swap'])
+        ->middleware('throttle:20,1')
+        ->name('subscription.swap');
 });

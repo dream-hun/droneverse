@@ -48,12 +48,16 @@ final class DashboardTest extends TestCase
 
         $response->assertInertia(fn ($page) => $page
             ->component('dashboard')
-            ->has('courses', 1)
-            ->where('courses.0.title', 'Drone Basics')
-            ->where('courses.0.challengesCount', 2)
-            ->where('courses.0.completedCount', 1)
+            // Stats stay eager so the tiles paint immediately; the course grid
+            // below them is deferred and arrives on the follow-up request.
             ->where('stats.completed', 1)
-            ->where('stats.stars', 3));
+            ->where('stats.stars', 3)
+            ->missing('courses')
+            ->loadDeferredProps(fn ($reload) => $reload
+                ->has('courses', 1)
+                ->where('courses.0.title', 'Drone Basics')
+                ->where('courses.0.challengesCount', 2)
+                ->where('courses.0.completedCount', 1)));
     }
 
     public function test_continue_skips_challenges_that_are_no_longer_published(): void
@@ -153,10 +157,11 @@ final class DashboardTest extends TestCase
         $response = $this->actingAs($user)->get(route('dashboard'));
 
         $response->assertInertia(fn ($page) => $page
-            ->where('courses.0.challengesCount', 1)
-            ->where('courses.0.completedCount', 1)
             ->where('stats.completed', 1)
-            ->where('stats.stars', 3));
+            ->where('stats.stars', 3)
+            ->loadDeferredProps(fn ($reload) => $reload
+                ->where('courses.0.challengesCount', 1)
+                ->where('courses.0.completedCount', 1)));
     }
 
     public function test_progress_counts_exclude_challenges_in_unpublished_courses(): void
@@ -173,8 +178,9 @@ final class DashboardTest extends TestCase
         $response = $this->actingAs($user)->get(route('dashboard'));
 
         $response->assertInertia(fn ($page) => $page
-            ->has('courses', 0)
             ->where('stats.completed', 0)
-            ->where('stats.stars', 0));
+            ->where('stats.stars', 0)
+            ->loadDeferredProps(fn ($reload) => $reload
+                ->has('courses', 0)));
     }
 }

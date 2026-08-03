@@ -1,18 +1,17 @@
 import { Head } from '@inertiajs/react';
-import { Compass } from 'lucide-react';
-import { CourseCard } from '@/components/course-card';
-import { PageHeader } from '@/components/page-header';
+import { CardGrid } from '@/components/card-grid';
 import {
-    EmptyState,
-    EmptyStateDescription,
-    EmptyStateIcon,
-    EmptyStateTitle,
-} from '@/components/ui/empty-state';
+    CourseCard,
+    CourseCardSkeleton,
+    NoCoursesEmptyState,
+} from '@/components/course-card';
+import { PageHeader } from '@/components/page-header';
 import { index as coursesIndex } from '@/routes/courses';
 import type { CourseSummary } from '@/types/simulator';
 
 type CoursesIndexProps = {
-    courses: CourseSummary[];
+    /** `undefined` while deferred; `[]` means there are genuinely none. */
+    courses: CourseSummary[] | undefined;
 };
 
 export default function CoursesIndex({ courses }: CoursesIndexProps) {
@@ -26,25 +25,15 @@ export default function CoursesIndex({ courses }: CoursesIndexProps) {
                     description="Learn drone programming through hands-on simulator challenges."
                 />
 
-                {courses.length > 0 ? (
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                        {courses.map((course) => (
-                            <CourseCard key={course.slug} course={course} />
-                        ))}
-                    </div>
-                ) : (
-                    <EmptyState>
-                        <EmptyStateIcon>
-                            <Compass />
-                        </EmptyStateIcon>
-                        <EmptyStateTitle>
-                            No courses available yet
-                        </EmptyStateTitle>
-                        <EmptyStateDescription>
-                            New flight courses are on the way. Check back soon.
-                        </EmptyStateDescription>
-                    </EmptyState>
-                )}
+                <CardGrid
+                    items={courses}
+                    itemKey={(course) => course.slug}
+                    label="Courses"
+                    skeleton={<CourseCardSkeleton />}
+                    empty={<NoCoursesEmptyState />}
+                >
+                    {(course) => <CourseCard course={course} />}
+                </CardGrid>
             </div>
         </>
     );

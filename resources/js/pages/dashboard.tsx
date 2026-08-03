@@ -1,15 +1,14 @@
 import { Head, Link } from '@inertiajs/react';
-import { ArrowRight, Compass, Star, Trophy } from 'lucide-react';
-import { CourseCard } from '@/components/course-card';
+import { ArrowRight, Star, Trophy } from 'lucide-react';
+import { CardGrid } from '@/components/card-grid';
+import {
+    CourseCard,
+    CourseCardSkeleton,
+    NoCoursesEmptyState,
+} from '@/components/course-card';
 import { StatCard } from '@/components/stat-card';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-    EmptyState,
-    EmptyStateDescription,
-    EmptyStateIcon,
-    EmptyStateTitle,
-} from '@/components/ui/empty-state';
 import { dashboard } from '@/routes';
 import { show as showChallenge } from '@/routes/challenges';
 import { index as coursesIndex } from '@/routes/courses';
@@ -22,7 +21,8 @@ type ContinueChallenge = {
 };
 
 type DashboardProps = {
-    courses: CourseSummary[];
+    /** `undefined` while deferred; `[]` means there are genuinely none. */
+    courses: CourseSummary[] | undefined;
     continue: ContinueChallenge | null;
     stats: { completed: number; stars: number };
 };
@@ -80,26 +80,16 @@ export default function Dashboard({
 
                 <div>
                     <h2 className="mb-3 text-lg font-semibold">Courses</h2>
-                    {courses.length > 0 ? (
-                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                            {courses.map((course) => (
-                                <CourseCard key={course.slug} course={course} />
-                            ))}
-                        </div>
-                    ) : (
-                        <EmptyState>
-                            <EmptyStateIcon>
-                                <Compass />
-                            </EmptyStateIcon>
-                            <EmptyStateTitle>
-                                No courses available yet
-                            </EmptyStateTitle>
-                            <EmptyStateDescription>
-                                New flight courses are on the way. Check back
-                                soon.
-                            </EmptyStateDescription>
-                        </EmptyState>
-                    )}
+                    <CardGrid
+                        items={courses}
+                        itemKey={(course) => course.slug}
+                        label="Courses"
+                        skeleton={<CourseCardSkeleton />}
+                        skeletonItems={3}
+                        empty={<NoCoursesEmptyState />}
+                    >
+                        {(course) => <CourseCard course={course} />}
+                    </CardGrid>
                 </div>
             </div>
         </>

@@ -24,19 +24,27 @@ final class CourseController extends Controller
     public function index(Request $request, Leaderboard $leaderboard): Response
     {
         $user = $request->user();
-        $courses = Course::catalog()->get();
 
-        // The catalog is public, so a guest simply has no progress to merge.
-        $completedByCourse = $user instanceof User
-            ? $leaderboard->completedCountsByCourse($user)
-            : collect();
-
+        /*
+         * Deferred, so the shell and its skeleton render before the catalog is
+         * queried. The queries belong inside the closure rather than above it:
+         * hoisting them would run the catalog and the progress rollup on the
+         * initial request as well as the follow-up, paying for the work twice
+         * to display it once.
+         */
         return Inertia::render('courses/index', [
-            'courses' => CourseCatalogResource::collection(
-                $courses,
-                $completedByCourse,
-                $user?->plan() ?? Plan::Starter,
-            ),
+            'courses' => Inertia::defer(function () use ($user, $leaderboard) {
+                // The catalog is public, so a guest has no progress to merge.
+                $completedByCourse = $user instanceof User
+                    ? $leaderboard->completedCountsByCourse($user)
+                    : collect();
+
+                return CourseCatalogResource::collection(
+                    Course::catalog()->get(),
+                    $completedByCourse,
+                    $user?->plan() ?? Plan::Starter,
+                );
+            }),
         ]);
     }
 
@@ -49,11 +57,12 @@ final class CourseController extends Controller
      */
     public function show(Request $request, Course $course): Response
     {
+        // Stays on the initial request: a 404 is the whole response, not a
+        // section of it, and deferring it would render a page header for a
+        // course that does not exist before taking it away again.
         abort_unless($course->is_published, 404);
 
-        $challenges = $course->challenges()
-            ->published()
-            ->get(['id', 'title', 'slug', 'briefing', 'difficulty', 'required_plan']);
+        $user = $request->user();
 
         return Inertia::render('courses/show', [
             'course' => [
@@ -63,12 +72,23 @@ final class CourseController extends Controller
                 'difficulty' => $course->difficulty,
                 'requiredPlan' => $course->requiredPlan()->value,
             ],
-            'challenges' => ChallengeSummaryResource::collection(
-                $challenges,
-                $this->progressByChallenge($request->user(), $challenges->pluck('id')),
-                $course,
-                $request->user()?->plan() ?? Plan::Starter,
-            ),
+            /*
+             * The header renders from the course row the route already loaded;
+             * only the mission list waits. Both queries sit inside the closure
+             * so the initial request does neither.
+             */
+            'challenges' => Inertia::defer(function () use ($course, $user) {
+                $challenges = $course->challenges()
+                    ->published()
+                    ->get(['id', 'title', 'slug', 'briefing', 'difficulty', 'required_plan']);
+
+                return ChallengeSummaryResource::collection(
+                    $challenges,
+                    $this->progressByChallenge($user, $challenges->pluck('id')),
+                    $course,
+                    $user?->plan() ?? Plan::Starter,
+                );
+            }),
         ]);
     }
 

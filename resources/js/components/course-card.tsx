@@ -1,4 +1,5 @@
 import { Link } from '@inertiajs/react';
+import { Compass } from 'lucide-react';
 import { PlanLockBadge } from '@/components/plan-lock-badge';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -8,6 +9,12 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import {
+    EmptyState,
+    EmptyStateDescription,
+    EmptyStateIcon,
+    EmptyStateTitle,
+} from '@/components/ui/empty-state';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { show as showCourse } from '@/routes/courses';
@@ -59,6 +66,24 @@ export function CourseCard({ course }: { course: CourseSummary }) {
                 </CardContent>
             </Card>
         </Link>
+    );
+}
+
+/**
+ * Shown by both the dashboard and the course index, which are two views of the
+ * same catalogue and so should not disagree about how to say it is empty.
+ */
+export function NoCoursesEmptyState() {
+    return (
+        <EmptyState>
+            <EmptyStateIcon>
+                <Compass />
+            </EmptyStateIcon>
+            <EmptyStateTitle>No courses available yet</EmptyStateTitle>
+            <EmptyStateDescription>
+                New flight courses are on the way. Check back soon.
+            </EmptyStateDescription>
+        </EmptyState>
     );
 }
 

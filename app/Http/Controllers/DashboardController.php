@@ -21,14 +21,19 @@ final class DashboardController extends Controller
     public function __invoke(Request $request, Leaderboard $leaderboard): Response
     {
         $user = $request->user();
-        $courses = Course::catalog()->get();
 
+        /*
+         * The stat tiles and the continue card stay on the initial request:
+         * they are the top of the page and they are cheap. Only the course
+         * grid below them is deferred, and its queries live inside the closure
+         * so the first request does not run them just to throw them away.
+         */
         return Inertia::render('dashboard', [
-            'courses' => CourseCardResource::collection(
-                $courses,
+            'courses' => Inertia::defer(fn () => CourseCardResource::collection(
+                Course::catalog()->get(),
                 $leaderboard->completedCountsByCourse($user),
                 $user->plan(),
-            ),
+            )),
             'continue' => $this->continueCard($user),
             'stats' => $leaderboard->statsFor($user),
         ]);

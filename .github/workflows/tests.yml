@@ -57,6 +57,14 @@ jobs:
       - name: Build Assets
         run: npm run build
 
+      # Advisories are published against versions already in the lock file, so
+      # this fails on a morning when nothing in the diff changed. That is the
+      # point: it is the only step here that reports on code nobody touched.
+      # The npm threshold sits at high because monaco-editor pins a dompurify
+      # range with an open moderate advisory and no non-breaking fix.
+      - name: Audit Dependencies
+        run: composer audit:check
+
       - name: Run Type Analysis
         run: composer types:check
 

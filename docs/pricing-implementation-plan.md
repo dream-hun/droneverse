@@ -15,8 +15,8 @@
 | Billing | `laravel/cashier-paddle` installed and wired end to end: config, migrations, `Billable`, a verified webhook endpoint, a public pricing page, server-side checkout and a billing settings page. Still needs real sandbox credentials — every price ID in `config/plans.php` is unset, so no checkout can open |
 | Entitlements | Phases 1–3 shipped — `Plan`, `Feature`, `ResolvePlanForUser`, `HasPlan`, a Gate per feature, entitlements shared to React, the catalog gated against them, and `/pricing` selling Pro. **Nothing has been sold yet**: the machinery is complete and the Paddle catalogue is empty |
 
-Of the features the comparison table sells, only Courses, Simulations, JavaScript
-and Basic Analytics ship today. Python, Mission Builder, drone config editor,
+Of the features the comparison table sells, Courses, Simulations, JavaScript and
+both tiers of Analytics ship today. Python, Mission Builder, drone config editor,
 certificates, team management, classroom tools, API and SSO are all unbuilt.
 
 **The critical path is therefore not "add a pricing page."** It is: build an
@@ -278,9 +278,37 @@ unit of effort.
 2. **Premium certificates** — server-rendered PDF on course completion. Cheap to
    build, high perceived value, and Starter's "basic certificates" already
    implies the plumbing.
-3. **Advanced analytics** — per-mission attempt curves, score history, weak-spot
-   breakdown. Builds on `user_challenge_progress`, which already carries
-   attempts, best score and stars.
+3. ~~**Advanced analytics**~~ — ✅ **done.** Per-mission attempt curves, score
+   history, weak-spot breakdown and a cohort percentile, at `/analytics` behind
+   `can:advanced_analytics`, plus a panel on the play page itself.
+
+   The plan said it would build on `user_challenge_progress`, "which already
+   carries attempts, best score and stars." It could not. Progress is a
+   *merged* row — best score and stars only rise, and the attempt counter is
+   the only trace a run leaves — so it knows a mission took eleven tries and
+   nothing about what changed between them. Every question on this list is a
+   question about the runs, so the runs are now kept:
+   `challenge_runs` is an append-only row per graded attempt, written inside
+   the same transaction as the merge, and `app/Queries/FlightLog` is the read
+   model over it (see architecture §5.4).
+
+   Two things came out of building it that outlive it:
+
+   - **The leaderboard's cache mechanism is now shared.** Its generation
+     counter, wrapped values, plain-array boundary and build lock each fixed a
+     real defect, and a second read model needing all four was an argument for
+     extracting rather than copying them. `App\Queries\Support\SliceCache`
+     holds the mechanism; each query keeps its own prefix, TTL and choice of
+     which slices are worth serialising. `Leaderboard`'s public surface and
+     cache keys are unchanged.
+   - **`GradeSimulatorRun` now reports `objectivesHit` / `objectivesTotal`.**
+     They were locals, and they are the figure 70 of the 100 points are built
+     from — the only one that reads the same across a waypoint run and a city
+     run scored on photo targets and a wash pass. Mirrored in
+     `resources/js/lib/simulator/grader.ts`, as that policy always must be.
+
+   **Test:** `ChallengeRunTest` (6), `AnalyticsTest` (16), `FlightLogCacheTest`
+   (6).
 4. **Downloadable projects** — export a mission's code and telemetry.
 5. **Drone configuration editor** — expose the physics constants in
    `resources/js/lib/simulator/physics.ts` as a saved per-user profile.

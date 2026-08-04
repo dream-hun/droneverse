@@ -8,12 +8,11 @@ use App\Enums\ChallengeStatus;
 use App\Models\Course;
 use App\Models\User;
 use App\Models\UserChallengeProgress;
+use App\Queries\Support\SliceCache;
 use Closure;
-use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use stdClass;
 
@@ -44,19 +43,16 @@ final readonly class Leaderboard
     private const int BOARD_TTL_SECONDS = 300;
 
     /**
-     * How long one process may hold the right to rebuild a slice of the
-     * board, and how long the others will wait for it before giving up and
-     * building their own.
+     * The generation-keyed cache the board's slices live in.
      *
-     * The lock is a safeguard against pile-up, never a reason to fail a
-     * page: whoever waits out the timeout falls through and computes the
-     * slice itself, which is exactly what every request did before.
+     * Defaulted rather than bound in the container: the prefix and the TTL
+     * are this read model's policy and nothing outside it has an opinion on
+     * them, so a caller resolving a Leaderboard should not have to know the
+     * cache exists.
      */
-    private const int BOARD_BUILD_LOCK_SECONDS = 30;
-
-    private const int BOARD_BUILD_WAIT_SECONDS = 5;
-
-    private const string BOARD_GENERATION_KEY = 'leaderboard:generation';
+    public function __construct(
+        private SliceCache $cache = new SliceCache('leaderboard', self::BOARD_TTL_SECONDS),
+    ) {}
 
     /**
      * Completed-challenge counts for the given user, keyed by course id.
@@ -180,95 +176,28 @@ final readonly class Leaderboard
      * of the per-course and per-viewer entries a given run could have moved,
      * the generation counter is bumped and every old key simply stops being
      * looked up — the stale entries age out on their own.
-     *
-     * The counter has to be seeded before it can be bumped. Only some cache
-     * drivers treat `increment` on an absent key as counting up from zero;
-     * the database and memcached stores return false and write nothing, so
-     * bumping a generation that no run had ever created left the board
-     * pinned at generation zero and every invalidation silently did
-     * nothing. `add` is the atomic "create if absent" that closes that, and
-     * creating the counter *is* the first bump, so it never double-counts.
      */
     public function forget(): void
     {
-        if (Cache::add(self::BOARD_GENERATION_KEY, 1)) {
-            return;
-        }
-
-        Cache::increment(self::BOARD_GENERATION_KEY);
+        $this->cache->flush();
     }
 
     /**
      * Cache a slice of the board against the current generation.
      *
-     * The generation is part of the key, which is what makes
-     * {@see self::forget()} a single write rather than a hunt for every
-     * entry a run might have invalidated.
-     *
-     * Only one process builds a given slice at a time. That matters because
-     * of how the generation counter behaves under load: a run anywhere
-     * retires every cached view of the board at once, so the moment one
-     * pilot submits, every leaderboard viewer misses simultaneously. Left
-     * alone they would each answer the miss by running the same full
-     * aggregate over the largest table in the schema, and the busier the
-     * simulator got the more of those would overlap — the load rising with
-     * traffic exactly when there is least room for it. The others now wait
-     * on the one build already in flight and read what it leaves behind.
-     *
-     * Waiting is bounded and never fatal: a builder that overruns
-     * {@see self::BOARD_BUILD_WAIT_SECONDS} simply leaves the rest to
-     * compute the slice themselves, which is the behaviour this replaced.
-     *
-     * The cached value is wrapped rather than stored bare, because a slice
-     * can legitimately be `null` — a pilot who has not flown has no standing
-     * — and a bare null is indistinguishable from a miss. Unwrapped, those
-     * pilots re-ran the ranking on every single view of the page.
+     * A thin pass-through to {@see SliceCache}, which carries the reasoning
+     * behind the generation counter, the wrapped values and the build lock.
+     * The one decision that stays here is `$shared`: only this class knows
+     * which of its slices every viewer reads and which belong to one pilot.
      *
      * @template TValue
      *
      * @param  Closure(): TValue  $compute
-     * @param  bool  $shared  whether every viewer reads this same slice, and
-     *                        so whether a miss is worth serialising
      * @return TValue
      */
     private function remember(string $key, Closure $compute, bool $shared = true): mixed
     {
-        $generation = Cache::get(self::BOARD_GENERATION_KEY, 0);
-        $cacheKey = sprintf('leaderboard:%s:%s', $generation, $key);
-
-        $cached = Cache::get($cacheKey);
-
-        if (is_array($cached) && array_key_exists('value', $cached)) {
-            return $cached['value'];
-        }
-
-        $build = function () use ($cacheKey, $compute): mixed {
-            $value = $compute();
-            Cache::put($cacheKey, ['value' => $value], self::BOARD_TTL_SECONDS);
-
-            return $value;
-        };
-
-        if (! $shared) {
-            return $build();
-        }
-
-        try {
-            return Cache::lock($cacheKey.':building', self::BOARD_BUILD_LOCK_SECONDS)
-                ->block(self::BOARD_BUILD_WAIT_SECONDS, function () use ($cacheKey, $build): mixed {
-                    // The build we queued behind may have finished while we
-                    // waited, in which case there is nothing left to do.
-                    $cached = Cache::get($cacheKey);
-
-                    if (is_array($cached) && array_key_exists('value', $cached)) {
-                        return $cached['value'];
-                    }
-
-                    return $build();
-                });
-        } catch (LockTimeoutException) {
-            return $build();
-        }
+        return $this->cache->remember($key, $compute, $shared);
     }
 
     /**

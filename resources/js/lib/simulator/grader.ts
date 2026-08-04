@@ -98,6 +98,8 @@ export function gradeRun(
         completed,
         score,
         stars,
+        objectivesHit,
+        objectivesTotal,
         waypointsHit: telemetry.waypointsHit,
         waypointsTotal: telemetry.waypointsTotal,
         collisions: telemetry.collisions,

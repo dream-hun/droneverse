@@ -2,6 +2,7 @@ import { Link } from '@inertiajs/react';
 import {
     BookOpen,
     Camera,
+    ChartSpline,
     FolderGit2,
     LayoutGrid,
     Rocket,
@@ -20,7 +21,8 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { dashboard, leaderboard } from '@/routes';
+import { usePlan } from '@/hooks/use-plan';
+import { analytics, dashboard, leaderboard } from '@/routes';
 import { index as coursesIndex } from '@/routes/courses';
 import { index as photosIndex } from '@/routes/photos';
 import type { NavItem } from '@/types';
@@ -48,6 +50,20 @@ const mainNavItems: NavItem[] = [
     },
 ];
 
+/**
+ * Advanced analytics is sold on Pro, and the route turns away anyone else.
+ *
+ * Hidden rather than shown-and-locked because there is nothing to preview: a
+ * course card behind a lock still sells the mission inside it, while a nav
+ * item that only ever 403s sells nothing and teaches the pilot their sidebar
+ * lies. The pricing page is where the tier is argued for.
+ */
+const analyticsNavItem: NavItem = {
+    title: 'Analytics',
+    href: analytics(),
+    icon: ChartSpline,
+};
+
 const footerNavItems: NavItem[] = [
     {
         title: 'Repository',
@@ -62,6 +78,12 @@ const footerNavItems: NavItem[] = [
 ];
 
 export function AppSidebar() {
+    const { hasFeature } = usePlan();
+
+    const navItems = hasFeature('advanced_analytics')
+        ? [...mainNavItems, analyticsNavItem]
+        : mainNavItems;
+
     return (
         <Sidebar collapsible="icon" variant="sidebar">
             <SidebarHeader>
@@ -77,7 +99,7 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain items={mainNavItems} />
+                <NavMain items={navItems} />
             </SidebarContent>
 
             <SidebarFooter>

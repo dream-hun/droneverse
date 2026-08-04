@@ -46,6 +46,8 @@ function runResult(overrides: Partial<RunResult> = {}): RunResult {
         completed: true,
         score: 100,
         stars: 3,
+        objectivesHit: 2,
+        objectivesTotal: 2,
         waypointsHit: 2,
         waypointsTotal: 2,
         collisions: 0,

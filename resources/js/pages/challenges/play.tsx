@@ -8,6 +8,8 @@ import {
     VolumeX,
 } from 'lucide-react';
 import { useState, useSyncExternalStore } from 'react';
+import { MissionFlightLogPanel } from '@/components/analytics/mission-flight-log';
+import type { MissionFlightLog } from '@/components/analytics/mission-flight-log';
 import { BriefingPanel } from '@/components/simulator/briefing-panel';
 import { CodeEditor } from '@/components/simulator/code-editor';
 import { ConsolePanel } from '@/components/simulator/console-panel';
@@ -38,6 +40,8 @@ type PlayProps = {
     challenge: ChallengeDetail;
     progress: ChallengeProgress;
     solution: ChallengeSolution;
+    /** `null` without the Pro entitlement; `undefined` while deferred. */
+    flightLog: MissionFlightLog | null | undefined;
 };
 
 /**
@@ -53,6 +57,7 @@ export default function Play({
     challenge,
     progress,
     solution,
+    flightLog,
 }: PlayProps) {
     setLayoutProps({
         breadcrumbs: [
@@ -183,6 +188,12 @@ export default function Play({
                             solution={solution}
                             attempts={progress.attempts}
                             onLoad={setCode}
+                        />
+
+                        <MissionFlightLogPanel
+                            flightLog={flightLog}
+                            maxScore={challenge.maxScore}
+                            missionTitle={challenge.title}
                         />
                     </div>
 

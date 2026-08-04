@@ -48,7 +48,9 @@ graph TB
 
     subgraph Progress
         UCP[UserChallengeProgress<br/>the entity a pilot writes]
+        RUN[ChallengeRun<br/>append-only attempt history]
         LB[Queries\Leaderboard<br/>cached ranked projection]
+        FL[Queries\FlightLog<br/>cached per-pilot analytics]
     end
 
     subgraph Billing
@@ -66,7 +68,11 @@ graph TB
     CAT --> SIM
     SIM --> GRADE
     GRADE --> UCP
+    GRADE --> RUN
     UCP -->|invalidates| LB
+    RUN -->|invalidates| FL
+    RUN --> FL
+    ENT -->|gates| FL
     SIM --> PHOTO
     ENT -->|gates| PHOTO
 ```
@@ -92,7 +98,7 @@ decides what it was worth. The two graders share a policy that
 | Identity | `users`, passkeys, 2FA columns | Fortify routes, `routes/settings.php` |
 | Catalog | `courses`, `challenges` | `routes/courses.php` (GET) |
 | Flight | none (stateless grading) | `POST .../attempts` |
-| Progress | `user_challenge_progress` | `RecordChallengeAttempt`, `Queries\Leaderboard` |
+| Progress | `user_challenge_progress`, `challenge_runs` | `RecordChallengeAttempt`, `Queries\Leaderboard`, `Queries\FlightLog` |
 | Billing | `customers`, `subscriptions`, `subscription_items`, `transactions`, `users.plan_override` | `routes/billing.php`, Paddle webhook |
 | Media | `drone_photos`, the `public` disk | `POST .../photos`, `routes/courses.php` |
 
@@ -474,13 +480,23 @@ once with no predicate left behind to drift.
 
 Not built. Recorded here so the shape is agreed before it is urgent.
 
-- **`challenge_runs`** — an append-only row per submitted attempt (`user_id`,
-  `challenge_id`, `score`, `stars`, `completed`, `elapsed_seconds`, `collisions`,
-  `created_at`). Today only the *merged* progress row survives, so
-  `Feature::AdvancedAnalytics` — sold on Pro — has no source data, and no
-  question of the form "how many attempts before pilots clear mission 4" can be
-  answered. Partition or roll off by month; this is the table that grows
-  fastest. Progress remains the read path, so adding it costs one insert.
+- ~~**`challenge_runs`** — an append-only row per submitted attempt.~~ **Built.**
+  `2026_08_04_080633_create_challenge_runs_table`: `uuid`, `user_id`,
+  `challenge_id`, `score`, `stars`, `completed`, `objectives_hit`,
+  `objectives_total`, `collisions`, `elapsed_seconds`, `landed`, `timed_out`,
+  `created_at` — no `updated_at`, because nothing revises a graded run.
+  `RecordChallengeAttempt` writes it inside the same transaction as the
+  progress merge, so a run and its merge cannot come apart. Progress remains
+  the hot read path; this cost one insert.
+  `app/Queries/FlightLog.php` is the read model over it and
+  `Feature::AdvancedAnalytics` now has its source data.
+  **Still owed:** a monthly roll-off or partition. This is the fastest-growing
+  table in the schema and nothing prunes it yet.
+  Two indexes carry it: `(user_id, challenge_id, id)` puts the per-pilot
+  attempt curve entirely inside an index — leading with `id` rather than
+  `created_at` so two runs in the same second still order — and
+  `(challenge_id)` serves the cohort aggregates, which name no pilot and so
+  cannot use the first.
 - **`teams` / `team_members`** — `Plan::Team` sells ten seats and
   `ResolvePlanForUser` already documents where the `fromTeamMembership()` branch
   slots in: between the subscription and the Starter fallback.
@@ -720,7 +736,7 @@ Where the code and this document (or `CLAUDE.md`) disagree today.
 | 3 | `.env.example` defaults (`CACHE_STORE=database`, `SESSION_DRIVER=database`, `FILESYSTEM_DISK=local`) contradict the topology in §7.1. | medium | Correct for local development, dangerous as an unstated production default. §7.2 is the contract; a production checklist should assert it. |
 | 4 | The test suite runs on SQLite and the array cache; production runs MySQL and a shared cache store. | medium | §7.4. The leaderboard's window-function SQL and its cache-store assumptions are precisely what CI cannot currently see. |
 | 5 | No queue workers, no `app/Jobs`. | medium | §7.3. |
-| 6 | No attempt history — only the merged progress row survives. | medium | §5.4. `Feature::AdvancedAnalytics` is already sold and currently has nothing to read. |
+| 6 | ~~No attempt history — only the merged progress row survives.~~ | ~~medium~~ — **closed** | `challenge_runs` ships (§5.4), `app/Queries/FlightLog.php` reads it, and `/analytics` is gated on `can:advanced_analytics`. `Feature::AdvancedAnalytics->isAvailable()` is now `true`, so the pricing grid stops marking a sold capability as unbuilt. What is left is not the schema but the retention policy: nothing prunes the table yet. |
 | 7 | Leaderboard invalidation is global and per-attempt. | **high at scale** | §6.2. The seam is correct; the policy behind it has a cliff. |
 | 8 | `Plan::Team` and `Plan::Enterprise` are sold in `pricing.md` but `isSelfServe()` returns false for both. | none — deliberate | Checkout is closed for tiers whose features (classroom tools, SSO) do not exist. Taking money for them would be a chargeback. The ordering rule is enforced in the enum rather than trusted to the pricing page's markup. |
 

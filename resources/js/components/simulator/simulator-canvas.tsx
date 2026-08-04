@@ -8,10 +8,10 @@ import type { CameraMode } from '@/components/simulator/camera-rig';
 import { DroneRig } from '@/components/simulator/drone-rig';
 import { EnvironmentObjects } from '@/components/simulator/environment-objects';
 import { FlightHud } from '@/components/simulator/flight-hud';
-import { Button } from '@/components/ui/button';
 import { useCanvasResizeFix } from '@/hooks/use-canvas-resize-fix';
 import { createFlightVisualState } from '@/lib/simulator/flight-state';
 import type { SimulatorSession } from '@/lib/simulator/session';
+import { cn } from '@/lib/utils';
 import type { EnvironmentConfig, SuccessCriteria } from '@/types/simulator';
 
 type SimulatorCanvasProps = {
@@ -24,8 +24,8 @@ type SimulatorCanvasProps = {
 };
 
 const CAMERA_MODES: { id: CameraMode; label: string }[] = [
-    { id: 'orbit', label: 'Free' },
-    { id: 'follow', label: 'Follow' },
+    { id: 'orbit', label: 'FREE' },
+    { id: 'follow', label: 'FOLLOW' },
     { id: 'fpv', label: 'FPV' },
 ];
 
@@ -62,7 +62,16 @@ function SimulatorCanvasComponent({
             <Canvas
                 shadows
                 camera={{
-                    position: [span * 0.45, span * 0.35, span * 0.55],
+                    // Framed on the launch pad rather than on the field's
+                    // origin. OrbitControls targets the pad, so an offset
+                    // measured from the origin put the drone off to one side
+                    // — and hard against the frame edge on the missions whose
+                    // pad sits in a corner of the bounds.
+                    position: [
+                        environment.start.x + span * 0.3,
+                        span * 0.28,
+                        environment.start.z + span * 0.36,
+                    ],
                     fov: DEFAULT_FOV,
                     near: 0.1,
                     far: span * 12,
@@ -96,6 +105,18 @@ function SimulatorCanvasComponent({
                     shadow-camera-top={span * 0.8}
                     shadow-camera-bottom={-span * 0.8}
                 />
+                {/* Shadowless fill from the anti-sun side. The airframe is
+                    carbon black on almost every face, so lit from one
+                    direction it reads as a silhouette against the field
+                    rather than as a machine with edges. */}
+                <directionalLight
+                    position={[
+                        -SUN_DIRECTION[0] * span,
+                        SUN_DIRECTION[1] * span * 0.4,
+                        -SUN_DIRECTION[2] * span,
+                    ]}
+                    intensity={0.45}
+                />
                 <Physics gravity={[0, -9.81, 0]}>
                     <EnvironmentObjects environment={environment} />
                     <DroneRig
@@ -121,17 +142,28 @@ function SimulatorCanvasComponent({
                 )}
             </Canvas>
 
-            <div className="absolute top-2 right-2 z-10 flex gap-1 rounded-lg border bg-background/80 p-1 shadow-sm backdrop-blur">
+            {/* Above the HUD's z-10 so the one piece of chrome that takes
+                clicks is never the piece underneath. */}
+            <div
+                role="group"
+                aria-label="Camera view"
+                className="absolute top-2 right-2 z-20 flex gap-0.5 rounded-md border border-white/10 bg-[#0b1016]/80 p-0.5 font-mono backdrop-blur-sm"
+            >
                 {CAMERA_MODES.map((mode) => (
-                    <Button
+                    <button
                         key={mode.id}
-                        size="sm"
-                        variant={cameraMode === mode.id ? 'secondary' : 'ghost'}
-                        className="h-7 px-2 text-xs"
+                        type="button"
+                        aria-pressed={cameraMode === mode.id}
+                        className={cn(
+                            'rounded px-2.5 py-1 text-[10px] font-medium tracking-[0.14em] transition-colors',
+                            cameraMode === mode.id
+                                ? 'bg-white/15 text-cyan-300'
+                                : 'text-slate-400 hover:bg-white/5 hover:text-slate-200',
+                        )}
                         onClick={() => setCameraMode(mode.id)}
                     >
                         {mode.label}
-                    </Button>
+                    </button>
                 ))}
             </div>
 

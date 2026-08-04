@@ -42,7 +42,7 @@ final readonly class GradeSimulatorRun
 
     /**
      * @param  array{waypointsHit: int, waypointsTotal: int, collisions: int, maxAltitude: float, landed: bool, elapsedSeconds: float, timedOut: bool, photosTaken: int, photoTargetsHit: int, photoTargetsTotal: int, photosMissing: int, washRequired: bool, washed: bool}  $telemetry
-     * @return array{completed: bool, score: int, stars: int, waypointsHit: int, waypointsTotal: int, collisions: int, landed: bool, elapsedSeconds: float, timedOut: bool, photosTaken: int, photoTargetsHit: int, photoTargetsTotal: int, photosMissing: int, washRequired: bool, washed: bool}
+     * @return array{completed: bool, score: int, stars: int, objectivesHit: int, objectivesTotal: int, waypointsHit: int, waypointsTotal: int, collisions: int, landed: bool, elapsedSeconds: float, timedOut: bool, photosTaken: int, photoTargetsHit: int, photoTargetsTotal: int, photosMissing: int, washRequired: bool, washed: bool}
      */
     public function handle(array $telemetry, Challenge $challenge): array
     {
@@ -94,6 +94,17 @@ final readonly class GradeSimulatorRun
             'completed' => $completed,
             'score' => $score,
             'stars' => $this->stars($telemetry, $completed, (float) $criteria['max_time_seconds']),
+            /*
+             * Reported rather than left as a local, because this ratio is
+             * what 70 of the 100 points are built from and it is the only
+             * figure that reads the same on every mission — waypoints alone
+             * say nothing about a city run scored on photo targets and a
+             * wash pass. App\Models\ChallengeRun stores the pair, so an
+             * attempt curve can say what a run actually achieved and not
+             * only what it was worth.
+             */
+            'objectivesHit' => $objectivesHit,
+            'objectivesTotal' => $objectivesTotal,
             'waypointsHit' => $telemetry['waypointsHit'],
             'waypointsTotal' => $telemetry['waypointsTotal'],
             'collisions' => $telemetry['collisions'],

@@ -195,6 +195,13 @@ export type RunResult = {
     completed: boolean;
     score: number;
     stars: number;
+    /**
+     * Waypoints, photo targets, the min-photo quota and the wash pass, all
+     * counted on one scale. The figure 70 of the 100 points are built from,
+     * and the one that reads the same across every kind of mission.
+     */
+    objectivesHit: number;
+    objectivesTotal: number;
     waypointsHit: number;
     waypointsTotal: number;
     collisions: number;

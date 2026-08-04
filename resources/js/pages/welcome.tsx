@@ -114,7 +114,7 @@ export default function Welcome({ courses, missionCount }: WelcomeProps) {
 
     return (
         <>
-            <Head title="DroneVerse — Learn Drone Programming" />
+            <Head title="DroneVerse | Learn Drone Programming" />
 
             <div className="theme-droneverse dark min-h-screen bg-background font-sans text-foreground selection:bg-primary selection:text-primary-foreground">
                 <SiteHeader />

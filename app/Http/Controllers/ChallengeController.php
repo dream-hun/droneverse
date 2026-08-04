@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Actions\GradeSimulatorRun;
 use App\Actions\ReconstructRunTelemetry;
 use App\Actions\RecordChallengeAttempt;
+use App\Enums\Feature;
 use App\Http\Requests\StoreChallengeAttemptRequest;
 use App\Http\Resources\ChallengeDetailResource;
 use App\Http\Resources\ChallengeProgressResource;
@@ -15,6 +16,7 @@ use App\Models\Challenge;
 use App\Models\Course;
 use App\Models\User;
 use App\Models\UserChallengeProgress;
+use App\Queries\FlightLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -25,12 +27,13 @@ final class ChallengeController extends Controller
     /**
      * Display the simulator for a challenge.
      */
-    public function show(Request $request, Course $course, Challenge $challenge): Response
+    public function show(Request $request, Course $course, Challenge $challenge, FlightLog $flightLog): Response
     {
         abort_unless($challenge->isPlayableIn($course), 404);
         abort_unless($challenge->isUnlockedFor($request->user(), $course), 403);
 
-        $progress = $this->progressFor($request->user(), $challenge);
+        $user = $request->user();
+        $progress = $this->progressFor($user, $challenge);
 
         return Inertia::render('challenges/play', [
             'course' => [
@@ -40,6 +43,19 @@ final class ChallengeController extends Controller
             'challenge' => ChallengeDetailResource::one($challenge),
             'progress' => ChallengeProgressResource::one($challenge, $progress),
             'solution' => ChallengeSolutionResource::one($challenge, $progress),
+            /*
+             * The pilot's history on this mission, for the Pro analytics
+             * panel. Deferred because the simulator is what this page is for
+             * and it should not wait on two aggregates to become playable,
+             * and resolved only for pilots the Gate allows — a Starter pilot
+             * never pays a query for a panel they will not be shown.
+             */
+            'flightLog' => $user->can(Feature::AdvancedAnalytics->value)
+                ? Inertia::defer(fn (): array => [
+                    'curve' => $flightLog->missionCurve($user, $challenge),
+                    'cohort' => $flightLog->cohortFor($user, $challenge),
+                ])
+                : null,
         ]);
     }
 
@@ -70,12 +86,7 @@ final class ChallengeController extends Controller
         $run = $request->run();
         $result = $grade->handle($reconstruct->handle($challenge, $run), $challenge);
 
-        $progress = $recordAttempt->handle($request->user(), $challenge, [
-            'score' => $result['score'],
-            'stars' => $result['stars'],
-            'completed' => $result['completed'],
-            'code' => $run['code'],
-        ]);
+        $progress = $recordAttempt->handle($request->user(), $challenge, $result, $run['code']);
 
         return response()->json([
             'result' => $result,

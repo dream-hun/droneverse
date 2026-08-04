@@ -111,7 +111,15 @@ enum Plan: string
                 'Every course and every mission',
                 'JavaScript and Python',
                 'Mission Builder and the drone configuration editor',
-                'Premium certificates and advanced analytics',
+                /*
+                 * Analytics and certificates were one bullet until analytics
+                 * shipped. Leaving them paired would have made the built half
+                 * vouch for the unbuilt one, which is the failure this list's
+                 * docblock exists to prevent — so they are two lines now, and
+                 * only one of them promises anything.
+                 */
+                'Advanced analytics on every run you fly',
+                'Premium certificates — coming soon',
                 'Priority support and beta access',
             ],
             /*

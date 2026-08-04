@@ -1,7 +1,5 @@
 import { Head, Link, usePage } from '@inertiajs/react';
 import {
-    ArrowRight,
-    ArrowUpRight,
     Camera,
     Code2,
     Gauge,
@@ -9,12 +7,11 @@ import {
     Route as RouteIcon,
     Trophy,
 } from 'lucide-react';
-import AppLogoIcon from '@/components/app-logo-icon';
 import { LazyDroneShowcase } from '@/components/marketing/lazy-drone-showcase';
-import { Button } from '@/components/ui/button';
-import { dashboard, leaderboard, login, register } from '@/routes';
+import { SiteFooter } from '@/components/marketing/site-footer';
+import { SiteHeader } from '@/components/marketing/site-header';
+import { dashboard, leaderboard, register } from '@/routes';
 import { index as coursesIndex, show as showCourse } from '@/routes/courses';
-import { edit as editProfile } from '@/routes/profile';
 import type { MarketingCourse } from '@/types/simulator';
 
 /**
@@ -90,68 +87,12 @@ const SAMPLE_CODE = `async function main(drone) {
     await drone.land();
 }`;
 
-/**
- * The footer columns.
- *
- * The catalog column names real courses, so it follows whatever is published
- * rather than a hand-kept list; the account column follows the header, showing
- * sign-up prompts to a guest and the pilot's own settings to everyone else.
- */
-function buildFooterGroups(courses: MarketingCourse[], isSignedIn: boolean) {
-    return [
-        {
-            heading: 'Flight school',
-            links: [
-                { label: 'All courses', href: coursesIndex() },
-                ...courses.slice(0, 3).map((course) => ({
-                    label: course.title,
-                    href: showCourse(course.slug),
-                })),
-            ],
-        },
-        {
-            heading: 'Cockpit',
-            links: [
-                { label: 'Dashboard', href: dashboard() },
-                { label: 'Leaderboard', href: leaderboard() },
-            ],
-        },
-        {
-            heading: 'Account',
-            links: isSignedIn
-                ? [{ label: 'Profile settings', href: editProfile() }]
-                : [
-                      { label: 'Log in', href: login() },
-                      { label: 'Create an account', href: register() },
-                  ],
-        },
-    ];
-}
-
 /** Small caps label that opens each section, matching the header rhythm. */
 function SectionLabel({ children }: { children: string }) {
     return (
-        <p className="text-xs font-medium tracking-[0.2em] text-muted-foreground uppercase">
+        <h2 className="mb-12 font-mono text-xs tracking-widest text-primary uppercase">
             {children}
-        </p>
-    );
-}
-
-/**
- * The app's quadcopter mark on its tile, matching how the dashboard sidebar
- * badges it — the mark alone loses its rotors at wordmark size.
- */
-function Wordmark() {
-    return (
-        <span className="flex items-center gap-2.5 font-semibold tracking-tight">
-            <span className="flex aspect-square size-8 items-center justify-center rounded-md bg-foreground">
-                <AppLogoIcon
-                    aria-hidden
-                    className="size-5 fill-current text-background"
-                />
-            </span>
-            DroneVerse
-        </span>
+        </h2>
     );
 }
 
@@ -165,7 +106,6 @@ export default function Welcome({ courses, missionCount }: WelcomeProps) {
 
     const firstCourse = courses.at(0);
     const features = buildFeatures(missionCount);
-    const footerGroups = buildFooterGroups(courses, Boolean(auth.user));
     const heroStats = [
         { value: String(courses.length), label: 'Courses' },
         { value: String(missionCount), label: 'Missions' },
@@ -176,142 +116,84 @@ export default function Welcome({ courses, missionCount }: WelcomeProps) {
         <>
             <Head title="DroneVerse — Learn Drone Programming" />
 
-            <div className="min-h-screen bg-[oklch(0.985_0_0)] text-foreground dark:bg-background">
-                <header className="sticky top-0 z-30 border-b border-border/70 bg-[oklch(0.985_0_0)]/80 backdrop-blur dark:bg-background/80">
-                    <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-                        <Link href="/" aria-label="DroneVerse home">
-                            <Wordmark />
-                        </Link>
+            <div className="theme-droneverse dark min-h-screen bg-background font-sans text-foreground selection:bg-primary selection:text-primary-foreground">
+                <SiteHeader />
 
-                        <div className="hidden gap-8 text-sm text-muted-foreground md:flex">
-                            <a
-                                href="#why"
-                                className="transition hover:text-foreground"
-                            >
-                                Why DroneVerse
-                            </a>
-                            <a
-                                href="#cockpit"
-                                className="transition hover:text-foreground"
-                            >
-                                The cockpit
-                            </a>
-                            <Link
-                                href={coursesIndex()}
-                                className="transition hover:text-foreground"
-                            >
-                                Courses
-                            </Link>
-                        </div>
-
-                        <div className="flex items-center gap-4 text-sm">
-                            {auth.user ? (
-                                <Link href={dashboard()}>
-                                    <Button className="h-9 rounded-full px-4">
-                                        Dashboard
-                                    </Button>
-                                </Link>
-                            ) : (
-                                <>
-                                    <Link
-                                        href={login()}
-                                        className="hidden text-muted-foreground transition hover:text-foreground sm:inline"
-                                    >
-                                        Log in
-                                    </Link>
-                                    <Link href={register()}>
-                                        <Button className="h-9 rounded-full px-4">
-                                            Start free
-                                        </Button>
-                                    </Link>
-                                </>
-                            )}
-                        </div>
-                    </nav>
-                </header>
-
-                <main>
-                    <section className="mx-auto max-w-6xl px-6 pt-16 pb-20 md:pt-24 md:pb-28">
-                        <div className="grid items-center gap-12 md:grid-cols-2 md:gap-16">
-                            <div>
-                                <span className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-xs tracking-[0.16em] text-muted-foreground uppercase">
-                                    <span
-                                        aria-hidden
-                                        className="inline-block size-1.5 rounded-full bg-foreground"
-                                    />
-                                    {missionCount} missions · free to start
+                <section className="border-b border-border">
+                    <div className="mx-auto grid min-h-[85vh] max-w-7xl px-6 lg:grid-cols-2">
+                        <div className="flex animate-entry flex-col justify-center border-border py-12 lg:border-r lg:py-20 lg:pr-16">
+                            <h1 className="mb-6 text-5xl font-extrabold tracking-tighter text-balance uppercase lg:text-7xl">
+                                Learn to fly,{' '}
+                                <span className="text-muted-foreground">
+                                    one line at a time.
                                 </span>
+                            </h1>
 
-                                <h1 className="mt-6 font-heading text-5xl leading-[1.02] font-semibold tracking-tight md:text-6xl">
-                                    Learn to fly, one line at a time.
-                                </h1>
+                            <p className="mb-12 max-w-md text-lg leading-relaxed text-muted-foreground">
+                                DroneVerse teaches drone programming in the
+                                browser: write JavaScript, pilot a
+                                physics-simulated quadcopter through real
+                                missions, and get scored on every run.
+                            </p>
 
-                                <p className="mt-6 max-w-md text-base leading-relaxed text-muted-foreground md:text-lg">
-                                    DroneVerse teaches drone programming in the
-                                    browser: write JavaScript, pilot a
-                                    physics-simulated quadcopter through real
-                                    missions, and get scored on every run.
-                                </p>
-
-                                <div className="mt-8 flex flex-wrap items-center gap-3">
-                                    <Link
-                                        href={
-                                            auth.user ? dashboard() : register()
-                                        }
-                                    >
-                                        <Button className="h-11 gap-2 rounded-full px-5">
-                                            {auth.user
-                                                ? 'Go to dashboard'
-                                                : 'Start learning free'}
-                                            <ArrowRight />
-                                        </Button>
-                                    </Link>
-                                    <Link href={coursesIndex()}>
-                                        <Button
-                                            variant="outline"
-                                            className="h-11 rounded-full px-5"
-                                        >
-                                            Browse courses
-                                        </Button>
-                                    </Link>
-                                </div>
-
-                                <dl className="mt-12 grid max-w-md grid-cols-3 gap-6 border-t border-border pt-8">
-                                    {heroStats.map((stat) => (
-                                        <div
-                                            key={stat.label}
-                                            className="flex flex-col-reverse"
-                                        >
-                                            <dt className="mt-1 text-xs tracking-[0.14em] text-muted-foreground uppercase">
-                                                {stat.label}
-                                            </dt>
-                                            <dd className="font-heading text-3xl font-semibold tracking-tight">
-                                                {stat.value}
-                                            </dd>
-                                        </div>
-                                    ))}
-                                </dl>
+                            <div className="mb-12 flex flex-wrap items-center gap-4">
+                                <Link
+                                    href={auth.user ? dashboard() : register()}
+                                    className="bg-primary px-6 py-4 font-bold tracking-widest text-primary-foreground uppercase transition-all hover:brightness-110"
+                                >
+                                    {auth.user
+                                        ? 'Go to dashboard'
+                                        : 'Start learning free'}
+                                </Link>
+                                <Link
+                                    href={coursesIndex()}
+                                    className="border border-border px-6 py-4 font-mono text-xs tracking-widest text-foreground uppercase transition-colors hover:border-primary hover:text-primary"
+                                >
+                                    Browse courses →
+                                </Link>
                             </div>
 
-                            <div className="relative">
-                                <div className="aspect-square min-w-0 overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-slate-900 to-slate-800 shadow-[0_20px_60px_-24px_oklch(0.145_0_0/0.45)]">
+                            <dl className="grid max-w-md grid-cols-3 gap-6 border-t border-border pt-8">
+                                {heroStats.map((stat) => (
+                                    <div
+                                        key={stat.label}
+                                        className="flex flex-col-reverse"
+                                    >
+                                        <dt className="mt-1 font-mono text-xs tracking-widest text-muted-foreground uppercase">
+                                            {stat.label}
+                                        </dt>
+                                        <dd className="text-4xl font-extrabold tracking-tighter">
+                                            {stat.value}
+                                        </dd>
+                                    </div>
+                                ))}
+                            </dl>
+                        </div>
+
+                        <div className="relative grid place-items-center overflow-hidden bg-surface">
+                            <div
+                                aria-hidden
+                                className="pointer-events-none absolute inset-0 grid-dots opacity-30"
+                            />
+                            <div className="relative z-10 w-4/5 py-16 transition-transform duration-700 hover:scale-[1.02]">
+                                <div className="aspect-square min-w-0 overflow-hidden rounded-2xl bg-surface-elevated outline outline-1 -outline-offset-1 outline-white/5">
                                     <LazyDroneShowcase />
                                 </div>
                             </div>
                         </div>
-                    </section>
+                    </div>
+                </section>
 
-                    <section
-                        id="why"
-                        className="mx-auto max-w-6xl scroll-mt-24 px-6 py-20 md:py-24"
-                    >
-                        <div className="max-w-2xl">
-                            <SectionLabel>Why DroneVerse</SectionLabel>
-                            <h2 className="mt-3 font-heading text-4xl font-semibold tracking-tight md:text-5xl">
+                <main className="mx-auto max-w-7xl space-y-24 px-6 py-24">
+                    <section id="why" className="scroll-mt-24">
+                        <SectionLabel>Why DroneVerse</SectionLabel>
+
+                        <div className="mb-12 max-w-3xl">
+                            <h3 className="mb-4 text-3xl font-bold tracking-tighter uppercase lg:text-4xl">
                                 The only flight school where crashing is the
                                 point.
-                            </h2>
-                            <p className="mt-4 text-base text-muted-foreground md:text-lg">
+                            </h3>
+                            <p className="leading-relaxed text-muted-foreground">
                                 Fly the same manoeuvre twenty times until the
                                 code is right. Nothing breaks, nothing costs
                                 anything, and every attempt tells you exactly
@@ -319,19 +201,19 @@ export default function Welcome({ courses, missionCount }: WelcomeProps) {
                             </p>
                         </div>
 
-                        <div className="mt-12 grid gap-4 md:grid-cols-3">
+                        <div className="grid gap-1 md:grid-cols-2 lg:grid-cols-3">
                             {features.map((feature) => (
                                 <div
                                     key={feature.title}
-                                    className="rounded-2xl border border-border bg-card p-6 transition hover:border-foreground/30"
+                                    className="group border border-border bg-white/[0.02] p-6 transition-colors hover:bg-white/[0.04]"
                                 >
-                                    <div className="flex size-10 items-center justify-center rounded-lg border border-border">
+                                    <div className="mb-5 flex size-10 items-center justify-center border border-border text-primary">
                                         <feature.icon className="size-5" />
                                     </div>
-                                    <h3 className="mt-5 font-heading text-base font-semibold tracking-tight">
+                                    <h4 className="mb-3 text-xl font-bold tracking-tight uppercase">
                                         {feature.title}
-                                    </h3>
-                                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                                    </h4>
+                                    <p className="text-sm leading-relaxed text-muted-foreground">
                                         {feature.description}
                                     </p>
                                 </div>
@@ -339,17 +221,15 @@ export default function Welcome({ courses, missionCount }: WelcomeProps) {
                         </div>
                     </section>
 
-                    <section
-                        id="cockpit"
-                        className="mx-auto max-w-6xl scroll-mt-24 px-6 py-20 md:py-24"
-                    >
-                        <div className="grid items-start gap-12 md:grid-cols-2 md:gap-16">
-                            <div>
-                                <SectionLabel>The cockpit</SectionLabel>
-                                <h2 className="mt-3 font-heading text-4xl font-semibold tracking-tight md:text-5xl">
-                                    This is what a mission looks like.
-                                </h2>
-                                <p className="mt-4 text-base text-muted-foreground md:text-lg">
+                    <section id="cockpit" className="scroll-mt-24">
+                        <SectionLabel>The cockpit</SectionLabel>
+
+                        <div className="grid gap-8 md:grid-cols-2">
+                            <div className="flex flex-col justify-center">
+                                <h3 className="mb-4 text-3xl font-bold tracking-tighter uppercase">
+                                    This is what a <br /> mission looks like.
+                                </h3>
+                                <p className="mb-6 leading-relaxed text-muted-foreground">
                                     Every mission hands you a starter script and
                                     the full drone API. Your code runs in a
                                     sandboxed worker driving a real physics sim
@@ -358,11 +238,11 @@ export default function Welcome({ courses, missionCount }: WelcomeProps) {
                                     airframe.
                                 </p>
 
-                                <ul className="mt-8 flex flex-wrap gap-2">
+                                <ul className="flex flex-wrap gap-1">
                                     {API_METHODS.map((method) => (
                                         <li
                                             key={method}
-                                            className="rounded-full border border-border bg-card px-3 py-1 font-mono text-xs text-muted-foreground"
+                                            className="border border-border bg-white/[0.02] px-3 py-1 font-mono text-xs text-muted-foreground"
                                         >
                                             {method}
                                         </li>
@@ -370,25 +250,16 @@ export default function Welcome({ courses, missionCount }: WelcomeProps) {
                                 </ul>
                             </div>
 
-                            <div className="overflow-hidden rounded-2xl border border-border bg-slate-950 shadow-[0_20px_60px_-24px_oklch(0.145_0_0/0.45)]">
-                                <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
-                                    <span
-                                        aria-hidden
-                                        className="size-2.5 rounded-full bg-white/20"
-                                    />
-                                    <span
-                                        aria-hidden
-                                        className="size-2.5 rounded-full bg-white/20"
-                                    />
-                                    <span
-                                        aria-hidden
-                                        className="size-2.5 rounded-full bg-white/20"
-                                    />
-                                    <span className="ml-2 font-mono text-xs text-slate-400">
-                                        wall-follow.js
-                                    </span>
+                            <div className="rounded-lg border border-border bg-surface-elevated p-6 font-mono text-sm leading-relaxed shadow-2xl">
+                                <div aria-hidden className="mb-4 flex gap-2">
+                                    <div className="size-2.5 rounded-full bg-red-500/20" />
+                                    <div className="size-2.5 rounded-full bg-yellow-500/20" />
+                                    <div className="size-2.5 rounded-full bg-green-500/20" />
                                 </div>
-                                <pre className="overflow-x-auto p-5 text-xs leading-relaxed text-slate-200">
+                                <div className="text-code-comment">
+                                    // wall-follow.js
+                                </div>
+                                <pre className="mt-2 overflow-x-auto text-xs leading-relaxed">
                                     <code>{SAMPLE_CODE}</code>
                                 </pre>
                             </div>
@@ -397,13 +268,14 @@ export default function Welcome({ courses, missionCount }: WelcomeProps) {
 
                     {/* Nothing published means nothing to advertise; the rest of the pitch still stands. */}
                     {courses.length > 0 && (
-                        <section className="mx-auto max-w-6xl px-6 py-20 md:py-24">
-                            <div className="max-w-2xl">
-                                <SectionLabel>The flight path</SectionLabel>
-                                <h2 className="mt-3 font-heading text-4xl font-semibold tracking-tight md:text-5xl">
+                        <section>
+                            <SectionLabel>The flight path</SectionLabel>
+
+                            <div className="mb-12 max-w-3xl">
+                                <h3 className="mb-4 text-3xl font-bold tracking-tighter uppercase lg:text-4xl">
                                     {courses.length} courses, ground up.
-                                </h2>
-                                <p className="mt-4 text-base text-muted-foreground md:text-lg">
+                                </h3>
+                                <p className="leading-relaxed text-muted-foreground">
                                     Start with a hover you can hold. Finish
                                     flying a full shift over a city block. Every
                                     course is free and unlocks the moment you
@@ -411,45 +283,41 @@ export default function Welcome({ courses, missionCount }: WelcomeProps) {
                                 </p>
                             </div>
 
-                            <ol className="mt-12 divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
+                            <ol className="grid gap-1">
                                 {courses.map((course, index) => (
                                     <li key={course.slug}>
                                         <Link
                                             href={showCourse(course.slug)}
-                                            className="group flex flex-col gap-4 p-6 transition hover:bg-secondary/60 sm:flex-row sm:items-center sm:gap-8 sm:p-8"
+                                            className="group block border border-border bg-white/[0.02] p-6 transition-colors hover:bg-white/[0.04] md:p-8"
                                         >
-                                            <span
-                                                aria-hidden
-                                                className="font-heading text-sm font-semibold tracking-[0.16em] text-muted-foreground"
-                                            >
-                                                {String(index + 1).padStart(
-                                                    2,
-                                                    '0',
-                                                )}
-                                            </span>
-
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex flex-wrap items-center gap-3">
-                                                    <h3 className="font-heading text-lg font-semibold tracking-tight">
+                                            <div className="flex flex-wrap items-baseline justify-between gap-4">
+                                                <div>
+                                                    <span
+                                                        aria-hidden
+                                                        className="mb-1 block font-mono text-xs text-muted-foreground"
+                                                    >
+                                                        COURSE{' '}
+                                                        {String(
+                                                            index + 1,
+                                                        ).padStart(2, '0')}
+                                                    </span>
+                                                    <h4 className="text-xl font-bold tracking-tight uppercase">
                                                         {course.title}
-                                                    </h3>
-                                                    <span className="rounded-full border border-border px-2.5 py-0.5 text-xs text-muted-foreground capitalize">
-                                                        {course.difficulty}
-                                                    </span>
-                                                    <span className="text-xs text-muted-foreground">
-                                                        {course.challengesCount}{' '}
-                                                        {course.challengesCount ===
-                                                        1
-                                                            ? 'mission'
-                                                            : 'missions'}
-                                                    </span>
+                                                    </h4>
                                                 </div>
-                                                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                                                    {course.description}
-                                                </p>
+                                                <span className="font-mono text-xs tracking-widest text-primary uppercase">
+                                                    {course.difficulty} ·{' '}
+                                                    {course.challengesCount}{' '}
+                                                    {course.challengesCount ===
+                                                    1
+                                                        ? 'mission'
+                                                        : 'missions'}
+                                                </span>
                                             </div>
 
-                                            <ArrowUpRight className="size-5 shrink-0 text-muted-foreground transition group-hover:text-foreground" />
+                                            <p className="mt-6 text-sm leading-relaxed text-muted-foreground">
+                                                {course.description}
+                                            </p>
                                         </Link>
                                     </li>
                                 ))}
@@ -457,72 +325,35 @@ export default function Welcome({ courses, missionCount }: WelcomeProps) {
                         </section>
                     )}
 
-                    <section className="border-t border-border/70">
-                        <div className="mx-auto max-w-6xl px-6 py-20 text-center md:py-28">
-                            <h2 className="font-heading text-4xl font-semibold tracking-tight md:text-5xl">
-                                Ready to fly?
-                            </h2>
-                            <p className="mx-auto mt-4 max-w-xl text-base text-muted-foreground md:text-lg">
-                                {firstCourse
-                                    ? `Start with ${firstCourse.title} — no experience required, no hardware to buy, nothing to break.`
-                                    : 'No experience required, no hardware to buy, nothing to break.'}
-                            </p>
-                            <div className="mt-8 flex justify-center">
-                                <Link
-                                    href={
-                                        auth.user ? coursesIndex() : register()
-                                    }
-                                >
-                                    <Button className="h-11 gap-2 rounded-full px-6">
-                                        {auth.user
-                                            ? 'Browse courses'
-                                            : 'Create your free account'}
-                                        <ArrowRight />
-                                    </Button>
-                                </Link>
-                            </div>
+                    <section className="border border-primary bg-primary/5 p-8 md:p-12">
+                        <h3 className="mb-4 text-3xl font-bold tracking-tighter uppercase">
+                            Ready to fly?
+                        </h3>
+                        <p className="mb-8 max-w-xl leading-relaxed text-muted-foreground">
+                            {firstCourse
+                                ? `Start with ${firstCourse.title} — no experience required, no hardware to buy, nothing to break.`
+                                : 'No experience required, no hardware to buy, nothing to break.'}
+                        </p>
+                        <div className="flex flex-wrap gap-4">
+                            <Link
+                                href={auth.user ? coursesIndex() : register()}
+                                className="bg-primary px-6 py-4 font-bold tracking-widest text-primary-foreground uppercase transition-all hover:brightness-110"
+                            >
+                                {auth.user
+                                    ? 'Browse courses'
+                                    : 'Create your free account'}
+                            </Link>
+                            <Link
+                                href={leaderboard()}
+                                className="border border-border px-6 py-4 font-mono text-xs tracking-widest text-foreground uppercase transition-colors hover:border-primary hover:text-primary"
+                            >
+                                See the leaderboard →
+                            </Link>
                         </div>
                     </section>
                 </main>
 
-                <footer className="border-t border-border/70">
-                    <div className="mx-auto grid max-w-6xl gap-10 px-6 py-14 md:grid-cols-4">
-                        <div>
-                            <Wordmark />
-                            <p className="mt-4 max-w-xs text-sm text-muted-foreground">
-                                Drone programming you can actually fly. Written
-                                in JavaScript, graded on real physics.
-                            </p>
-                        </div>
-
-                        {footerGroups.map((group) => (
-                            <div key={group.heading}>
-                                <h4 className="font-heading text-sm font-semibold tracking-tight">
-                                    {group.heading}
-                                </h4>
-                                <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
-                                    {group.links.map((link) => (
-                                        <li key={link.label}>
-                                            <Link
-                                                href={link.href}
-                                                className="transition hover:text-foreground"
-                                            >
-                                                {link.label}
-                                            </Link>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        ))}
-                    </div>
-
-                    <div className="border-t border-border/70">
-                        <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-2 px-6 py-6 text-xs text-muted-foreground sm:flex-row sm:items-center">
-                            <p>© {new Date().getFullYear()} DroneVerse.</p>
-                            <p>Built with Laravel, Inertia and three.js.</p>
-                        </div>
-                    </div>
-                </footer>
+                <SiteFooter courses={courses} />
             </div>
         </>
     );

@@ -1,13 +1,12 @@
 import { Head, Link, router, useHttp, usePage } from '@inertiajs/react';
-import { ArrowRight, Check, Minus } from 'lucide-react';
+import { Check, Minus } from 'lucide-react';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import CheckoutController from '@/actions/App/Http/Controllers/CheckoutController';
 import SubscriptionController from '@/actions/App/Http/Controllers/Settings/SubscriptionController';
-import AppLogoIcon from '@/components/app-logo-icon';
 import { ConfirmDialog } from '@/components/confirm-dialog';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { SiteFooter } from '@/components/marketing/site-footer';
+import { SiteHeader } from '@/components/marketing/site-header';
 import {
     Table,
     TableBody,
@@ -19,7 +18,7 @@ import {
 } from '@/components/ui/table';
 import { useLemonSqueezy } from '@/hooks/use-lemon-squeezy';
 import { cn } from '@/lib/utils';
-import { dashboard, login, register } from '@/routes';
+import { dashboard, register } from '@/routes';
 import { edit as editBilling } from '@/routes/billing';
 import { index as coursesIndex } from '@/routes/courses';
 import type {
@@ -64,6 +63,26 @@ const FAQS = [
     },
 ];
 
+/** The square, full-width call to action every plan card ends on. */
+function ctaClass(emphasised: boolean) {
+    return cn(
+        'block w-full py-4 text-center font-bold tracking-widest uppercase transition-all',
+        'disabled:cursor-not-allowed disabled:opacity-40',
+        emphasised
+            ? 'bg-primary text-primary-foreground hover:brightness-110'
+            : 'border border-border text-foreground hover:border-primary hover:text-primary',
+    );
+}
+
+/** Small caps label that opens each section, matching the header rhythm. */
+function SectionLabel({ children }: { children: string }) {
+    return (
+        <h2 className="mb-12 font-mono text-xs tracking-widest text-primary uppercase">
+            {children}
+        </h2>
+    );
+}
+
 /**
  * The bar above the cards, switching every priced tier between its periods.
  */
@@ -85,32 +104,35 @@ function BillingPeriodToggle({
         <div
             role="group"
             aria-label="Billing period"
-            className="inline-flex items-center gap-1 rounded-full border border-border bg-card p-1"
+            className="inline-flex border border-border"
         >
             {options.map((option) => (
-                <Button
+                <button
                     key={option.value}
                     type="button"
-                    size="sm"
-                    variant={variant === option.value ? 'default' : 'ghost'}
                     aria-pressed={variant === option.value}
-                    className="h-8 rounded-full px-4"
                     onClick={() => onChange(option.value)}
+                    className={cn(
+                        'px-5 py-2.5 font-mono text-xs tracking-widest uppercase transition-colors',
+                        variant === option.value
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:text-primary',
+                    )}
                 >
                     {option.label}
                     {option.value === 'yearly' && saving !== null && (
                         <span
                             className={cn(
-                                'ml-1.5 text-xs',
+                                'ml-2',
                                 variant === 'yearly'
-                                    ? 'text-primary-foreground/80'
-                                    : 'text-muted-foreground',
+                                    ? 'text-primary-foreground/70'
+                                    : 'text-primary',
                             )}
                         >
                             save {saving}%
                         </span>
                     )}
-                </Button>
+                </button>
             ))}
         </div>
     );
@@ -133,19 +155,17 @@ function PlanPriceLine({
 
     if (!price) {
         return (
-            <p className="font-heading text-4xl font-semibold tracking-tight">
+            <p className="text-4xl font-extrabold tracking-tighter">
                 {plan.value === 'starter' ? 'Free' : 'Custom'}
             </p>
         );
     }
 
     return (
-        <p className="flex items-baseline gap-1.5">
-            <span className="font-heading text-4xl font-semibold tracking-tight">
-                {price.formatted}
-            </span>
-            <span className="text-sm text-muted-foreground">
-                {variant === 'yearly' ? '/year' : '/month'}
+        <p className="text-4xl font-extrabold tracking-tighter">
+            {price.formatted}
+            <span className="text-lg font-normal text-muted-foreground">
+                {variant === 'yearly' ? ' / year' : ' / month'}
             </span>
         </p>
     );
@@ -277,31 +297,31 @@ export default function Pricing({
         });
 
     const renderCta = (plan: PricingPlan) => {
-        const emphasis = plan.isPopular ? 'default' : 'outline';
+        const emphasised = plan.isPopular;
 
         switch (plan.cta.action) {
             case 'signup':
                 return (
-                    <Button asChild className="w-full" variant={emphasis}>
-                        <Link href={auth.user ? dashboard() : register()}>
-                            {plan.cta.label}
-                        </Link>
-                    </Button>
+                    <Link
+                        href={auth.user ? dashboard() : register()}
+                        className={ctaClass(emphasised)}
+                    >
+                        {plan.cta.label}
+                    </Link>
                 );
 
             case 'contact':
                 return salesEmail ? (
-                    <Button asChild className="w-full" variant={emphasis}>
-                        <a
-                            href={`mailto:${salesEmail}?subject=${encodeURIComponent(`${plan.label} enquiry`)}`}
-                        >
-                            {plan.cta.label}
-                        </a>
-                    </Button>
-                ) : (
-                    <Button className="w-full" variant="outline" disabled>
+                    <a
+                        href={`mailto:${salesEmail}?subject=${encodeURIComponent(`${plan.label} enquiry`)}`}
+                        className={ctaClass(emphasised)}
+                    >
                         {plan.cta.label}
-                    </Button>
+                    </a>
+                ) : (
+                    <button className={ctaClass(false)} disabled>
+                        {plan.cta.label}
+                    </button>
                 );
 
             case 'checkout': {
@@ -317,9 +337,8 @@ export default function Pricing({
                 const purchasable = plan.prices[variant]?.purchasable === true;
 
                 return (
-                    <Button
-                        className="w-full"
-                        variant={emphasis}
+                    <button
+                        className={ctaClass(emphasised)}
                         disabled={!ready || !purchasable || checkout.processing}
                         onClick={() => startCheckout(plan)}
                     >
@@ -328,15 +347,15 @@ export default function Pricing({
                             : purchasable
                               ? plan.cta.label
                               : 'Not yet available'}
-                    </Button>
+                    </button>
                 );
             }
 
             case 'manage':
                 return (
-                    <Button asChild className="w-full" variant="outline">
-                        <Link href={editBilling()}>{plan.cta.label}</Link>
-                    </Button>
+                    <Link href={editBilling()} className={ctaClass(false)}>
+                        {plan.cta.label}
+                    </Link>
                 );
 
             case 'switch': {
@@ -350,15 +369,14 @@ export default function Pricing({
                 return (
                     <ConfirmDialog
                         trigger={
-                            <Button
-                                className="w-full"
-                                variant={emphasis}
+                            <button
+                                className={ctaClass(emphasised)}
                                 disabled={!purchasable}
                             >
                                 {purchasable
                                     ? plan.cta.label
                                     : 'Not yet available'}
-                            </Button>
+                            </button>
                         }
                         title={`${plan.cta.label}?`}
                         description={`Your subscription moves to ${plan.label}, ${variant === 'yearly' ? 'billed yearly' : 'billed monthly'}. Nothing is charged today — the difference between what you have paid for and what you are moving to is settled on your next renewal.`}
@@ -371,9 +389,9 @@ export default function Pricing({
 
             default:
                 return (
-                    <Button className="w-full" variant="outline" disabled>
+                    <button className={ctaClass(false)} disabled>
                         {plan.cta.label}
-                    </Button>
+                    </button>
                 );
         }
     };
@@ -382,41 +400,55 @@ export default function Pricing({
         <div
             key={plan.value}
             className={cn(
-                'flex h-full flex-col rounded-xl border bg-card p-6',
+                'flex h-full flex-col p-8',
                 plan.isPopular
-                    ? 'border-foreground/40 shadow-[0_20px_60px_-30px_oklch(0.145_0_0/0.5)]'
-                    : 'border-border',
+                    ? 'border border-primary bg-primary/5'
+                    : 'border border-border bg-white/[0.02]',
             )}
         >
-            <div className="flex items-center justify-between gap-2">
-                <h3 className="font-heading text-lg font-semibold tracking-tight">
+            {/* Fixed height so the badge on one card does not sit its whole
+                column lower than the rest. */}
+            <div className="mb-2 flex h-6 items-center justify-between gap-2">
+                <div className="font-mono text-xs tracking-widest text-primary uppercase">
                     {plan.label}
-                </h3>
-                {plan.isPopular && <Badge>Most popular</Badge>}
-                {plan.isCurrent && <Badge variant="secondary">Current</Badge>}
+                </div>
+                {plan.isPopular && (
+                    <span className="bg-primary px-2 py-0.5 font-mono text-[10px] tracking-widest text-primary-foreground uppercase">
+                        Most popular
+                    </span>
+                )}
+                {plan.isCurrent && (
+                    <span className="border border-border px-2 py-0.5 font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
+                        Current
+                    </span>
+                )}
             </div>
 
-            <p className="mt-2 min-h-10 text-sm leading-relaxed text-muted-foreground">
+            {/* Reserved so a three-line tagline does not push one card's price
+                below its neighbours'. */}
+            <p className="mb-8 min-h-[4.5rem] text-sm leading-relaxed text-muted-foreground">
                 {plan.tagline}
             </p>
 
-            <div className="mt-6">
+            <div className="mb-8">
                 <PlanPriceLine plan={plan} variant={variant} />
             </div>
 
-            <ul className="mt-6 flex-1 space-y-2.5 text-sm">
+            <ul className="mb-8 flex-1 space-y-4 text-sm">
                 {plan.highlights.map((highlight) => (
-                    <li key={highlight} className="flex gap-2.5">
-                        <Check
-                            aria-hidden
-                            className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-                        />
+                    <li
+                        key={highlight}
+                        className="flex gap-3 text-muted-foreground"
+                    >
+                        <span aria-hidden className="text-primary">
+                            ✓
+                        </span>
                         <span className="leading-relaxed">{highlight}</span>
                     </li>
                 ))}
             </ul>
 
-            <div className="mt-8">{renderCta(plan)}</div>
+            {renderCta(plan)}
         </div>
     );
 
@@ -424,87 +456,55 @@ export default function Pricing({
         <>
             <Head title="Pricing" />
 
-            <div className="min-h-screen bg-[oklch(0.985_0_0)] text-foreground dark:bg-background">
-                <header className="sticky top-0 z-30 border-b border-border/70 bg-[oklch(0.985_0_0)]/80 backdrop-blur dark:bg-background/80">
-                    <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-                        <Link href="/" aria-label="DroneVerse home">
-                            <span className="flex items-center gap-2.5 font-semibold tracking-tight">
-                                <span className="flex aspect-square size-8 items-center justify-center rounded-md bg-foreground">
-                                    <AppLogoIcon
-                                        aria-hidden
-                                        className="size-5 fill-current text-background"
-                                    />
+            <div className="theme-droneverse dark min-h-screen bg-background font-sans text-foreground selection:bg-primary selection:text-primary-foreground">
+                <SiteHeader current="pricing" />
+
+                <main className="mx-auto max-w-7xl space-y-24 px-6 py-24">
+                    <section>
+                        <SectionLabel>Pricing</SectionLabel>
+
+                        <div className="mb-12 max-w-3xl">
+                            <h1 className="mb-6 text-5xl font-extrabold tracking-tighter text-balance uppercase lg:text-6xl">
+                                Fly free.{' '}
+                                <span className="text-muted-foreground">
+                                    Pay when you outgrow it.
                                 </span>
-                                DroneVerse
-                            </span>
-                        </Link>
-
-                        <div className="flex items-center gap-4 text-sm">
-                            <Link
-                                href={coursesIndex()}
-                                className="hidden text-muted-foreground transition hover:text-foreground sm:inline"
-                            >
-                                Courses
-                            </Link>
-                            {auth.user ? (
-                                <Link href={dashboard()}>
-                                    <Button className="h-9 rounded-full px-4">
-                                        Dashboard
-                                    </Button>
-                                </Link>
-                            ) : (
-                                <>
-                                    <Link
-                                        href={login()}
-                                        className="text-muted-foreground transition hover:text-foreground"
-                                    >
-                                        Log in
-                                    </Link>
-                                    <Link href={register()}>
-                                        <Button className="h-9 rounded-full px-4">
-                                            Start free
-                                        </Button>
-                                    </Link>
-                                </>
-                            )}
+                            </h1>
+                            <p className="text-lg leading-relaxed text-muted-foreground">
+                                Three beginner courses and five missions cost
+                                nothing and never expire. Everything below is
+                                for when you want the rest of the catalogue and
+                                the tools that come with it.
+                            </p>
                         </div>
-                    </nav>
-                </header>
 
-                <main className="mx-auto max-w-6xl px-6 pt-16 pb-24">
-                    <div className="max-w-2xl">
-                        <h1 className="font-heading text-5xl leading-[1.05] font-semibold tracking-tight md:text-6xl">
-                            Fly free. Pay when you outgrow it.
-                        </h1>
-                        <p className="mt-6 text-base leading-relaxed text-muted-foreground md:text-lg">
-                            Three beginner courses and five missions cost
-                            nothing and never expire. Everything below is for
-                            when you want the rest of the catalogue and the
-                            tools that come with it.
-                        </p>
-                    </div>
+                        <div className="mb-8">
+                            <BillingPeriodToggle
+                                variant={variant}
+                                onChange={setVariant}
+                                saving={annualSaving}
+                            />
+                        </div>
 
-                    <div className="mt-10">
-                        <BillingPeriodToggle
-                            variant={variant}
-                            onChange={setVariant}
-                            saving={annualSaving}
-                        />
-                    </div>
+                        <div className="grid gap-1 md:grid-cols-2 lg:grid-cols-4">
+                            {plans.map(renderCard)}
+                        </div>
+                    </section>
 
-                    <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                        {plans.map(renderCard)}
-                    </div>
+                    <section>
+                        <SectionLabel>What each plan unlocks</SectionLabel>
 
-                    <section className="mt-24">
-                        <h2 className="font-heading text-3xl font-semibold tracking-tight md:text-4xl">
-                            What each plan unlocks
-                        </h2>
-                        <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
-                            Capabilities still in the hangar are marked as such.
-                            They are included the day they ship, at no extra
-                            cost, on every plan below that grants them.
-                        </p>
+                        <div className="mb-12 max-w-3xl">
+                            <h2 className="mb-4 text-3xl font-bold tracking-tighter uppercase lg:text-4xl">
+                                Capability by capability.
+                            </h2>
+                            <p className="leading-relaxed text-muted-foreground">
+                                Capabilities still in the hangar are marked as
+                                such. They are included the day they ship, at no
+                                extra cost, on every plan below that grants
+                                them.
+                            </p>
+                        </div>
 
                         {/*
                          * A matrix, not a list of records, so it stays on the
@@ -521,7 +521,7 @@ export default function Pricing({
                             role="region"
                             aria-labelledby={comparisonCaptionId}
                             tabIndex={0}
-                            className="mt-8 overflow-x-auto rounded-2xl border border-border bg-card focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                            className="overflow-x-auto border border-border bg-white/[0.02] focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                         >
                             <Table className="min-w-3xl">
                                 <TableCaption
@@ -532,13 +532,13 @@ export default function Pricing({
                                 </TableCaption>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead className="p-4 text-sm text-foreground">
+                                        <TableHead className="p-4 font-mono text-xs tracking-widest text-muted-foreground uppercase">
                                             Capability
                                         </TableHead>
                                         {plans.map((plan) => (
                                             <TableHead
                                                 key={plan.value}
-                                                className="p-4 text-center text-sm text-foreground"
+                                                className="p-4 text-center font-mono text-xs tracking-widest text-primary uppercase"
                                             >
                                                 {plan.label}
                                             </TableHead>
@@ -554,7 +554,7 @@ export default function Pricing({
                                             >
                                                 {row.label}
                                                 {!row.available && (
-                                                    <span className="ml-2 text-xs text-muted-foreground">
+                                                    <span className="ml-2 font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
                                                         coming soon
                                                     </span>
                                                 )}
@@ -567,7 +567,7 @@ export default function Pricing({
                                                     {granted ? (
                                                         <Check
                                                             aria-label="Included"
-                                                            className="mx-auto size-4"
+                                                            className="mx-auto size-4 text-primary"
                                                         />
                                                     ) : (
                                                         <Minus
@@ -584,20 +584,19 @@ export default function Pricing({
                         </div>
                     </section>
 
-                    <section className="mt-24">
-                        <h2 className="font-heading text-3xl font-semibold tracking-tight md:text-4xl">
-                            Questions
-                        </h2>
-                        <dl className="mt-8 grid gap-6 md:grid-cols-2">
+                    <section>
+                        <SectionLabel>Questions</SectionLabel>
+
+                        <dl className="grid gap-1 md:grid-cols-2">
                             {FAQS.map((faq) => (
                                 <div
                                     key={faq.question}
-                                    className="rounded-2xl border border-border bg-card p-6"
+                                    className="border border-border bg-white/[0.02] p-6 transition-colors hover:bg-white/[0.04] md:p-8"
                                 >
-                                    <dt className="font-heading text-base font-semibold tracking-tight">
+                                    <dt className="mb-3 text-xl font-bold tracking-tight uppercase">
                                         {faq.question}
                                     </dt>
-                                    <dd className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                                    <dd className="text-sm leading-relaxed text-muted-foreground">
                                         {faq.answer}
                                     </dd>
                                 </div>
@@ -605,29 +604,29 @@ export default function Pricing({
                         </dl>
                     </section>
 
-                    <section className="mt-24 border-t border-border/70 pt-16 text-center">
-                        <h2 className="font-heading text-3xl font-semibold tracking-tight md:text-4xl">
+                    <section className="border border-primary bg-primary/5 p-8 md:p-12">
+                        <h2 className="mb-4 text-3xl font-bold tracking-tighter uppercase">
                             Still deciding?
                         </h2>
-                        <p className="mx-auto mt-4 max-w-xl text-sm text-muted-foreground md:text-base">
+                        <p className="mb-8 max-w-xl leading-relaxed text-muted-foreground">
                             Fly the five free missions first. Nothing on this
                             page expires, and nothing here is needed to find out
                             whether you like it.
                         </p>
-                        <div className="mt-8 flex justify-center">
+                        <div className="flex flex-wrap gap-4">
                             <Link
                                 href={auth.user ? coursesIndex() : register()}
+                                className="bg-primary px-6 py-4 font-bold tracking-widest text-primary-foreground uppercase transition-all hover:brightness-110"
                             >
-                                <Button className="h-11 gap-2 rounded-full px-6">
-                                    {auth.user
-                                        ? 'Browse courses'
-                                        : 'Create your free account'}
-                                    <ArrowRight />
-                                </Button>
+                                {auth.user
+                                    ? 'Browse courses'
+                                    : 'Create your free account'}
                             </Link>
                         </div>
                     </section>
                 </main>
+
+                <SiteFooter />
             </div>
         </>
     );

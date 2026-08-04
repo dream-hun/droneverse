@@ -1,4 +1,3 @@
-import { RoundedBox } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useRef, useState } from 'react';
 import {
@@ -8,46 +7,54 @@ import {
     MeshStandardMaterial,
     SphereGeometry,
 } from 'three';
-import type { Group } from 'three';
+import type { Group, PointLight } from 'three';
+import {
+    BLADE_LENGTH,
+    BODY_RADIUS,
+    BOOM_BEARINGS,
+    BOOM_LENGTH,
+    BOOM_ROOT,
+    FOOT_CENTER_Y,
+    FOOT_RADIUS,
+    isFrontBoom,
+    isRearBoom,
+    LEG_CENTER_Y,
+    LEG_LENGTH,
+    LEG_RADIAL_OFFSET,
+    MOTOR_CAP_Y,
+    MOTOR_POD_Y,
+    MOTOR_REACH,
+    PROP_RADIUS,
+    ROTOR_PLANE_Y,
+} from '@/lib/simulator/airframe';
 import { createFlightVisualState } from '@/lib/simulator/flight-state';
 import type { FlightVisualState } from '@/lib/simulator/flight-state';
 
 /**
- * Procedural prosumer quadcopter: fuselage with top shell and battery,
- * X-frame arms with motor pods, two-blade props that blur into discs as
- * they spool up (CW/CCW pairs like a real quad), a pitch-stabilized camera
- * gimbal, landing legs, and aviation lighting (port red, starboard green,
- * rear strobes). The whole airframe tilts with the flight state — leaning
- * into acceleration and banking against drag — while the rigid body itself
- * only yaws.
+ * Procedural inspection hexacopter: a hex-prism carbon core under a brushed
+ * sensor dome, six tapered booms in the standard hex-X layout, motor pods
+ * with two-blade props that blur into discs as they spool up (alternating
+ * CW/CCW around the ring, as a real hex must to cancel torque), red LEDs on
+ * the front booms and white anti-collision strobes on the rear, a
+ * pitch-stabilized camera gimbal, and a downward vision sensor whose cyan
+ * lamp is the drone's own light source. The whole airframe tilts with the
+ * flight state — leaning into acceleration and banking against drag — while
+ * the rigid body itself only yaws.
  *
- * The airframe is forty-nine meshes, but it is not forty-nine *things*: the
- * four arms are one shape, the eight blades are one shape, every landing
- * foot and navigation lamp is the same little sphere. Declared inline, each
- * of those meshes minted its own geometry and its own material — forty-nine
- * of each, every one a separate GPU buffer and a separate uniform upload,
- * on a model that redraws every frame and again for the shadow pass. They
- * are built once here instead and handed to the meshes that share them.
+ * The airframe is sixty-odd meshes, but it is not sixty-odd *things*: the six
+ * booms are one shape, the twelve blades are one shape, every landing foot
+ * and lamp is the same little bead. Declared inline, each of those meshes
+ * would mint its own geometry and its own material — a separate GPU buffer
+ * and a separate uniform upload each, on a model that redraws every frame and
+ * again for the shadow pass. They are built once here instead and handed to
+ * the meshes that share them.
  *
  * Sharing the materials also collapses the animation bookkeeping: the frame
- * loop used to reach eight blades, four discs and two strobes through arrays
- * of refs, only to write the same value into each. There is now one material
- * per group of things that always look alike, and the loop writes to it once.
+ * loop would otherwise reach twelve blades, six discs and two strobes through
+ * arrays of refs only to write the same value into each. There is one
+ * material per group of things that always look alike, and the loop writes to
+ * it once.
  */
-
-// Motor pod centers, mirrored into an X configuration.
-const MOTOR_POSITIONS: [number, number][] = [
-    [0.24, -0.24],
-    [-0.24, -0.24],
-    [0.24, 0.24],
-    [-0.24, 0.24],
-];
-
-// Arms run from the fuselage corners out to the pods.
-const ARM_ROOT: [number, number] = [0.11, 0.145];
-
-// The X frame is symmetric, so every arm is the same length.
-const ARM_LENGTH = Math.hypot(0.24 - ARM_ROOT[0], 0.24 - ARM_ROOT[1]) + 0.06;
 
 function clamp(value: number, min: number, max: number): number {
     return Math.min(max, Math.max(min, value));
@@ -59,85 +66,103 @@ function clamp(value: number, min: number, max: number): number {
  * Anything the frame loop animates is here too, so it can be reached
  * directly rather than collected through a ref per mesh: every blade fades
  * together, every disc fades together, and both strobes flash together, so
- * each of those is a single material and not eight, four and two.
+ * each of those is a single material and not twelve, six and two.
  */
 function createAirframe() {
     const geometries = {
-        arm: new BoxGeometry(ARM_LENGTH, 0.026, 0.05),
-        noseStripe: new BoxGeometry(0.16, 0.008, 0.05),
-        gimbalMount: new BoxGeometry(0.05, 0.035, 0.035),
-        gimbalBarrel: new CylinderGeometry(0.023, 0.023, 0.02, 20),
-        gimbalLens: new CylinderGeometry(0.017, 0.017, 0.004, 20),
-        motorPod: new CylinderGeometry(0.042, 0.046, 0.05, 20),
-        motorCap: new CylinderGeometry(0.028, 0.028, 0.012, 20),
-        propHub: new CylinderGeometry(0.012, 0.012, 0.022, 12),
-        blade: new BoxGeometry(0.185, 0.0035, 0.026),
-        blurDisc: new CircleGeometry(0.19, 32),
-        leg: new CylinderGeometry(0.011, 0.011, 0.108, 10),
+        // A hex prism for the core, so the airframe's silhouette agrees with
+        // the six booms leaving it.
+        core: new CylinderGeometry(BODY_RADIUS, BODY_RADIUS * 0.88, 0.085, 6),
+        coreTrim: new CylinderGeometry(
+            BODY_RADIUS * 0.99,
+            BODY_RADIUS * 0.99,
+            0.012,
+            6,
+        ),
+        belly: new CylinderGeometry(
+            BODY_RADIUS * 0.8,
+            BODY_RADIUS * 0.6,
+            0.03,
+            6,
+        ),
+        // Brushed sensor dome: the top half of a sphere, flattened where it
+        // is placed so it reads as a cap on the core rather than a ball
+        // sitting on it.
+        dome: new SphereGeometry(0.088, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2),
+        domeCollar: new CylinderGeometry(0.092, 0.092, 0.012, 24),
+        battery: new BoxGeometry(0.12, 0.032, 0.1),
+        boom: new CylinderGeometry(0.014, 0.021, BOOM_LENGTH, 10),
+        boomLamp: new BoxGeometry(0.03, 0.008, 0.075),
+        motorPod: new CylinderGeometry(0.036, 0.042, 0.046, 18),
+        motorCap: new CylinderGeometry(0.026, 0.026, 0.012, 18),
+        propHub: new CylinderGeometry(0.011, 0.011, 0.02, 10),
+        blade: new BoxGeometry(BLADE_LENGTH, 0.0035, 0.024),
+        blurDisc: new CircleGeometry(PROP_RADIUS, 28),
+        leg: new CylinderGeometry(0.009, 0.011, LEG_LENGTH, 8),
         // Landing feet and every lamp on the airframe are the same bead.
-        bead: new SphereGeometry(0.014, 12, 12),
-        statusStrip: new BoxGeometry(0.06, 0.012, 0.012),
+        bead: new SphereGeometry(FOOT_RADIUS, 10, 10),
+        gimbalYoke: new BoxGeometry(0.055, 0.03, 0.03),
+        gimbalBall: new SphereGeometry(0.036, 20, 16),
+        gimbalLens: new CylinderGeometry(0.019, 0.019, 0.006, 18),
+        sensorPod: new CylinderGeometry(0.03, 0.034, 0.022, 18),
+        sensorLens: new CircleGeometry(0.026, 20),
     };
 
     const materials = {
-        body: new MeshStandardMaterial({
-            color: '#282d34',
-            metalness: 0.35,
-            roughness: 0.5,
+        carbon: new MeshStandardMaterial({
+            color: '#1b1e23',
+            metalness: 0.5,
+            roughness: 0.42,
         }),
-        shell: new MeshStandardMaterial({
-            color: '#3d444d',
-            metalness: 0.25,
-            roughness: 0.55,
+        dome: new MeshStandardMaterial({
+            color: '#767e87',
+            metalness: 0.6,
+            roughness: 0.42,
+        }),
+        trim: new MeshStandardMaterial({
+            color: '#2b3138',
+            metalness: 0.6,
+            roughness: 0.35,
         }),
         dark: new MeshStandardMaterial({
-            color: '#1c2025',
-            roughness: 0.7,
+            color: '#0f1216',
+            roughness: 0.72,
         }),
         motor: new MeshStandardMaterial({
-            color: '#15181c',
-            metalness: 0.8,
-            roughness: 0.3,
+            color: '#0d1013',
+            metalness: 0.85,
+            roughness: 0.28,
         }),
         motorCap: new MeshStandardMaterial({
-            color: '#9aa3ad',
-            metalness: 0.9,
-            roughness: 0.25,
-        }),
-        noseStripe: new MeshStandardMaterial({
-            color: '#38bdf8',
-            emissive: '#0ea5e9',
-            emissiveIntensity: 0.25,
-            roughness: 0.4,
+            color: '#a8b0b8',
+            metalness: 0.92,
+            roughness: 0.22,
         }),
         gimbalLens: new MeshStandardMaterial({
-            color: '#10233f',
+            color: '#0b1d33',
             metalness: 0.9,
-            roughness: 0.12,
+            roughness: 0.1,
         }),
         blade: new MeshStandardMaterial({
-            color: '#181b1f',
-            roughness: 0.6,
+            color: '#101318',
+            roughness: 0.62,
             transparent: true,
         }),
         blurDisc: new MeshStandardMaterial({
-            color: '#22262b',
+            color: '#1b1f25',
             transparent: true,
             opacity: 0,
             depthWrite: false,
         }),
-        navPort: new MeshStandardMaterial({
-            color: '#3a0d0a',
-            emissive: '#ff3b30',
-            emissiveIntensity: 0.5,
-        }),
-        navStarboard: new MeshStandardMaterial({
-            color: '#0a2f14',
-            emissive: '#34c759',
+        // Front booms burn red, as on every camera drone, so the pilot can
+        // read the drone's heading from behind it.
+        boomLamp: new MeshStandardMaterial({
+            color: '#320907',
+            emissive: '#ff2d20',
             emissiveIntensity: 0.5,
         }),
         strobe: new MeshStandardMaterial({
-            color: '#2b2b23',
+            color: '#23262b',
             emissive: '#ffffff',
             emissiveIntensity: 0.05,
         }),
@@ -145,6 +170,11 @@ function createAirframe() {
             color: '#101418',
             emissive: '#f59e0b',
             emissiveIntensity: 0.6,
+        }),
+        sensorLens: new MeshStandardMaterial({
+            color: '#062730',
+            emissive: '#22d3ee',
+            emissiveIntensity: 2,
         }),
     };
 
@@ -159,11 +189,11 @@ let shared: Airframe | null = null;
  * The airframe's resources, built on first use and kept for the session.
  *
  * Deliberately one set for the whole application rather than one per
- * mounted drone. Only ever one quadcopter is on screen — the marketing
+ * mounted drone. Only ever one hexacopter is on screen — the marketing
  * showcase and the simulator are different pages — so per-instance copies
  * would buy isolation nothing uses, while a single set survives navigating
- * between missions and spares the GPU re-uploading the same thirteen
- * buffers each time.
+ * between missions and spares the GPU re-uploading the same buffers each
+ * time.
  *
  * Built lazily rather than at import: this module is pulled in by the
  * simulator chunk, and constructing WebGL-bound objects at import time
@@ -191,6 +221,7 @@ export function DroneModel({
     const { geometries, materials } = airframe();
     const tiltRef = useRef<Group>(null);
     const gimbalRef = useRef<Group>(null);
+    const sensorLampRef = useRef<PointLight>(null);
     const propRefs = useRef<(Group | null)[]>([]);
 
     useFrame(({ clock }, dt) => {
@@ -211,18 +242,17 @@ export function DroneModel({
             );
         }
 
+        // Adjacent rotors on a hex turn opposite ways so the yaw torques
+        // cancel, which is what the alternating sign here is.
         propRefs.current.forEach((prop, index) => {
-            if (!prop) {
-                return;
+            if (prop) {
+                const direction = index % 2 === 0 ? 1 : -1;
+                prop.rotation.y += flightState.rotorSpeed * dt * direction;
             }
-
-            const [x, z] = MOTOR_POSITIONS[index];
-            const direction = x * z > 0 ? 1 : -1;
-            prop.rotation.y += flightState.rotorSpeed * dt * direction;
         });
 
         // The airframe's own materials, not values this render owns: one
-        // blade material fades all eight blades, one strobe flashes both.
+        // blade material fades all twelve blades, one strobe flashes both.
         const animated = airframe().materials;
 
         // Crossfade blades into a translucent disc as the rotors spool up.
@@ -231,9 +261,7 @@ export function DroneModel({
         animated.blade.opacity = 1 - 0.85 * blur;
 
         const seconds = clock.elapsedTime;
-        const armedIntensity = flightState.armed ? 2.4 : 0.5;
-        animated.navPort.emissiveIntensity = armedIntensity;
-        animated.navStarboard.emissiveIntensity = armedIntensity;
+        animated.boomLamp.emissiveIntensity = flightState.armed ? 2.6 : 0.5;
 
         // Double-flash anti-collision strobe.
         const strobePhase = seconds % 1.3;
@@ -241,6 +269,19 @@ export function DroneModel({
             strobePhase < 0.07 || (strobePhase > 0.14 && strobePhase < 0.21)
                 ? 3.2
                 : 0.04;
+
+        // The downward vision sensor only looks at the ground it can reach,
+        // so its lamp fades out as the drone climbs away from it.
+        const proximity = clamp(1 - flightState.altitude / 4, 0.12, 1);
+        animated.sensorLens.emissiveIntensity = flightState.armed
+            ? 1.4 + 1.4 * proximity
+            : 0.6;
+
+        if (sensorLampRef.current) {
+            sensorLampRef.current.intensity = flightState.armed
+                ? 0.55 * proximity
+                : 0.12;
+        }
 
         const status = animated.status;
 
@@ -259,55 +300,82 @@ export function DroneModel({
 
     return (
         <group ref={tiltRef}>
-            {/* Fuselage */}
-            <RoundedBox
-                args={[0.3, 0.1, 0.46]}
-                radius={0.03}
+            {/* Carbon core, waist trim, and belly plate. The hex prism's flats
+                face the booms, so each one leaves the body square-on. */}
+            <mesh
                 castShadow
-                material={materials.body}
+                geometry={geometries.core}
+                material={materials.carbon}
             />
-            <RoundedBox
-                args={[0.2, 0.045, 0.28]}
-                radius={0.015}
-                position={[0, 0.06, 0.02]}
+            <mesh
+                position={[0, 0.036, 0]}
+                geometry={geometries.coreTrim}
+                material={materials.trim}
+            />
+            <mesh
+                position={[0, -0.055, 0]}
                 castShadow
-                material={materials.shell}
-            />
-            {/* Battery pack */}
-            <RoundedBox
-                args={[0.14, 0.035, 0.12]}
-                radius={0.008}
-                position={[0, 0.075, 0.13]}
+                geometry={geometries.belly}
                 material={materials.dark}
             />
-            {/* Nose accent stripe */}
+
+            {/* Brushed sensor dome */}
             <mesh
-                position={[0, 0.052, -0.17]}
-                geometry={geometries.noseStripe}
-                material={materials.noseStripe}
+                position={[0, 0.046, 0]}
+                geometry={geometries.domeCollar}
+                material={materials.trim}
+            />
+            <mesh
+                position={[0, 0.05, 0]}
+                scale={[1, 0.66, 1]}
+                castShadow
+                geometry={geometries.dome}
+                material={materials.dome}
             />
 
-            {/* Stabilized camera gimbal */}
-            <group position={[0, -0.045, -0.225]}>
+            {/* Battery slung under the tail of the core */}
+            <mesh
+                position={[0, -0.078, 0.055]}
+                castShadow
+                geometry={geometries.battery}
+                material={materials.dark}
+            />
+
+            {/* Downward vision sensor: the drone's own light source */}
+            <group position={[0, -0.076, 0]}>
                 <mesh
-                    position={[0, 0.03, 0.01]}
-                    geometry={geometries.gimbalMount}
+                    geometry={geometries.sensorPod}
+                    material={materials.motor}
+                />
+                <mesh
+                    position={[0, -0.013, 0]}
+                    rotation-x={Math.PI / 2}
+                    geometry={geometries.sensorLens}
+                    material={materials.sensorLens}
+                />
+                <pointLight
+                    ref={sensorLampRef}
+                    color="#22d3ee"
+                    intensity={0.12}
+                    distance={3.2}
+                    decay={2}
+                />
+            </group>
+
+            {/* Stabilized camera gimbal on the nose */}
+            <group position={[0, -0.05, -0.145]}>
+                <mesh
+                    position={[0, 0.028, 0.03]}
+                    geometry={geometries.gimbalYoke}
                     material={materials.dark}
                 />
                 <group ref={gimbalRef}>
-                    <RoundedBox
-                        args={[0.075, 0.065, 0.065]}
-                        radius={0.012}
+                    <mesh
+                        geometry={geometries.gimbalBall}
                         material={materials.dark}
                     />
                     <mesh
-                        position={[0, 0, -0.035]}
-                        rotation-x={Math.PI / 2}
-                        geometry={geometries.gimbalBarrel}
-                        material={materials.motor}
-                    />
-                    <mesh
-                        position={[0, 0, -0.046]}
+                        position={[0, 0, -0.031]}
                         rotation-x={Math.PI / 2}
                         geometry={geometries.gimbalLens}
                         material={materials.gimbalLens}
@@ -315,39 +383,38 @@ export function DroneModel({
                 </group>
             </group>
 
-            {/* Arms, motor pods, props, legs, lights */}
-            {MOTOR_POSITIONS.map(([x, z], index) => {
-                const rootX = Math.sign(x) * ARM_ROOT[0];
-                const rootZ = Math.sign(z) * ARM_ROOT[1];
-                const angle = Math.atan2(-(z - rootZ), x - rootX);
-                const isFront = z < 0;
+            {/* Booms, motor pods, props, legs, lamps */}
+            {BOOM_BEARINGS.map((bearing, index) => {
+                const front = isFrontBoom(bearing);
+                const rear = isRearBoom(bearing);
+                const boomCenter = -(BOOM_ROOT + BOOM_LENGTH / 2);
 
                 return (
-                    <group key={index}>
+                    <group key={bearing} rotation-y={-bearing}>
                         <mesh
-                            position={[(x + rootX) / 2, 0.02, (z + rootZ) / 2]}
-                            rotation-y={angle}
+                            position={[0, 0.012, boomCenter]}
+                            rotation-x={Math.PI / 2}
                             castShadow
-                            geometry={geometries.arm}
-                            material={materials.body}
+                            geometry={geometries.boom}
+                            material={materials.carbon}
                         />
 
                         {/* Motor pod */}
                         <mesh
-                            position={[x, 0.045, z]}
+                            position={[0, MOTOR_POD_Y, -MOTOR_REACH]}
                             castShadow
                             geometry={geometries.motorPod}
                             material={materials.motor}
                         />
                         <mesh
-                            position={[x, 0.075, z]}
+                            position={[0, MOTOR_CAP_Y, -MOTOR_REACH]}
                             geometry={geometries.motorCap}
                             material={materials.motorCap}
                         />
 
                         {/* Propeller: blades + blur disc */}
                         <group
-                            position={[x, 0.09, z]}
+                            position={[0, ROTOR_PLANE_Y, -MOTOR_REACH]}
                             ref={(prop) => {
                                 propRefs.current[index] = prop;
                             }}
@@ -359,7 +426,7 @@ export function DroneModel({
                             {[1, -1].map((side) => (
                                 <mesh
                                     key={side}
-                                    position={[side * 0.0975, 0, 0]}
+                                    position={[side * 0.074, 0, 0]}
                                     rotation-x={side * 0.14}
                                     geometry={geometries.blade}
                                     material={materials.blade}
@@ -367,45 +434,60 @@ export function DroneModel({
                             ))}
                         </group>
                         <mesh
-                            position={[x, 0.09, z]}
+                            position={[0, ROTOR_PLANE_Y, -MOTOR_REACH]}
                             rotation-x={-Math.PI / 2}
                             geometry={geometries.blurDisc}
                             material={materials.blurDisc}
                         />
 
-                        {/* Landing leg */}
-                        <mesh
-                            position={[x * 0.84, -0.082, z * 0.84]}
-                            castShadow
-                            geometry={geometries.leg}
-                            material={materials.dark}
-                        />
-                        <mesh
-                            position={[x * 0.84, -0.136, z * 0.84]}
-                            geometry={geometries.bead}
-                            material={materials.dark}
-                        />
+                        {/* Boom lamp: red ahead of the beam, strobe behind */}
+                        {(front || rear) && (
+                            <mesh
+                                position={[0, -0.006, -MOTOR_REACH + 0.055]}
+                                geometry={geometries.boomLamp}
+                                material={
+                                    front
+                                        ? materials.boomLamp
+                                        : materials.strobe
+                                }
+                            />
+                        )}
 
-                        {/* Navigation and strobe lights */}
-                        <mesh
-                            position={[x, 0.012, z]}
-                            geometry={geometries.bead}
-                            material={
-                                isFront
-                                    ? x < 0
-                                        ? materials.navPort
-                                        : materials.navStarboard
-                                    : materials.strobe
-                            }
-                        />
+                        {/* Landing legs hang off the four swept booms, so the
+                            beam pair stays clear for the boom lamps. Their
+                            feet stop exactly at the rest height the physics
+                            model parks the body at. */}
+                        {(front || rear) && (
+                            <>
+                                <mesh
+                                    position={[
+                                        0,
+                                        LEG_CENTER_Y,
+                                        -LEG_RADIAL_OFFSET,
+                                    ]}
+                                    castShadow
+                                    geometry={geometries.leg}
+                                    material={materials.dark}
+                                />
+                                <mesh
+                                    position={[
+                                        0,
+                                        FOOT_CENTER_Y,
+                                        -LEG_RADIAL_OFFSET,
+                                    ]}
+                                    geometry={geometries.bead}
+                                    material={materials.dark}
+                                />
+                            </>
+                        )}
                     </group>
                 );
             })}
 
-            {/* Rear status LED strip */}
+            {/* Rear status LED, readable from the pilot's side of the drone */}
             <mesh
-                position={[0, 0.045, 0.225]}
-                geometry={geometries.statusStrip}
+                position={[0, 0.02, 0.142]}
+                geometry={geometries.bead}
                 material={materials.status}
             />
         </group>

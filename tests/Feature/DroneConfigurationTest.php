@@ -14,6 +14,7 @@ use App\Models\DroneModel;
 use App\Models\User;
 use App\Models\UserChallengeProgress;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Exceptions;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -356,6 +357,32 @@ final class DroneConfigurationTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->where('drone.slug', $this->defaultDrone()->slug)
                 ->has('drone.airframe.rotors'));
+    }
+
+    /**
+     * The one caller of the fleet default that survives it being unresolvable.
+     *
+     * A cockpit with no airframe has nothing to fly, so the mission page is
+     * right to fail. The hero drone is decoration on the page that explains
+     * the product and takes the signup, and taking the storefront down over an
+     * ornament costs signups to fix nothing. Still reported: the deploy is
+     * broken, it is just not the visitor's problem.
+     */
+    public function test_the_landing_page_survives_a_fleet_with_no_resolvable_default(): void
+    {
+        Exceptions::fake();
+        DroneModel::query()->fleetDefault()->update(['is_default' => false]);
+
+        $this->get(route('home'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('drone', null)
+                // The rest of the pitch is untouched — the drone is the only
+                // thing the broken fleet costs the page.
+                ->has('courses')
+                ->has('missionCount'));
+
+        Exceptions::assertReported(RuntimeException::class);
     }
 
     /**

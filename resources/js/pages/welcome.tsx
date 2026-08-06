@@ -98,8 +98,15 @@ function SectionLabel({ children }: { children: string }) {
 }
 
 type WelcomeProps = {
-    /** The fleet's default airframe, turning in the hero. */
-    drone: DroneModelSummary;
+    /**
+     * The fleet's default airframe, turning in the hero.
+     *
+     * Null when the catalogue cannot name a default, which is a broken deploy
+     * the server has already reported. The hero panel keeps its frame and
+     * renders empty: the drone is decoration, and none of the pitch depends on
+     * it, so a visitor gets the page rather than an error.
+     */
+    drone: DroneModelSummary | null;
     courses: MarketingCourse[];
     missionCount: number;
 };
@@ -183,8 +190,16 @@ export default function Welcome({
                                 className="pointer-events-none absolute inset-0 grid-dots opacity-30"
                             />
                             <div className="relative z-10 w-4/5 py-16 transition-transform duration-700 hover:scale-[1.02]">
+                                {/* The frame stays whether or not there is a
+                                    drone to put in it, so a fleet the server
+                                    could not resolve a default from costs the
+                                    hero its ornament and nothing else. Left
+                                    plainly empty rather than given the loading
+                                    pulse: nothing is on its way. */}
                                 <div className="aspect-square min-w-0 overflow-hidden rounded-2xl bg-surface-elevated outline outline-1 -outline-offset-1 outline-white/5">
-                                    <LazyDroneShowcase drone={drone} />
+                                    {drone ? (
+                                        <LazyDroneShowcase drone={drone} />
+                                    ) : null}
                                 </div>
                             </div>
                         </div>

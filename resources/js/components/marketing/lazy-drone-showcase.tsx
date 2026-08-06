@@ -1,4 +1,5 @@
 import { lazy, Suspense } from 'react';
+import type { DroneModelSummary } from '@/types/drone';
 
 /**
  * Defers the landing page's 3D drone until after the page itself is up.
@@ -26,10 +27,10 @@ function ShowcasePlaceholder() {
     );
 }
 
-export function LazyDroneShowcase() {
+export function LazyDroneShowcase({ drone }: { drone: DroneModelSummary }) {
     return (
         <Suspense fallback={<ShowcasePlaceholder />}>
-            <DroneShowcase />
+            <DroneShowcase drone={drone} />
         </Suspense>
     );
 }

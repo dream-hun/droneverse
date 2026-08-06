@@ -12,10 +12,12 @@ import { useCanvasResizeFix } from '@/hooks/use-canvas-resize-fix';
 import { createFlightVisualState } from '@/lib/simulator/flight-state';
 import type { SimulatorSession } from '@/lib/simulator/session';
 import { cn } from '@/lib/utils';
+import type { DroneModelSummary } from '@/types/drone';
 import type { EnvironmentConfig, SuccessCriteria } from '@/types/simulator';
 
 type SimulatorCanvasProps = {
     session: SimulatorSession;
+    drone: DroneModelSummary;
     environment: EnvironmentConfig;
     successCriteria: SuccessCriteria;
     maxScore: number;
@@ -42,9 +44,11 @@ const SUN_DIRECTION: [number, number, number] = [0.75, 1, 0.46];
  * for that in the editor, as typing latency, on the page where they spend
  * the most time typing.
  *
- * Every prop is stable across those renders: `session` and `environment`
- * come from `useState`/Inertia page props by reference, the URLs are equal
- * strings, and `maxScore` is a number — so the shallow compare bails.
+ * Every prop is stable across those renders: `session`, `environment` and
+ * `drone` come from `useState`/Inertia page props by reference, the URLs are
+ * equal strings, and `maxScore` is a number — so the shallow compare bails.
+ * Choosing a new airframe reloads the `drone` prop, which is a new reference
+ * and therefore does re-render — which is exactly what has to happen.
  */
 function SimulatorCanvasComponent({
     environment,

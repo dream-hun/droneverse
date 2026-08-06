@@ -3,8 +3,9 @@ import { Canvas } from '@react-three/fiber';
 import { useRef } from 'react';
 import { DroneModel } from '@/components/simulator/drone-model';
 import { useCanvasResizeFix } from '@/hooks/use-canvas-resize-fix';
+import type { DroneModelSummary } from '@/types/drone';
 
-export function DroneShowcase() {
+export function DroneShowcase({ drone }: { drone: DroneModelSummary }) {
     const containerRef = useRef<HTMLDivElement>(null);
     useCanvasResizeFix(containerRef);
 
@@ -22,7 +23,7 @@ export function DroneShowcase() {
                 <directionalLight position={[-5, 2, -4]} intensity={1.4} />
                 <directionalLight position={[0, -3, 5]} intensity={0.5} />
                 <group scale={1.7}>
-                    <DroneModel />
+                    <DroneModel drone={drone} />
                 </group>
                 <OrbitControls
                     autoRotate

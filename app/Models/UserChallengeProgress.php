@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $id
  * @property int $user_id
  * @property int $challenge_id
+ * @property int|null $drone_model_id
  * @property ChallengeStatus $status
  * @property int $best_score
  * @property int $stars
@@ -24,7 +25,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $attempts
  * @property CarbonInterface|null $completed_at
  */
-#[Fillable(['user_id', 'challenge_id', 'status', 'best_score', 'stars', 'last_code', 'attempts', 'completed_at'])]
+#[Fillable(['user_id', 'challenge_id', 'drone_model_id', 'status', 'best_score', 'stars', 'last_code', 'attempts', 'completed_at'])]
 #[Table(name: 'user_challenge_progress')]
 final class UserChallengeProgress extends Model
 {
@@ -45,6 +46,20 @@ final class UserChallengeProgress extends Model
     public function challenge(): BelongsTo
     {
         return $this->belongsTo(Challenge::class);
+    }
+
+    /**
+     * The airframe this pilot has chosen for this mission.
+     *
+     * Null until they choose one, which is the state every pilot without the
+     * Pro entitlement stays in. {@see \App\Actions\ResolveMissionDrone} reads
+     * that as the fleet default rather than as an error.
+     *
+     * @return BelongsTo<DroneModel, $this>
+     */
+    public function drone(): BelongsTo
+    {
+        return $this->belongsTo(DroneModel::class, 'drone_model_id');
     }
 
     /**

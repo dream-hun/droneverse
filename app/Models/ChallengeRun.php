@@ -26,6 +26,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $uuid
  * @property int $user_id
  * @property int $challenge_id
+ * @property int|null $drone_model_id
  * @property int $score
  * @property int $stars
  * @property bool $completed
@@ -40,6 +41,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable([
     'user_id',
     'challenge_id',
+    'drone_model_id',
     'score',
     'stars',
     'completed',
@@ -101,6 +103,21 @@ final class ChallengeRun extends Model
     public function challenge(): BelongsTo
     {
         return $this->belongsTo(Challenge::class);
+    }
+
+    /**
+     * The airframe this run was flown in.
+     *
+     * Null on every run flown before the fleet existed, and on any run whose
+     * drone has since been retired from it. Both mean the same thing to a
+     * reader — the airframe of the day — and neither is worth losing the run
+     * over, which is why the column nulls out rather than cascading.
+     *
+     * @return BelongsTo<DroneModel, $this>
+     */
+    public function drone(): BelongsTo
+    {
+        return $this->belongsTo(DroneModel::class, 'drone_model_id');
     }
 
     /**

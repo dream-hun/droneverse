@@ -110,7 +110,15 @@ enum Plan: string
             self::Pro => [
                 'Every course and every mission',
                 'JavaScript and Python',
-                'Mission Builder and the drone configuration editor',
+                /*
+                 * These were one bullet until the drone fleet shipped, and
+                 * splitting them is the same correction the analytics line
+                 * below records: a bullet pairing a built capability with an
+                 * unbuilt one makes the built half vouch for the other, which
+                 * is exactly what this list's docblock exists to prevent.
+                 */
+                'Pick your airframe on any mission — five drones, five envelopes',
+                'Mission Builder — coming soon',
                 /*
                  * Analytics and certificates were one bullet until analytics
                  * shipped. Leaving them paired would have made the built half

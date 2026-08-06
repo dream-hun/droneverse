@@ -24,6 +24,7 @@ final class DatabaseSeeder extends Seeder
             'email' => 'test@example.com',
         ]);
 
+        $this->call(DroneSeeder::class);
         $this->call(CourseSeeder::class);
     }
 }

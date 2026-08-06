@@ -23,11 +23,7 @@ import {
     DRAG_TILT_COEFFICIENT,
     forwardVector,
     GRAVITY,
-    MAX_CLIMB_RATE,
-    MAX_TILT,
     quaternionYaw,
-    REST_HEIGHT,
-    SPOOL_SECONDS,
 } from '@/lib/simulator/physics';
 import type { ControlState, WindField } from '@/lib/simulator/physics';
 import type { SimulatorSession } from '@/lib/simulator/session';
@@ -38,6 +34,7 @@ import {
 import { createUploadQueue } from '@/lib/simulator/upload-queue';
 import { droneVoice } from '@/lib/simulator/voice';
 import { SimulationWorkerClient } from '@/lib/simulator/worker-client';
+import type { DroneModelSummary } from '@/types/drone';
 import type {
     EnvironmentConfig,
     RunResult,
@@ -53,13 +50,12 @@ type UseDroneSimulationArgs = {
     attemptUrl: string;
     photoUrl: string;
     flightState: FlightVisualState;
+    /** The airframe the pilot is flying, as resolved server-side. */
+    drone: DroneModelSummary;
 };
 
-const ROTOR_VISUAL_MAX_SPEED = 82; // rad/s at full throttle
 const ROTOR_SLEW_RATE = 110; // rad/s^2 spool feel
 const TILT_SMOOTHING_TAU = 0.22; // seconds
-const BATTERY_IDLE_DRAIN = 0.04; // %/s with motors idle
-const BATTERY_THROTTLE_DRAIN = 0.22; // additional %/s at full throttle
 
 /**
  * Scratch vectors for the frame loop.
@@ -91,7 +87,8 @@ function modeLabel(
 
     switch (active.command.type) {
         case 'takeoff':
-            return !control.airborne && active.elapsed < SPOOL_SECONDS
+            return !control.airborne &&
+                active.elapsed < control.spec.spoolSeconds
                 ? 'SPOOL UP'
                 : 'TAKEOFF';
         case 'land':
@@ -131,13 +128,14 @@ export function useDroneSimulation({
     attemptUrl,
     photoUrl,
     flightState,
+    drone,
 }: UseDroneSimulationArgs) {
     const { world, rapier } = useRapier();
     const gl = useThree((state) => state.gl);
     const scene = useThree((state) => state.scene);
     const clientRef = useRef<SimulationWorkerClient | null>(null);
     const bridgeRef = useRef(createBridge(successCriteria.waypoints.length));
-    const controlRef = useRef(createControlState());
+    const controlRef = useRef(createControlState(drone.flight));
     const windRef = useRef<WindField | null>(null);
     const previousVelocityRef = useRef<Vector3>({ x: 0, y: 0, z: 0 });
     const flightStateRef = useRef(flightState);
@@ -298,7 +296,7 @@ export function useDroneSimulation({
             body.setTranslation(
                 {
                     x: environment.start.x,
-                    y: REST_HEIGHT,
+                    y: drone.flight.restHeight,
                     z: environment.start.z,
                 },
                 true,
@@ -312,7 +310,7 @@ export function useDroneSimulation({
                 true,
             );
         },
-        [environment.start],
+        [drone.flight.restHeight, environment.start],
     );
 
     const run = useCallback(
@@ -327,7 +325,7 @@ export function useDroneSimulation({
 
             codeRef.current = code;
             bridgeRef.current = createBridge(successCriteria.waypoints.length);
-            controlRef.current = createControlState();
+            controlRef.current = createControlState(drone.flight);
             windRef.current = createWindField(
                 environment.wind?.speed ?? 1.8,
                 environment.wind?.directionDeg !== undefined
@@ -354,6 +352,7 @@ export function useDroneSimulation({
                             command,
                             currentBody.translation(),
                             quaternionYaw(currentBody.rotation()),
+                            drone.flight,
                         ),
                         resolve: (result: unknown) =>
                             client.resolveCommand(id, result),
@@ -376,6 +375,7 @@ export function useDroneSimulation({
         },
         [
             appendLog,
+            drone.flight,
             environment.wind,
             finishRun,
             resetDrone,
@@ -445,10 +445,13 @@ export function useDroneSimulation({
             return;
         }
 
+        const spec = drone.flight;
+        const rotorMaxSpeed = drone.airframe.rotorMaxSpeed;
+
         if (!session.isRunning()) {
             // Idle: spool the rotors down (or keep them turning if the run
             // was aborted mid-air) and relax the visual tilt.
-            const idleTarget = fs.airborne ? 38 : 0;
+            const idleTarget = fs.airborne ? rotorMaxSpeed * 0.46 : 0;
             const rotorDelta = idleTarget - fs.rotorSpeed;
             fs.rotorSpeed +=
                 Math.sign(rotorDelta) *
@@ -459,7 +462,7 @@ export function useDroneSimulation({
             fs.groundSpeed = 0;
             fs.verticalSpeed = 0;
             droneEngine.setState(
-                fs.rotorSpeed / ROTOR_VISUAL_MAX_SPEED,
+                fs.rotorSpeed / rotorMaxSpeed,
                 fs.rotorSpeed,
                 0,
             );
@@ -524,13 +527,13 @@ export function useDroneSimulation({
 
         const targetPitch = clamp(
             -Math.atan2(forwardAccel, GRAVITY),
-            -MAX_TILT,
-            MAX_TILT,
+            -spec.maxTilt,
+            spec.maxTilt,
         );
         const targetRoll = clamp(
             -Math.atan2(rightAccel, GRAVITY),
-            -MAX_TILT,
-            MAX_TILT,
+            -spec.maxTilt,
+            spec.maxTilt,
         );
         const smoothing = 1 - Math.exp(-dt / TILT_SMOOTHING_TAU);
         fs.pitch += (targetPitch - fs.pitch) * smoothing;
@@ -542,12 +545,13 @@ export function useDroneSimulation({
         if (bridge.active?.command.type === 'takeoff' && !control.airborne) {
             throttle =
                 0.15 +
-                0.45 * Math.min(1, bridge.active.elapsed / SPOOL_SECONDS);
+                0.45 * Math.min(1, bridge.active.elapsed / spec.spoolSeconds);
         } else if (control.airborne) {
             throttle = clamp(
                 0.55 +
-                    0.28 * clamp(control.velocity.y / MAX_CLIMB_RATE, -1, 1) +
-                    0.18 * (tiltMagnitude / MAX_TILT),
+                    0.28 *
+                        clamp(control.velocity.y / spec.maxClimbRate, -1, 1) +
+                    0.18 * (tiltMagnitude / spec.maxTilt),
                 0.15,
                 1,
             );
@@ -556,7 +560,7 @@ export function useDroneSimulation({
         }
 
         fs.throttle = throttle;
-        const rotorTarget = throttle * ROTOR_VISUAL_MAX_SPEED;
+        const rotorTarget = throttle * rotorMaxSpeed;
         const rotorDelta = rotorTarget - fs.rotorSpeed;
         fs.rotorSpeed +=
             Math.sign(rotorDelta) *
@@ -565,12 +569,13 @@ export function useDroneSimulation({
         fs.batteryPct = Math.max(
             0,
             fs.batteryPct -
-                (BATTERY_IDLE_DRAIN + BATTERY_THROTTLE_DRAIN * throttle) * dt,
+                (spec.batteryIdleDrain + spec.batteryThrottleDrain * throttle) *
+                    dt,
         );
 
         fs.armed = true;
         fs.airborne = control.airborne;
-        fs.altitude = Math.max(0, position.y - REST_HEIGHT);
+        fs.altitude = Math.max(0, position.y - spec.restHeight);
         fs.groundSpeed = Math.hypot(appliedVelocity.x, appliedVelocity.z);
         fs.verticalSpeed = appliedVelocity.y;
         fs.headingDeg = compassDegrees(yaw);

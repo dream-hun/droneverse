@@ -1,8 +1,9 @@
 import type { ActiveCommand, DroneCommand, Vector3 } from './commands';
 import { clamp } from './math';
+import type { DroneFlightSpec } from '@/types/drone';
 
 /**
- * Flight model for a prosumer GPS quadcopter in "Normal" mode.
+ * Flight model for a GPS multirotor in "Normal" mode.
  *
  * The drone is a real dynamic Rapier rigid body (mass, damping, collisions
  * with obstacles/ground all physically resolved) commanded through the same
@@ -21,19 +22,20 @@ import { clamp } from './math';
  *   corrects, producing the micro-wander of a real drone holding position.
  *   (The mean wind component is modelled as already cancelled by the flight
  *   controller's wind estimator, which is why only gusts are applied.)
+ *
+ * The performance envelope itself is not in this file. Every cap and
+ * acceleration a drone flies under is a field of the `DroneFlightSpec` the
+ * server sends for the airframe the pilot chose, carried on the ControlState
+ * for the length of a run. What stays here is the control law — the shape of
+ * an approach, of a landing flare, of a position hold — which is the same
+ * law on every airframe. A Vector and a Freighter fly differently because
+ * they are given different numbers, not because they are flown by different
+ * code.
+ *
+ * What remains as a module constant is what is genuinely not a property of
+ * the drone: arrival tolerances (how close counts as arrived), the landing
+ * procedure's flare gate, gravity, and the gains of the position loop.
  */
-
-// Performance envelope, patterned on a DJI-Mavic-class quad in Normal mode.
-export const DEFAULT_CRUISE_SPEED = 5; // m/s
-export const MIN_CRUISE_SPEED = 1; // m/s
-export const MAX_CRUISE_SPEED = 8; // m/s
-export const MAX_CLIMB_RATE = 3; // m/s
-export const MAX_DESCENT_RATE = 2.5; // m/s
-export const HORIZONTAL_ACCELERATION = 4; // m/s^2
-export const VERTICAL_ACCELERATION = 3; // m/s^2
-export const BRAKING_ACCELERATION = 3.2; // m/s^2
-export const MAX_YAW_RATE = Math.PI; // rad/s
-export const YAW_ACCELERATION = Math.PI * 2; // rad/s^2
 
 // Arrival tolerances: a command completes when the drone is inside the
 // position window *and* has bled off its speed, so it settles instead of
@@ -44,18 +46,17 @@ export const YAW_EPSILON = 0.03; // radians
 export const YAW_SETTLE_RATE = 0.35; // rad/s
 export const LANDING_EPSILON = 0.05; // meters above rest height
 
-export const REST_HEIGHT = 0.15; // meters, drone center height when landed
 export const DEFAULT_TAKEOFF_ALTITUDE = 1.5;
-export const SPOOL_SECONDS = 0.6; // motor spool-up before the takeoff climb
 export const PHOTO_STABILIZE_SECONDS = 0.4; // hold steady before the shutter fires
 export const FLARE_ALTITUDE = 0.7; // slow the descent below this height
 export const FLARE_DESCENT_RATE = 0.5; // m/s final approach
 
-// Visual attitude model: a quad tilts into its acceleration, plus a steady
-// tilt against aerodynamic drag while cruising.
+// Visual attitude model: an airframe tilts into its acceleration, plus a
+// steady tilt against aerodynamic drag while cruising. How far it will lean
+// is the drone's own `maxTilt`; how much lean a given speed buys is this,
+// and it is the air's property rather than the drone's.
 export const GRAVITY = 9.81;
 export const DRAG_TILT_COEFFICIENT = 0.55; // (m/s^2) of tilt per (m/s) of speed
-export const MAX_TILT = 0.38; // radians (~22 degrees)
 
 const SETTLE_GAIN = 2.5; // proportional gain for the final approach and hold
 const HOLD_SPEED_CAP = 1.6; // m/s while station-keeping
@@ -84,8 +85,15 @@ function normalizeAngle(angle: number): number {
 
 /**
  * Controller state persisted across frames for one run: the commanded
- * velocity being slewed, the yaw rate, the position-hold setpoint, and the
- * pilot-adjustable cruise speed.
+ * velocity being slewed, the yaw rate, the position-hold setpoint, the
+ * pilot-adjustable cruise speed, and the envelope all of them are bounded by.
+ *
+ * The spec rides here rather than being threaded through every function
+ * because it has exactly the lifetime this object does — one run, in one
+ * airframe — and because every function that needs it already takes the
+ * control state. Swapping drones between runs is therefore a new control
+ * state, which is what `createControlState` is called with on each run
+ * anyway, and there is no way to end up half-way between two airframes.
  */
 export type ControlState = {
     velocity: Vector3;
@@ -93,15 +101,17 @@ export type ControlState = {
     cruiseSpeed: number;
     holdPoint: Vector3 | null;
     airborne: boolean;
+    spec: DroneFlightSpec;
 };
 
-export function createControlState(): ControlState {
+export function createControlState(spec: DroneFlightSpec): ControlState {
     return {
         velocity: { x: 0, y: 0, z: 0 },
         yawRate: 0,
-        cruiseSpeed: DEFAULT_CRUISE_SPEED,
+        cruiseSpeed: spec.cruiseSpeed,
         holdPoint: null,
         airborne: false,
+        spec,
     };
 }
 
@@ -151,11 +161,21 @@ export function createWindField(
     };
 }
 
-/** Called once when a command becomes active: resolves it into a concrete target. */
+/**
+ * Called once when a command becomes active: resolves it into a concrete
+ * target.
+ *
+ * Takes the spec because two commands resolve against the airframe rather
+ * than against the world: a takeoff with no altitude climbs to the default,
+ * and a landing targets the height *this* drone's landing gear parks it at.
+ * A Freighter told to land at the Surveyor's rest height would stop with its
+ * feet still in the air.
+ */
 export function beginCommand(
     command: DroneCommand,
     position: Vector3,
     yaw: number,
+    spec: DroneFlightSpec,
 ): Omit<ActiveCommand, 'resolve'> {
     const base = {
         command,
@@ -174,7 +194,10 @@ export function beginCommand(
                 },
             };
         case 'land':
-            return { ...base, targetPosition: { ...position, y: REST_HEIGHT } };
+            return {
+                ...base,
+                targetPosition: { ...position, y: spec.restHeight },
+            };
         case 'setAltitude':
             return {
                 ...base,
@@ -244,6 +267,7 @@ function speedOf(velocity: Vector3): number {
 function directionSpeedCap(
     direction: Vector3,
     cruiseSpeed: number,
+    climbCap: number,
     descentCap: number,
 ): number {
     const horizontal = Math.hypot(direction.x, direction.z);
@@ -254,7 +278,7 @@ function directionSpeedCap(
     }
 
     if (direction.y > 1e-6) {
-        cap = Math.min(cap, MAX_CLIMB_RATE / direction.y);
+        cap = Math.min(cap, climbCap / direction.y);
     }
 
     if (direction.y < -1e-6) {
@@ -272,7 +296,7 @@ function desiredVelocityToward(
     position: Vector3,
     target: Vector3,
     control: ControlState,
-    descentCap: number = MAX_DESCENT_RATE,
+    descentCap: number = control.spec.maxDescentRate,
     speedCap: number = Number.POSITIVE_INFINITY,
 ): Vector3 {
     const dx = target.x - position.x;
@@ -288,12 +312,14 @@ function desiredVelocityToward(
     const envelopeCap = directionSpeedCap(
         direction,
         Math.min(control.cruiseSpeed, speedCap),
+        control.spec.maxClimbRate,
         descentCap,
     );
     const speed = Math.min(
         envelopeCap,
         SETTLE_GAIN * distance,
-        Math.sqrt(2 * BRAKING_ACCELERATION * distance) * BRAKING_MARGIN,
+        Math.sqrt(2 * control.spec.brakingAcceleration * distance) *
+            BRAKING_MARGIN,
     );
 
     return {
@@ -304,18 +330,23 @@ function desiredVelocityToward(
 }
 
 /** Slew the commanded velocity toward the setpoint within acceleration limits. */
-function slewVelocity(current: Vector3, desired: Vector3, dt: number): Vector3 {
+function slewVelocity(
+    current: Vector3,
+    desired: Vector3,
+    dt: number,
+    spec: DroneFlightSpec,
+): Vector3 {
     const dx = desired.x - current.x;
     const dz = desired.z - current.z;
     const horizontalDelta = Math.hypot(dx, dz);
-    const maxHorizontalDelta = HORIZONTAL_ACCELERATION * dt;
+    const maxHorizontalDelta = spec.horizontalAcceleration * dt;
     const horizontalScale =
         horizontalDelta > maxHorizontalDelta
             ? maxHorizontalDelta / horizontalDelta
             : 1;
 
     const dy = desired.y - current.y;
-    const maxVerticalDelta = VERTICAL_ACCELERATION * dt;
+    const maxVerticalDelta = spec.verticalAcceleration * dt;
     const verticalStep =
         Math.abs(dy) > maxVerticalDelta ? Math.sign(dy) * maxVerticalDelta : dy;
 
@@ -338,7 +369,11 @@ function slewScalar(
 
 /** Bleed any residual yaw rate while no turn is commanded. */
 function settleYawRate(control: ControlState, dt: number): number {
-    control.yawRate = slewScalar(control.yawRate, 0, YAW_ACCELERATION * dt);
+    control.yawRate = slewScalar(
+        control.yawRate,
+        0,
+        control.spec.yawAcceleration * dt,
+    );
 
     return control.yawRate;
 }
@@ -354,10 +389,15 @@ function holdVelocity(
         position,
         point,
         control,
-        MAX_DESCENT_RATE,
+        control.spec.maxDescentRate,
         HOLD_SPEED_CAP,
     );
-    control.velocity = slewVelocity(control.velocity, desired, dt);
+    control.velocity = slewVelocity(
+        control.velocity,
+        desired,
+        dt,
+        control.spec,
+    );
 
     return control.velocity;
 }
@@ -405,8 +445,8 @@ export function computeControlStep(
     if (command.type === 'setSpeed') {
         control.cruiseSpeed = clamp(
             command.speed,
-            MIN_CRUISE_SPEED,
-            MAX_CRUISE_SPEED,
+            control.spec.minCruiseSpeed,
+            control.spec.maxCruiseSpeed,
         );
     }
 
@@ -414,7 +454,7 @@ export function computeControlStep(
     if (
         command.type === 'takeoff' &&
         !control.airborne &&
-        active.elapsed < SPOOL_SECONDS
+        active.elapsed < control.spec.spoolSeconds
     ) {
         control.velocity = { x: 0, y: 0, z: 0 };
 
@@ -463,15 +503,15 @@ export function computeControlStep(
         const desiredRate =
             Math.sign(error) *
             Math.min(
-                MAX_YAW_RATE,
-                Math.sqrt(2 * YAW_ACCELERATION * Math.abs(error)) *
+                control.spec.maxYawRate,
+                Math.sqrt(2 * control.spec.yawAcceleration * Math.abs(error)) *
                     BRAKING_MARGIN,
                 5 * Math.abs(error),
             );
         control.yawRate = slewScalar(
             control.yawRate,
             desiredRate,
-            YAW_ACCELERATION * dt,
+            control.spec.yawAcceleration * dt,
         );
 
         return { linvel, angvel: control.yawRate, done: false };
@@ -503,6 +543,7 @@ export function computeControlStep(
                 control.velocity,
                 { x: 0, y: 0, z: 0 },
                 dt,
+                control.spec,
             );
 
             if (landing) {
@@ -524,23 +565,28 @@ export function computeControlStep(
         // already at flare speed, then creeps down to touchdown.
         const descentCap = landing
             ? Math.min(
-                  MAX_DESCENT_RATE,
+                  control.spec.maxDescentRate,
                   Math.sqrt(
                       FLARE_DESCENT_RATE ** 2 +
                           2 *
-                              VERTICAL_ACCELERATION *
+                              control.spec.verticalAcceleration *
                               0.8 *
                               Math.max(0, position.y - FLARE_ALTITUDE),
                   ),
               )
-            : MAX_DESCENT_RATE;
+            : control.spec.maxDescentRate;
         const desired = desiredVelocityToward(
             position,
             target,
             control,
             descentCap,
         );
-        control.velocity = slewVelocity(control.velocity, desired, dt);
+        control.velocity = slewVelocity(
+            control.velocity,
+            desired,
+            dt,
+            control.spec,
+        );
 
         return {
             linvel: control.velocity,

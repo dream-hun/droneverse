@@ -4,8 +4,8 @@ import type { RefObject } from 'react';
 import { DroneModel } from '@/components/simulator/drone-model';
 import { useDroneSimulation } from '@/hooks/use-drone-simulation';
 import type { FlightVisualState } from '@/lib/simulator/flight-state';
-import { REST_HEIGHT } from '@/lib/simulator/physics';
 import type { SimulatorSession } from '@/lib/simulator/session';
+import type { DroneModelSummary } from '@/types/drone';
 import type { EnvironmentConfig, SuccessCriteria } from '@/types/simulator';
 
 type DroneRigProps = {
@@ -17,6 +17,7 @@ type DroneRigProps = {
     maxScore: number;
     attemptUrl: string;
     photoUrl: string;
+    drone: DroneModelSummary;
 };
 
 export function DroneRig({
@@ -28,6 +29,7 @@ export function DroneRig({
     maxScore,
     attemptUrl,
     photoUrl,
+    drone,
 }: DroneRigProps) {
     const { handleCollision, handleSensorEnter } = useDroneSimulation({
         rigidBodyRef,
@@ -38,10 +40,20 @@ export function DroneRig({
         attemptUrl,
         photoUrl,
         flightState,
+        drone,
     });
 
     return (
         <RigidBody
+            /*
+             * Keyed on the airframe so switching drones rebuilds the body
+             * rather than re-rendering it. `colliders="cuboid"` measures the
+             * mesh tree once, when the body mounts; a Freighter swapped in
+             * under a Vector's collider would fly a 1.4 m airframe through
+             * gates on a 0.5 m hitbox, and every collision the mission scores
+             * would be measured against the drone the pilot used to have.
+             */
+            key={drone.id}
             ref={rigidBodyRef}
             type="dynamic"
             colliders="cuboid"
@@ -49,7 +61,11 @@ export function DroneRig({
             linearDamping={4}
             angularDamping={4}
             enabledRotations={[false, true, false]}
-            position={[environment.start.x, REST_HEIGHT, environment.start.z]}
+            position={[
+                environment.start.x,
+                drone.flight.restHeight,
+                environment.start.z,
+            ]}
             userData={{ kind: 'drone' }}
             onCollisionEnter={({ other }) =>
                 handleCollision(
@@ -62,7 +78,7 @@ export function DroneRig({
                 )
             }
         >
-            <DroneModel flightState={flightState} />
+            <DroneModel flightState={flightState} drone={drone} />
         </RigidBody>
     );
 }

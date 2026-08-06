@@ -12,6 +12,7 @@ import { SiteFooter } from '@/components/marketing/site-footer';
 import { SiteHeader } from '@/components/marketing/site-header';
 import { dashboard, leaderboard, register } from '@/routes';
 import { index as coursesIndex, show as showCourse } from '@/routes/courses';
+import type { DroneModelSummary } from '@/types/drone';
 import type { MarketingCourse } from '@/types/simulator';
 
 /**
@@ -97,11 +98,17 @@ function SectionLabel({ children }: { children: string }) {
 }
 
 type WelcomeProps = {
+    /** The fleet's default airframe, turning in the hero. */
+    drone: DroneModelSummary;
     courses: MarketingCourse[];
     missionCount: number;
 };
 
-export default function Welcome({ courses, missionCount }: WelcomeProps) {
+export default function Welcome({
+    courses,
+    missionCount,
+    drone,
+}: WelcomeProps) {
     const { auth } = usePage().props;
 
     const firstCourse = courses.at(0);
@@ -177,7 +184,7 @@ export default function Welcome({ courses, missionCount }: WelcomeProps) {
                             />
                             <div className="relative z-10 w-4/5 py-16 transition-transform duration-700 hover:scale-[1.02]">
                                 <div className="aspect-square min-w-0 overflow-hidden rounded-2xl bg-surface-elevated outline outline-1 -outline-offset-1 outline-white/5">
-                                    <LazyDroneShowcase />
+                                    <LazyDroneShowcase drone={drone} />
                                 </div>
                             </div>
                         </div>

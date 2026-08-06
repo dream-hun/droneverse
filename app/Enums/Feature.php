@@ -75,10 +75,9 @@ enum Feature: string
     public function isAvailable(): bool
     {
         return match ($this) {
-            self::PrioritySupport, self::BetaAccess, self::AdvancedAnalytics => true,
+            self::PrioritySupport, self::BetaAccess, self::AdvancedAnalytics, self::DroneConfigEditor => true,
             self::PythonRuntime,
             self::MissionBuilder,
-            self::DroneConfigEditor,
             self::PremiumCertificates,
             self::DownloadableProjects => false,
             self::TeamManagement, self::ClassroomTools => false,

@@ -13,6 +13,7 @@ import type { MissionFlightLog } from '@/components/analytics/mission-flight-log
 import { BriefingPanel } from '@/components/simulator/briefing-panel';
 import { CodeEditor } from '@/components/simulator/code-editor';
 import { ConsolePanel } from '@/components/simulator/console-panel';
+import { DronePicker } from '@/components/simulator/drone-picker';
 import { LazySimulatorCanvas } from '@/components/simulator/lazy-simulator-canvas';
 import { ResultModal } from '@/components/simulator/result-modal';
 import { SolutionPanel } from '@/components/simulator/solution-panel';
@@ -28,6 +29,7 @@ import { droneVoice } from '@/lib/simulator/voice';
 import { store as storeAttempt } from '@/routes/challenges/attempts';
 import { store as storePhoto } from '@/routes/challenges/photos';
 import { show as showCourse } from '@/routes/courses';
+import type { DroneModelSummary } from '@/types/drone';
 import type {
     ChallengeDetail,
     ChallengeProgress,
@@ -42,6 +44,10 @@ type PlayProps = {
     solution: ChallengeSolution;
     /** `null` without the Pro entitlement; `undefined` while deferred. */
     flightLog: MissionFlightLog | null | undefined;
+    /** The airframe on the pad, resolved server-side for every pilot. */
+    drone: DroneModelSummary;
+    /** The fleet to choose from; `null` without the Pro entitlement. */
+    fleet: DroneModelSummary[] | null;
 };
 
 /**
@@ -58,6 +64,8 @@ export default function Play({
     progress,
     solution,
     flightLog,
+    drone,
+    fleet,
 }: PlayProps) {
     setLayoutProps({
         breadcrumbs: [
@@ -116,6 +124,18 @@ export default function Play({
                         <RotateCcw /> Reset code
                     </Button>
 
+                    {/* Beside the flight controls rather than among the
+                        status badges: which airframe is on the pad is a
+                        decision the pilot makes before a run, not a fact
+                        about how the last one went. */}
+                    <DronePicker
+                        drone={drone}
+                        fleet={fleet}
+                        courseSlug={course.slug}
+                        challengeSlug={challenge.slug}
+                        disabled={isRunning}
+                    />
+
                     <div className="ml-auto flex flex-wrap items-center gap-2">
                         <Badge variant="outline" className="capitalize">
                             {progress.status.replace('_', ' ')}
@@ -172,6 +192,7 @@ export default function Play({
                 <div className="h-[42vh] min-h-64 shrink-0 overflow-hidden rounded-xl border lg:h-[46%]">
                     <LazySimulatorCanvas
                         session={session}
+                        drone={drone}
                         environment={challenge.environment}
                         successCriteria={challenge.successCriteria}
                         maxScore={challenge.maxScore}

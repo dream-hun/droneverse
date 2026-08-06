@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Enums\ChallengeStatus;
 use App\Models\Challenge;
 use App\Models\ChallengeRun;
+use App\Models\DroneModel;
 use App\Models\User;
 use App\Models\UserChallengeProgress;
 use App\Queries\FlightLog;
@@ -41,11 +42,17 @@ final readonly class RecordChallengeAttempt
      * for the duration so concurrent submissions from the same pilot cannot
      * produce lost updates.
      *
+     * The drone is passed in already resolved rather than read off the
+     * progress row here. It is the same airframe the cockpit was rendered
+     * with — {@see ResolveMissionDrone} is the one place that
+     * decision is made — and taking it as an argument keeps this action
+     * honest about the fact that it records a choice it does not get to make.
+     *
      * @param  array{score: int, stars: int, completed: bool, objectivesHit: int, objectivesTotal: int, collisions: int, elapsedSeconds: float, landed: bool, timedOut: bool}  $result  as returned by GradeSimulatorRun
      *
      * @throws Throwable
      */
-    public function handle(User $user, Challenge $challenge, array $result, string $code): UserChallengeProgress
+    public function handle(User $user, Challenge $challenge, array $result, string $code, DroneModel $drone): UserChallengeProgress
     {
         $score = max(0, min($result['score'], $challenge->max_score));
         $stars = max(0, min($result['stars'], self::MAX_STARS));
@@ -55,7 +62,7 @@ final readonly class RecordChallengeAttempt
             'challenge_id' => $challenge->id,
         ]);
 
-        $progress = DB::transaction(function () use ($user, $challenge, $result, $code, $score, $stars): UserChallengeProgress {
+        $progress = DB::transaction(function () use ($user, $challenge, $result, $code, $score, $stars, $drone): UserChallengeProgress {
             $progress = UserChallengeProgress::query()
                 ->where('user_id', $user->id)
                 ->where('challenge_id', $challenge->id)
@@ -83,6 +90,7 @@ final readonly class RecordChallengeAttempt
             ChallengeRun::query()->create([
                 'user_id' => $user->id,
                 'challenge_id' => $challenge->id,
+                'drone_model_id' => $drone->id,
                 'score' => $score,
                 'stars' => $stars,
                 'completed' => $result['completed'],

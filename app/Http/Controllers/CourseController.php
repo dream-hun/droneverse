@@ -7,9 +7,11 @@ namespace App\Http\Controllers;
 use App\Enums\Plan;
 use App\Http\Resources\ChallengeSummaryResource;
 use App\Http\Resources\CourseCatalogResource;
+use App\Http\Resources\QuizSummaryResource;
 use App\Models\Course;
 use App\Models\User;
 use App\Models\UserChallengeProgress;
+use App\Models\UserQuizProgress;
 use App\Queries\Leaderboard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -89,6 +91,25 @@ final class CourseController extends Controller
                     $user?->plan() ?? Plan::Starter,
                 );
             }),
+            /*
+             * Deferred separately from the missions rather than folded in
+             * with them. They are two independent lists rendered in two
+             * places, and a shared closure would make the missions — which
+             * are what the page is for — wait on a count of quiz questions.
+             */
+            'quizzes' => Inertia::defer(function () use ($course, $user) {
+                $quizzes = $course->quizzes()
+                    ->published()
+                    ->withCount('questions')
+                    ->get(['id', 'title', 'slug', 'description', 'required_plan', 'pass_percentage']);
+
+                return QuizSummaryResource::collection(
+                    $quizzes,
+                    $this->progressByQuiz($user, $quizzes->pluck('id')),
+                    $course,
+                    $user?->plan() ?? Plan::Starter,
+                );
+            }),
         ]);
     }
 
@@ -118,5 +139,28 @@ final class CourseController extends Controller
             ->whereIn('challenge_id', $challengeIds)
             ->get(['challenge_id', 'status', 'best_score', 'stars'])
             ->keyBy('challenge_id');
+    }
+
+    /**
+     * The viewer's progress on the given quizzes, keyed by quiz id.
+     *
+     * One query for the whole page rather than one per row; a guest skips the
+     * trip entirely. `passed_at` is selected as well as the counters because
+     * {@see UserQuizProgress::status()} derives the row's state from it, and a
+     * row missing the column would read as never passed.
+     *
+     * @param  Collection<int, int>  $quizIds
+     * @return Collection<int, UserQuizProgress>
+     */
+    private function progressByQuiz(?User $user, Collection $quizIds): Collection
+    {
+        if (! $user instanceof User || $quizIds->isEmpty()) {
+            return collect();
+        }
+
+        return $user->quizProgress()
+            ->whereIn('quiz_id', $quizIds)
+            ->get(['quiz_id', 'best_score', 'attempts', 'passed_at'])
+            ->keyBy('quiz_id');
     }
 }

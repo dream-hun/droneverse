@@ -61,6 +61,23 @@ final class Course extends Model
     }
 
     /**
+     * The knowledge checks attached to this course.
+     *
+     * A course normally carries one, but this is a hasMany rather than a
+     * hasOne: nothing in the schema or the routing forbids a second, the
+     * quiz is addressed by its own slug within the course exactly as a
+     * mission is, and a hasOne would have to be widened — along with every
+     * caller — the first time a course wants a mid-course check as well as
+     * a final one.
+     *
+     * @return HasMany<Quiz, $this>
+     */
+    public function quizzes(): HasMany
+    {
+        return $this->hasMany(Quiz::class)->orderBy('order');
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array

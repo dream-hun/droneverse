@@ -6,6 +6,7 @@ use App\Http\Controllers\ChallengeController;
 use App\Http\Controllers\ChallengeDroneController;
 use App\Http\Controllers\CourseController;
 use App\Http\Controllers\DronePhotoController;
+use App\Http\Controllers\QuizController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('courses', [CourseController::class, 'index'])->name('courses.index');
@@ -40,6 +41,19 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('courses/{course:slug}/challenges/{challenge:slug}/photos', [DronePhotoController::class, 'store'])
         ->middleware('throttle:120,1')
         ->name('challenges.photos.store');
+
+    Route::get('courses/{course:slug}/quizzes/{quiz:slug}', [QuizController::class, 'show'])->name('quizzes.show');
+
+    /*
+     * A quiz is answered once and submitted once, so this ceiling sits far
+     * above any pilot taking one honestly — it exists to bound what a script
+     * can do, not to pace a retake. Retakes are unlimited by design and a
+     * pilot reviewing a quiz may well submit it several times in a sitting,
+     * which is why it is not tighter.
+     */
+    Route::post('courses/{course:slug}/quizzes/{quiz:slug}/attempts', [QuizController::class, 'store'])
+        ->middleware('throttle:30,1')
+        ->name('quizzes.attempts.store');
 
     Route::get('photos', [DronePhotoController::class, 'index'])->name('photos.index');
     Route::delete('photos/{photo}', [DronePhotoController::class, 'destroy'])->name('photos.destroy');

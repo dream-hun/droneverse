@@ -39,6 +39,7 @@ graph TB
 
     subgraph Catalog
         CAT[Course, Challenge<br/>authored, read-mostly, public]
+        QUIZ[Quiz, QuizQuestion, QuizOption<br/>authored; the key never leaves the server]
     end
 
     subgraph Flight
@@ -49,6 +50,8 @@ graph TB
     subgraph Progress
         UCP[UserChallengeProgress<br/>the entity a pilot writes]
         RUN[ChallengeRun<br/>append-only attempt history]
+        UQP[UserQuizProgress<br/>monotonic standing per quiz]
+        QA[QuizAttempt<br/>append-only submission history]
         LB[Queries\Leaderboard<br/>cached ranked projection]
         FL[Queries\FlightLog<br/>cached per-pilot analytics]
     end
@@ -65,10 +68,13 @@ graph TB
     ID --> ENT
     PADDLE --> ENT
     ENT -->|gates| CAT
+    ENT -->|gates| QUIZ
     CAT --> SIM
     SIM --> GRADE
     GRADE --> UCP
     GRADE --> RUN
+    QUIZ -->|graded server-side| UQP
+    QUIZ -->|graded server-side| QA
     UCP -->|invalidates| LB
     RUN -->|invalidates| FL
     RUN --> FL
@@ -76,6 +82,14 @@ graph TB
     SIM --> PHOTO
     ENT -->|gates| PHOTO
 ```
+
+Quizzes sit inside Catalog rather than beside it, and they are gated by the
+same arrow as the missions: a `Quiz` states a `required_plan` and knows nothing
+about what a `Plan` is, exactly as a `Course` does. Note what has no arrow —
+nothing runs from quiz progress to the leaderboard or to `FlightLog`. Those two
+rank and analyse *flying*, and neither reads a quiz, which is why
+`RecordQuizAttempt` invalidates no cache. When quiz results start appearing on
+either, that arrow and that invalidation appear together.
 
 **The dependency rule that matters:** entitlement points *into* catalog and
 media, never out. `Plan` knows nothing about a `Course`; a `Course` states which
@@ -96,9 +110,9 @@ decides what it was worth. The two graders share a policy that
 | Context | Owns | Entry points |
 | --- | --- | --- |
 | Identity | `users`, passkeys, 2FA columns | Fortify routes, `routes/settings.php` |
-| Catalog | `courses`, `challenges` | `routes/courses.php` (GET) |
+| Catalog | `courses`, `challenges`, `quizzes`, `quiz_questions`, `quiz_options` | `routes/courses.php` (GET) |
 | Flight | none (stateless grading) | `POST .../attempts` |
-| Progress | `user_challenge_progress`, `challenge_runs` | `RecordChallengeAttempt`, `Queries\Leaderboard`, `Queries\FlightLog` |
+| Progress | `user_challenge_progress`, `challenge_runs`, `user_quiz_progress`, `quiz_attempts` | `RecordChallengeAttempt`, `RecordQuizAttempt`, `Queries\Leaderboard`, `Queries\FlightLog` |
 | Billing | `customers`, `subscriptions`, `subscription_items`, `transactions`, `users.plan_override` | `routes/billing.php`, Paddle webhook |
 | Media | `drone_photos`, the `public` disk | `POST .../photos`, `routes/courses.php` |
 
@@ -381,11 +395,20 @@ breaking-change surface.
 ```mermaid
 erDiagram
     users ||--o{ user_challenge_progress : flies
+    users ||--o{ challenge_runs : submits
+    users ||--o{ user_quiz_progress : takes
+    users ||--o{ quiz_attempts : submits
     users ||--o{ drone_photos : captures
     users ||--o{ subscriptions : holds
     courses ||--o{ challenges : contains
+    courses ||--o{ quizzes : contains
     challenges ||--o{ user_challenge_progress : scored_by
+    challenges ||--o{ challenge_runs : graded_by
     challenges ||--o{ drone_photos : taken_on
+    quizzes ||--o{ quiz_questions : asks
+    quiz_questions ||--o{ quiz_options : answered_by
+    quizzes ||--o{ user_quiz_progress : scored_by
+    quizzes ||--o{ quiz_attempts : graded_by
     subscriptions ||--o{ subscription_items : priced_by
 
     users {
@@ -427,6 +450,62 @@ erDiagram
         int attempts
         timestamp completed_at "nullable"
     }
+    challenge_runs {
+        bigint id PK
+        uuid uuid UK "route key"
+        bigint user_id FK
+        bigint challenge_id FK
+        bigint drone_model_id FK "nullable — airframe of the day"
+        int score
+        tinyint stars
+        bool completed
+        decimal elapsed_seconds
+        timestamp created_at "no updated_at — append-only"
+    }
+    quizzes {
+        bigint id PK
+        bigint course_id FK
+        string slug "unique with course_id, route key"
+        text description
+        tinyint pass_percentage "default 70"
+        string required_plan "nullable — inherits course"
+        int order
+        bool is_published
+    }
+    quiz_questions {
+        bigint id PK
+        bigint quiz_id FK "indexed with order"
+        text prompt
+        string type "single or multiple"
+        text explanation "nullable — withheld until graded"
+        int order
+    }
+    quiz_options {
+        bigint id PK
+        bigint quiz_question_id FK "indexed with order"
+        text label
+        bool is_correct "the answer key, #[Hidden]"
+        int order
+    }
+    user_quiz_progress {
+        bigint id PK
+        bigint user_id FK "unique with quiz_id"
+        bigint quiz_id FK
+        tinyint best_score "monotonic, percentage"
+        int attempts
+        timestamp passed_at "nullable, set once"
+    }
+    quiz_attempts {
+        bigint id PK
+        uuid uuid UK "route key"
+        bigint user_id FK
+        bigint quiz_id FK
+        tinyint score "percentage"
+        smallint correct_count
+        smallint question_count
+        bool passed
+        timestamp created_at "no updated_at — append-only"
+    }
     drone_photos {
         bigint id PK
         bigint user_id FK
@@ -436,6 +515,13 @@ erDiagram
         json position "nullable"
     }
 ```
+
+The two halves of the schema rhyme on purpose. `quizzes` is to `courses` what
+`challenges` is — authored, slug-routed within its course, `required_plan`
+nullable — and `user_quiz_progress`/`quiz_attempts` is to a quiz exactly what
+`user_challenge_progress`/`challenge_runs` is to a mission: one monotonic row
+the pilot owns, and one append-only row per graded submission. A reader who
+knows the mission half already knows this one.
 
 ### 5.2 Design decisions worth keeping
 
@@ -455,7 +541,44 @@ leaderboard needs no history to be correct.
 
 **`user_challenge_progress` has a `(user_id, challenge_id)` unique key.** It is
 both the correctness constraint and the index that serves the per-pilot lookup
-on the hot path.
+on the hot path. `user_quiz_progress` carries the same key on `(user_id,
+quiz_id)`, for both of the same reasons — and it is what makes the
+firstOrCreate-then-lock in `RecordQuizAttempt` safe under a double-submitted
+form: two racing submissions collide on the constraint, then serialize on the
+row.
+
+**`quiz_options.is_correct` is the answer key, and it is defended twice.** The
+shape that reaches the browser is built by hand in `QuizDetailResource` — id and
+label, nothing else — and `QuizOption` additionally hides the column from
+serialization, so a stray `toArray()`, a debug dump or an accidentally
+eager-loaded relation cannot leak it either. `quiz_questions.explanation` is
+withheld on the same shape for the same reason: on a well-written question,
+saying *why* an answer is right gives the answer away as surely as the flag
+does. Both travel only through `QuizResultResource`, after grading, when there
+is nothing left to give away. This is the `challenges.solution_code`
+arrangement, applied to a table where every row carries a secret.
+
+**A quiz is scored as a percentage, not a point total.** `pass_percentage` on
+the quiz and `best_score` on the progress row are both percentages, which is
+what lets an author add a question to a published quiz without moving the bar
+underneath the pilots who already cleared it. It is also why there is no
+`points` column on `quiz_questions`: weighting only means something once an
+author has a reason to say one question matters more, and a column nobody sets
+still has to be read, summed and defended by the grader.
+
+**Quiz progress is monotonic, and `passed_at` is the authority on a pass.**
+`best_score` only rises and `passed_at` is set once with `??=`, never cleared.
+Retakes are unlimited, which is what makes that guarantee necessary rather than
+merely kind — a pilot reopening a quiz to review the questions must not be able
+to lose the pass they hold. Deriving "passed" from `best_score >=
+pass_percentage` instead would silently revoke passes the moment an author
+raised the bar.
+
+**`quiz_attempts` does not store the chosen answers.** Per-option answer history
+is a much wider and faster-growing table, it is only worth building once someone
+is actually asking which distractor pilots fall for, and it would tie a pilot's
+history to question rows that authors replace wholesale on every re-seed. The
+counts are what a history reads.
 
 ### 5.3 Index strategy
 
@@ -470,6 +593,20 @@ cheap.
 | `challenges (course_id, is_published)` | the per-course board, and the published-challenge count on every catalog card |
 | `courses.slug` unique | route binding |
 | `challenges (course_id, slug)` unique | route binding, scoped to the course |
+| `quizzes (course_id, slug)` unique | route binding, scoped to the course — the same key `challenges` carries, so two courses may both have a `final-exam` |
+| `quiz_questions (quiz_id, order)` | the whole quiz, in author order, for the page and the grader alike |
+| `quiz_options (quiz_question_id, order)` | the options of a question, in author order |
+| `uqp (user_id, quiz_id)` unique | the hot-path lookup in `RecordQuizAttempt`, and the per-page progress merge on the course page |
+| `quiz_attempts (user_id, quiz_id, id)` | one pilot's submission history on one quiz, in order. Leads with `id` rather than `created_at` so two submissions in the same second still sort, and the read never leaves the index |
+| `quiz_attempts (quiz_id)` | pass rates and score distributions across every pilot. The index above leads with `user_id`, so it **cannot** serve a lookup that names no pilot |
+
+The quiz indexes are sized for a table that is *not* the one that decides the
+board. `user_quiz_progress` grows as `users × quizzes`, and quizzes are a
+handful per course against dozens of missions — it is an order of magnitude
+smaller than `user_challenge_progress` and will stay that way. The pair on
+`quiz_attempts` mirrors `challenge_runs` not because the volume demands it yet,
+but because the two tables answer the same shaped questions and a reader should
+not have to work out why one is indexed differently.
 
 Every board aggregate reads through `Leaderboard::playable()` — published
 challenge inside a published course — so "playable" means exactly one thing
@@ -491,12 +628,21 @@ Not built. Recorded here so the shape is agreed before it is urgent.
   `app/Queries/FlightLog.php` is the read model over it and
   `Feature::AdvancedAnalytics` now has its source data.
   **Still owed:** a monthly roll-off or partition. This is the fastest-growing
-  table in the schema and nothing prunes it yet.
+  table in the schema and nothing prunes it yet — and `quiz_attempts` now has
+  the same debt on the same terms, so whatever retention policy lands should
+  cover both rather than being written twice.
   Two indexes carry it: `(user_id, challenge_id, id)` puts the per-pilot
   attempt curve entirely inside an index — leading with `id` rather than
   `created_at` so two runs in the same second still order — and
   `(challenge_id)` serves the cohort aggregates, which name no pilot and so
   cannot use the first.
+- ~~**quiz tables** — a knowledge check per course.~~ **Built.**
+  `2026_08_06_215721`–`215725`: `quizzes`, `quiz_questions`, `quiz_options`,
+  `user_quiz_progress`, `quiz_attempts`. Gated by course tier through
+  `Quiz::requiredPlanIn()`, graded server-side by `GradeQuizSubmission`, merged
+  and logged in one transaction by `RecordQuizAttempt`. See §5.1–§5.3.
+  **Still owed:** the retention policy noted above, and an authoring surface —
+  quizzes are seeded content today, with no UI to write one.
 - **`teams` / `team_members`** — `Plan::Team` sells ten seats and
   `ResolvePlanForUser` already documents where the `fromTeamMembership()` branch
   slots in: between the subscription and the Starter fallback.
@@ -739,6 +885,7 @@ Where the code and this document (or `CLAUDE.md`) disagree today.
 | 6 | ~~No attempt history — only the merged progress row survives.~~ | ~~medium~~ — **closed** | `challenge_runs` ships (§5.4), `app/Queries/FlightLog.php` reads it, and `/analytics` is gated on `can:advanced_analytics`. `Feature::AdvancedAnalytics->isAvailable()` is now `true`, so the pricing grid stops marking a sold capability as unbuilt. What is left is not the schema but the retention policy: nothing prunes the table yet. |
 | 7 | Leaderboard invalidation is global and per-attempt. | **high at scale** | §6.2. The seam is correct; the policy behind it has a cliff. |
 | 8 | `Plan::Team` and `Plan::Enterprise` are sold in `pricing.md` but `isSelfServe()` returns false for both. | none — deliberate | Checkout is closed for tiers whose features (classroom tools, SSO) do not exist. Taking money for them would be a chargeback. The ordering rule is enforced in the enum rather than trusted to the pricing page's markup. |
+| 9 | `docs/pricing.md` sells "Interactive quizzes" as a **Pro** Learning Tool. Quizzes inherit their course's tier, so the Drone Basics quiz is reachable on Starter. | low — **decide, then align one side** | The code is the more generous reading and probably the right one: a free quiz on a free course is an upgrade argument, not a giveaway, and it is the same logic that keeps every course page open to everyone. But the two documents disagree today. Either move the seeded Starter quizzes behind `required_plan = pro` — the per-quiz override exists precisely for this — or reword the Pro bullet to sell what Pro actually adds, which is quizzes on the Pro courses. There is deliberately no `Feature::InteractiveQuizzes`: quizzes are catalogue depth, not a capability, and gating them twice would put a Starter pilot's own course quiz behind a flag. |
 
 ---
 

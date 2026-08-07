@@ -82,6 +82,14 @@ final class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     }
 
     /**
+     * @return HasMany<UserQuizProgress, $this>
+     */
+    public function quizProgress(): HasMany
+    {
+        return $this->hasMany(UserQuizProgress::class);
+    }
+
+    /**
      * @return HasMany<DronePhoto, $this>
      */
     public function dronePhotos(): HasMany

@@ -26,5 +26,8 @@ final class DatabaseSeeder extends Seeder
 
         $this->call(DroneSeeder::class);
         $this->call(CourseSeeder::class);
+        // After CourseSeeder: every quiz attaches to a course by slug, and
+        // skips itself if that course is not there yet.
+        $this->call(QuizSeeder::class);
     }
 }

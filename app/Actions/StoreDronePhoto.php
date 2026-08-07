@@ -7,7 +7,6 @@ namespace App\Actions;
 use App\Models\Challenge;
 use App\Models\DronePhoto;
 use App\Models\User;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -64,7 +63,7 @@ final readonly class StoreDronePhoto
             self::EXTENSIONS[$mime],
         );
 
-        Storage::disk('public')->put($path, $binary);
+        DronePhoto::disk()->put($path, $binary);
 
         return DronePhoto::query()->create([
             'user_id' => $user->id,

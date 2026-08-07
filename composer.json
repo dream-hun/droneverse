@@ -16,6 +16,7 @@
         "laravel/framework": "^13.24",
         "laravel/tinker": "^3.0.2",
         "laravel/wayfinder": "^0.1.21",
+        "league/flysystem-aws-s3-v3": "^3.35",
         "lemonsqueezy/laravel": "^1.9",
         "opcodesio/log-viewer": "^3.24.2"
     },

@@ -14,7 +14,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -91,7 +90,7 @@ final class DronePhotoController extends Controller
         // then leaves a stray file to sweep up rather than a log entry
         // pointing at an image that is already gone.
         $photo->delete();
-        Storage::disk('public')->delete($path);
+        DronePhoto::disk()->delete($path);
 
         return back();
     }

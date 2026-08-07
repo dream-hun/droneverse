@@ -23,7 +23,7 @@ final class DronePhotoTest extends TestCase
 
     public function test_a_photo_cannot_be_uploaded_to_a_mission_the_plan_does_not_cover(): void
     {
-        Storage::fake('public');
+        Storage::fake('photos');
 
         $user = User::factory()->create();
         $course = Course::factory()->requiring(Plan::Pro)->create();
@@ -37,7 +37,7 @@ final class DronePhotoTest extends TestCase
         $response->assertForbidden();
 
         $this->assertSame(0, DronePhoto::query()->count());
-        Storage::disk('public')->assertDirectoryEmpty('/');
+        Storage::disk('photos')->assertDirectoryEmpty('/');
     }
 
     public function test_guests_cannot_store_photos(): void
@@ -55,7 +55,7 @@ final class DronePhotoTest extends TestCase
 
     public function test_a_simulator_photo_is_stored_on_disk_and_in_the_log(): void
     {
-        Storage::fake('public');
+        Storage::fake('photos');
 
         $user = User::factory()->create();
         $course = Course::factory()->create();
@@ -78,13 +78,13 @@ final class DronePhotoTest extends TestCase
             ['x' => 4.2, 'y' => 9.5, 'z' => -8.1, 'headingDeg' => 182.5],
             $photo->position,
         );
-        Storage::disk('public')->assertExists($photo->path);
+        Storage::disk('photos')->assertExists($photo->path);
         $this->assertStringEndsWith('.png', $photo->path);
     }
 
     public function test_a_photo_without_telemetry_stores_a_null_position(): void
     {
-        Storage::fake('public');
+        Storage::fake('photos');
 
         $user = User::factory()->create();
         $course = Course::factory()->create();
@@ -101,7 +101,7 @@ final class DronePhotoTest extends TestCase
 
     public function test_payloads_that_are_not_data_urls_are_rejected(): void
     {
-        Storage::fake('public');
+        Storage::fake('photos');
 
         $user = User::factory()->create();
         $course = Course::factory()->create();
@@ -119,7 +119,7 @@ final class DronePhotoTest extends TestCase
 
     public function test_base64_that_is_not_a_real_image_is_rejected(): void
     {
-        Storage::fake('public');
+        Storage::fake('photos');
 
         $user = User::factory()->create();
         $course = Course::factory()->create();
@@ -135,12 +135,12 @@ final class DronePhotoTest extends TestCase
         $response->assertUnprocessable();
         $response->assertJsonValidationErrors('image');
         $this->assertDatabaseCount('drone_photos', 0);
-        $this->assertEmpty(Storage::disk('public')->allFiles());
+        $this->assertEmpty(Storage::disk('photos')->allFiles());
     }
 
     public function test_photos_cannot_be_stored_on_unpublished_content(): void
     {
-        Storage::fake('public');
+        Storage::fake('photos');
 
         $user = User::factory()->create();
         $course = Course::factory()->create();
@@ -157,7 +157,7 @@ final class DronePhotoTest extends TestCase
 
     public function test_photos_cannot_be_stored_for_a_challenge_from_another_course(): void
     {
-        Storage::fake('public');
+        Storage::fake('photos');
 
         $user = User::factory()->create();
         $course = Course::factory()->create();
@@ -197,7 +197,7 @@ final class DronePhotoTest extends TestCase
 
     public function test_a_stored_photo_is_identified_to_the_client_by_its_uuid(): void
     {
-        Storage::fake('public');
+        Storage::fake('photos');
 
         $user = User::factory()->create();
         $course = Course::factory()->create();
@@ -222,11 +222,11 @@ final class DronePhotoTest extends TestCase
 
     public function test_a_photo_is_addressed_by_uuid_and_not_by_id(): void
     {
-        Storage::fake('public');
+        Storage::fake('photos');
 
         $user = User::factory()->create();
         $photo = DronePhoto::factory()->for($user)->create();
-        Storage::disk('public')->put($photo->path, 'jpeg-bytes');
+        Storage::disk('photos')->put($photo->path, 'jpeg-bytes');
 
         $this->assertStringContainsString($photo->uuid, route('photos.destroy', $photo));
 
@@ -238,7 +238,7 @@ final class DronePhotoTest extends TestCase
             ->assertNotFound();
 
         $this->assertDatabaseHas('drone_photos', ['id' => $photo->id]);
-        Storage::disk('public')->assertExists($photo->path);
+        Storage::disk('photos')->assertExists($photo->path);
     }
 
     public function test_guests_cannot_view_the_photo_log(): void
@@ -250,38 +250,38 @@ final class DronePhotoTest extends TestCase
 
     public function test_a_user_can_delete_their_own_photo_and_its_file(): void
     {
-        Storage::fake('public');
+        Storage::fake('photos');
 
         $user = User::factory()->create();
         $photo = DronePhoto::factory()->for($user)->create();
-        Storage::disk('public')->put($photo->path, 'jpeg-bytes');
+        Storage::disk('photos')->put($photo->path, 'jpeg-bytes');
 
         $response = $this->actingAs($user)->delete(route('photos.destroy', $photo));
 
         $response->assertRedirect();
         $this->assertDatabaseMissing('drone_photos', ['id' => $photo->id]);
-        Storage::disk('public')->assertMissing($photo->path);
+        Storage::disk('photos')->assertMissing($photo->path);
     }
 
     public function test_a_user_cannot_delete_someone_elses_photo(): void
     {
-        Storage::fake('public');
+        Storage::fake('photos');
 
         $user = User::factory()->create();
         $other = User::factory()->create();
         $photo = DronePhoto::factory()->for($other)->create();
-        Storage::disk('public')->put($photo->path, 'jpeg-bytes');
+        Storage::disk('photos')->put($photo->path, 'jpeg-bytes');
 
         $response = $this->actingAs($user)->delete(route('photos.destroy', $photo));
 
         $response->assertForbidden();
         $this->assertDatabaseHas('drone_photos', ['id' => $photo->id]);
-        Storage::disk('public')->assertExists($photo->path);
+        Storage::disk('photos')->assertExists($photo->path);
     }
 
     public function test_the_photo_log_has_a_storage_cap(): void
     {
-        Storage::fake('public');
+        Storage::fake('photos');
 
         $user = User::factory()->create();
         $course = Course::factory()->create();
@@ -297,6 +297,103 @@ final class DronePhotoTest extends TestCase
         $response->assertUnprocessable();
         $response->assertJsonValidationErrors('image');
         $this->assertDatabaseCount('drone_photos', 500);
+    }
+
+    public function test_a_photo_url_is_a_link_that_expires(): void
+    {
+        Storage::fake('photos');
+        $this->freezeTime();
+
+        $user = User::factory()->create();
+        $photo = DronePhoto::factory()->for($user)->create();
+        Storage::disk('photos')->put($photo->path, 'jpeg-bytes');
+
+        parse_str((string) parse_url($photo->url(), PHP_URL_QUERY), $query);
+
+        // A photo is private to the pilot who took it, so the URL has to stop
+        // working on its own. A permanent link would outlive both the pilot's
+        // access to the mission and the photo's own deletion.
+        $this->assertArrayHasKey('expiration', $query);
+        $this->assertSame(
+            now()->addMinutes(30)->getTimestamp(),
+            (int) $query['expiration'],
+        );
+    }
+
+    public function test_the_photo_log_serves_expiring_urls(): void
+    {
+        Storage::fake('photos');
+
+        $user = User::factory()->create();
+        $course = Course::factory()->create();
+        $challenge = Challenge::factory()->for($course)->create();
+        DronePhoto::factory()->for($user)->for($challenge)->create();
+
+        $response = $this->actingAs($user)->get(route('photos.index'));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->component('photos/index')
+            ->where('photos.0.url', fn (string $url): bool => str_contains($url, 'expiration=')));
+    }
+
+    public function test_a_stored_photo_is_returned_with_an_expiring_url(): void
+    {
+        Storage::fake('photos');
+
+        $user = User::factory()->create();
+        $course = Course::factory()->create();
+        $challenge = Challenge::factory()->for($course)->create();
+
+        $response = $this->actingAs($user)->postJson(
+            route('challenges.photos.store', [$course, $challenge]),
+            $this->payload(),
+        );
+
+        $response->assertCreated();
+        $this->assertStringContainsString('expiration=', (string) $response->json('url'));
+    }
+
+    public function test_photos_are_written_to_the_configured_disk(): void
+    {
+        Storage::fake('photos');
+        Storage::fake('s3');
+        config(['filesystems.photo_disk' => 's3']);
+
+        $user = User::factory()->create();
+        $course = Course::factory()->create();
+        $challenge = Challenge::factory()->for($course)->create();
+
+        $response = $this->actingAs($user)->postJson(
+            route('challenges.photos.store', [$course, $challenge]),
+            $this->payload(),
+        );
+
+        $response->assertCreated();
+
+        $photo = DronePhoto::query()->sole();
+
+        // The point of the config key: on a host whose filesystem does not
+        // survive a release, nothing may fall back to the local disk.
+        Storage::disk('s3')->assertExists($photo->path);
+        Storage::disk('photos')->assertDirectoryEmpty('/');
+    }
+
+    public function test_deleting_a_photo_removes_the_file_from_the_configured_disk(): void
+    {
+        Storage::fake('photos');
+        Storage::fake('s3');
+        config(['filesystems.photo_disk' => 's3']);
+
+        $user = User::factory()->create();
+        $photo = DronePhoto::factory()->for($user)->create();
+        Storage::disk('s3')->put($photo->path, 'jpeg-bytes');
+
+        $response = $this->actingAs($user)->delete(route('photos.destroy', $photo));
+
+        $response->assertRedirect();
+        $this->assertDatabaseMissing('drone_photos', ['id' => $photo->id]);
+        Storage::disk('s3')->assertMissing($photo->path);
     }
 
     /**

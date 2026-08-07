@@ -79,9 +79,8 @@ export function SiteFooter({ courses = [] }: { courses?: MarketingCourse[] }) {
             </div>
 
             <div className="border-t border-border">
-                <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-8 px-6 py-8 font-mono text-xs tracking-widest text-muted-foreground uppercase md:flex-row">
+                <div className="mx-auto max-w-7xl px-6 py-8 font-mono text-xs tracking-widest text-muted-foreground uppercase">
                     <p>© {new Date().getFullYear()} DroneVerse.</p>
-                    <p>Built with Laravel, Inertia and three.js.</p>
                 </div>
             </div>
         </footer>

@@ -1,6 +1,14 @@
 import { Link, usePage } from '@inertiajs/react';
 import { Wordmark } from '@/components/marketing/site-header';
-import { dashboard, leaderboard, login, pricing, register } from '@/routes';
+import {
+    dashboard,
+    leaderboard,
+    login,
+    pricing,
+    privacy,
+    register,
+    terms,
+} from '@/routes';
 import { index as coursesIndex, show as showCourse } from '@/routes/courses';
 import { edit as editProfile } from '@/routes/profile';
 import type { MarketingCourse } from '@/types/simulator';
@@ -12,6 +20,10 @@ import type { MarketingCourse } from '@/types/simulator';
  * rather than a hand-kept list; pages that do not carry the catalog fall back
  * to the index link alone. The account column follows the header, showing
  * sign-up prompts to a guest and the pilot's own settings to everyone else.
+ *
+ * The terms and privacy links sit in the bottom bar and are shown to everyone,
+ * signed in or not — a visitor has to be able to read the contract before
+ * entering it, and the privacy notice before typing a name into a form.
  */
 export function SiteFooter({ courses = [] }: { courses?: MarketingCourse[] }) {
     const { auth } = usePage().props;
@@ -44,6 +56,11 @@ export function SiteFooter({ courses = [] }: { courses?: MarketingCourse[] }) {
                       { label: 'Create an account', href: register() },
                   ],
         },
+    ];
+
+    const legal = [
+        { label: 'Terms', href: terms() },
+        { label: 'Privacy', href: privacy() },
     ];
 
     return (
@@ -79,8 +96,27 @@ export function SiteFooter({ courses = [] }: { courses?: MarketingCourse[] }) {
             </div>
 
             <div className="border-t border-border">
-                <div className="mx-auto max-w-7xl px-6 py-8 font-mono text-xs tracking-widest text-muted-foreground uppercase">
+                <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-8 font-mono text-xs tracking-widest text-muted-foreground uppercase sm:flex-row sm:items-center sm:justify-between">
                     <p>© {new Date().getFullYear()} DroneVerse.</p>
+
+                    {/*
+                     * The bottom bar rather than a fifth column: these are the
+                     * links a visitor goes looking for at the end of a page,
+                     * and EU law wants them reachable from every page rather
+                     * than prominent on one.
+                     */}
+                    <ul className="flex gap-6">
+                        {legal.map((link) => (
+                            <li key={link.label}>
+                                <Link
+                                    href={link.href}
+                                    className="transition-colors hover:text-primary"
+                                >
+                                    {link.label}
+                                </Link>
+                            </li>
+                        ))}
+                    </ul>
                 </div>
             </div>
         </footer>

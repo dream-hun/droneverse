@@ -29,6 +29,12 @@ export function Wordmark() {
  * The two section links are plain anchors rather than Inertia visits: they
  * point at anchors on the landing page, so from pricing they need to navigate
  * and then scroll, and from the landing page they should only scroll.
+ *
+ * There is deliberately no appearance control here. Every page carrying this
+ * header wraps itself in `.theme-droneverse dark`, a brand palette with no
+ * light variant, so a toggle would be a button that visibly does nothing. The
+ * three-way tab set stays on the settings screen, where the app palette does
+ * follow it.
  */
 export function SiteHeader({ current }: { current?: 'courses' | 'pricing' }) {
     const { auth } = usePage().props;

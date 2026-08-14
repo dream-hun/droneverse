@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
-import { login } from '@/routes';
+import { login, privacy, terms } from '@/routes';
 import { store } from '@/routes/register';
 
 type Props = {
@@ -99,11 +99,29 @@ export default function Register({ passwordRules }: Props) {
                                 {processing && <Spinner />}
                                 Create account
                             </Button>
+
+                            {/*
+                             * Above the fold of the account, not buried in the
+                             * footer: the contract and the privacy notice are
+                             * both due before this form is submitted, and this
+                             * is the last moment that is still "before".
+                             */}
+                            <p className="text-center text-xs leading-relaxed text-muted-foreground">
+                                By creating an account you agree to our{' '}
+                                <TextLink href={terms()} tabIndex={6}>
+                                    terms and conditions
+                                </TextLink>{' '}
+                                and confirm you have read our{' '}
+                                <TextLink href={privacy()} tabIndex={7}>
+                                    privacy policy
+                                </TextLink>
+                                .
+                            </p>
                         </div>
 
                         <div className="text-center text-sm text-muted-foreground">
                             Already have an account?{' '}
-                            <TextLink href={login()} tabIndex={6}>
+                            <TextLink href={login()} tabIndex={8}>
                                 Log in
                             </TextLink>
                         </div>

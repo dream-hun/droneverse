@@ -7,6 +7,7 @@ import { useFlashToast } from '@/hooks/use-flash-toast';
 import AppLayout from '@/layouts/app-layout';
 import AuthLayout from '@/layouts/auth-layout';
 import SettingsLayout from '@/layouts/settings/layout';
+import { bringsOwnChrome } from '@/lib/page-chrome';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -35,10 +36,9 @@ createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),
     layout: (name) => {
         switch (true) {
-            // Both are public marketing pages that bring their own chrome; the
-            // app shell assumes a signed-in pilot and would break for a guest.
-            case name === 'welcome':
-            case name === 'pricing':
+            // Public pages bring their own chrome; the app shell assumes a
+            // signed-in pilot and would break for a guest.
+            case bringsOwnChrome(name):
                 return null;
             case name.startsWith('auth/'):
                 return AuthLayout;

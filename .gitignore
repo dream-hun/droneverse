@@ -37,3 +37,4 @@ yarn-error.log
 /.zed
 /.ai
 /.cloud
+.env.before_lerd

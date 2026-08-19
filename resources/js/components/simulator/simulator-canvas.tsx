@@ -2,7 +2,7 @@ import { OrbitControls, Sky } from '@react-three/drei';
 import { Canvas } from '@react-three/fiber';
 import { Physics } from '@react-three/rapier';
 import type { RapierRigidBody } from '@react-three/rapier';
-import { memo, useRef, useState } from 'react';
+import { memo, Suspense, useRef, useState } from 'react';
 import { CameraRig, DEFAULT_FOV } from '@/components/simulator/camera-rig';
 import type { CameraMode } from '@/components/simulator/camera-rig';
 import { DroneRig } from '@/components/simulator/drone-rig';
@@ -11,6 +11,7 @@ import { FlightHud } from '@/components/simulator/flight-hud';
 import { useCanvasResizeFix } from '@/hooks/use-canvas-resize-fix';
 import { createFlightVisualState } from '@/lib/simulator/flight-state';
 import type { SimulatorSession } from '@/lib/simulator/session';
+import { filterUpstreamThreeWarnings } from '@/lib/simulator/three-console';
 import { cn } from '@/lib/utils';
 import type { DroneModelSummary } from '@/types/drone';
 import type { EnvironmentConfig, SuccessCriteria } from '@/types/simulator';
@@ -33,6 +34,12 @@ const CAMERA_MODES: { id: CameraMode; label: string }[] = [
 
 // One late-morning sun direction shared by the sky shader and the shadow light.
 const SUN_DIRECTION: [number, number, number] = [0.75, 1, 0.46];
+
+// At module scope, and in this chunk rather than the page above it: fiber
+// constructs its deprecated clock while building the store for the first
+// canvas, so the filter has to be in place before one renders — and three is
+// only ever loaded behind the viewport's dynamic import.
+filterUpstreamThreeWarnings();
 
 /**
  * Memoised because the page above it owns the editor buffer.
@@ -64,7 +71,15 @@ function SimulatorCanvasComponent({
     return (
         <div ref={containerRef} className="relative h-full w-full">
             <Canvas
-                shadows
+                // Named rather than left as the bare `shadows`, which fiber
+                // reads as PCFSoftShadowMap. three deprecated that type in
+                // 0.185: its shadow map warns on render and then corrects
+                // itself to PCFShadowMap — but fiber reassigns the deprecated
+                // type over that correction on every configure, so the pair
+                // never settle and the console fills with the same line. This
+                // asks for the map three was going to use anyway: the same
+                // pixels, without the noise.
+                shadows="percentage"
                 camera={{
                     // Framed on the launch pad rather than on the field's
                     // origin. OrbitControls targets the pad, so an offset
@@ -121,15 +136,39 @@ function SimulatorCanvasComponent({
                     ]}
                     intensity={0.45}
                 />
-                <Physics gravity={[0, -9.81, 0]}>
-                    <EnvironmentObjects environment={environment} />
-                    <DroneRig
-                        rigidBodyRef={rigidBodyRef}
-                        flightState={flightState}
-                        environment={environment}
-                        {...props}
-                    />
-                </Physics>
+                {/* Catches Rapier's WASM load, and it has to be inside the
+                    <Canvas> rather than around it.
+
+                    <Physics> suspends on first render while the physics
+                    engine's WebAssembly binary loads. Left uncaught in here,
+                    that throw reaches react-three-fiber's own internal
+                    boundary, whose fallback re-throws it outward so the
+                    boundary *outside* the canvas can show a fallback — and
+                    suspending a tree React has already committed makes React
+                    destroy its effects. One of those effects is the canvas's,
+                    whose cleanup schedules `forceContextLoss()` half a second
+                    later. Rapier resolves long before that, so the scene came
+                    back, drew for ~500ms, and then had its WebGL context
+                    pulled out from under it: a blank viewport under a working
+                    HUD, with `THREE.WebGLRenderer: Context Lost.` as the only
+                    sign of what happened.
+
+                    A boundary here is nearer than fiber's, so the throw stops
+                    at it and the canvas above never suspends. Nothing to show
+                    while it waits — the sky, fog and lights sit outside and go
+                    on rendering, so the pilot watches an empty sky for the few
+                    hundred milliseconds rather than a spinner. */}
+                <Suspense fallback={null}>
+                    <Physics gravity={[0, -9.81, 0]}>
+                        <EnvironmentObjects environment={environment} />
+                        <DroneRig
+                            rigidBodyRef={rigidBodyRef}
+                            flightState={flightState}
+                            environment={environment}
+                            {...props}
+                        />
+                    </Physics>
+                </Suspense>
                 <CameraRig
                     mode={cameraMode}
                     rigidBodyRef={rigidBodyRef}

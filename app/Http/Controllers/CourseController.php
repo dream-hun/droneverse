@@ -35,7 +35,7 @@ final class CourseController extends Controller
          * to display it once.
          */
         return Inertia::render('courses/index', [
-            'courses' => Inertia::defer(function () use ($user, $leaderboard) {
+            'courses' => Inertia::defer(function () use ($user, $leaderboard): array {
                 // The catalog is public, so a guest has no progress to merge.
                 $completedByCourse = $user instanceof User
                     ? $leaderboard->completedCountsByCourse($user)
@@ -79,7 +79,7 @@ final class CourseController extends Controller
              * only the mission list waits. Both queries sit inside the closure
              * so the initial request does neither.
              */
-            'challenges' => Inertia::defer(function () use ($course, $user) {
+            'challenges' => Inertia::defer(function () use ($course, $user): array {
                 $challenges = $course->challenges()
                     ->published()
                     ->get(['id', 'title', 'slug', 'briefing', 'difficulty', 'required_plan']);
@@ -97,7 +97,7 @@ final class CourseController extends Controller
              * places, and a shared closure would make the missions — which
              * are what the page is for — wait on a count of quiz questions.
              */
-            'quizzes' => Inertia::defer(function () use ($course, $user) {
+            'quizzes' => Inertia::defer(function () use ($course, $user): array {
                 $quizzes = $course->quizzes()
                     ->published()
                     ->withCount('questions')

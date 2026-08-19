@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Actions\SelectMissionDrone;
 use App\Models\Challenge;
 use App\Models\Course;
+use App\Models\DroneModel;
 use App\Models\User;
 use App\Models\UserChallengeProgress;
 use App\Queries\Leaderboard;
@@ -71,8 +73,16 @@ final class LeaderboardQueryTest extends TestCase
         );
     }
 
-    public function test_forgetting_the_board_retires_a_cached_slice(): void
+    public function test_writing_progress_retires_the_cached_board(): void
     {
+        /*
+         * No explicit `forgetCourse` here, which is the point. The board is
+         * read from the rollup that App\Actions\RollUpCourseTotals maintains,
+         * so the write that moves the rollup is the write that has to retire
+         * the board — otherwise the cache stays right only for as long as
+         * every caller remembers to say so, and one that forgets (picking an
+         * airframe, say) leaves a board that is wrong for its whole TTL.
+         */
         $challenge = $this->challenge();
         $ada = $this->pilot('Ada', $challenge, points: 40);
 
@@ -82,11 +92,64 @@ final class LeaderboardQueryTest extends TestCase
 
         $this->pilot('Grace', $challenge, points: 90);
 
-        // Still the cached answer: nothing has told the board to move.
+        $this->assertSame(2, $leaderboard->rankedPilotCount());
+        $this->assertSame('Grace', $leaderboard->standings($ada)->first()['name']);
+    }
+
+    public function test_choosing_an_airframe_retires_the_board_it_puts_a_pilot_on(): void
+    {
+        /*
+         * The caller this was actually wrong for. Picking a drone writes a
+         * progress row at its defaults, which is enough to earn a place on
+         * the board — and nothing on that path ever called `forgetCourse`,
+         * so the pilot was ranked in the table and absent from the cached
+         * standings for the next five minutes.
+         */
+        $challenge = $this->challenge();
+        $this->pilot('Ada', $challenge, points: 40);
+
+        $leaderboard = resolve(Leaderboard::class);
+
         $this->assertSame(1, $leaderboard->rankedPilotCount());
 
-        $leaderboard->forget();
+        resolve(SelectMissionDrone::class)->handle(
+            User::factory()->create(['name' => 'Grace']),
+            $challenge,
+            DroneModel::query()->firstOrFail(),
+        );
 
+        $this->assertSame(2, $leaderboard->rankedPilotCount());
+    }
+
+    public function test_a_run_in_one_course_leaves_another_courses_board_cached(): void
+    {
+        /*
+         * Why the generation counter is per board. With one counter for the
+         * whole read model, a run anywhere retired every course's board at
+         * once, so the busiest course's traffic decided how often the
+         * quietest one paid for its own ranking aggregate.
+         */
+        $flown = $this->challenge();
+        $elsewhere = $this->challenge();
+        $ada = $this->pilot('Ada', $elsewhere, points: 40);
+
+        $leaderboard = resolve(Leaderboard::class);
+
+        // Both boards cached, each answering for one pilot.
+        $this->assertSame(1, $leaderboard->rankedPilotCount($elsewhere->course));
+        $this->assertSame(1, $leaderboard->rankedPilotCount());
+
+        // A pilot earns a place in the other course entirely.
+        $this->pilot('Grace', $flown, points: 90);
+
+        $this->assertSame(
+            1,
+            $leaderboard->rankedPilotCount($elsewhere->course),
+            "a run in one course retired another course's cached board",
+        );
+
+        // And the overall board, which that run really could have moved, did
+        // go: narrowing invalidation must not leave a stale slice standing.
         $this->assertSame(2, $leaderboard->rankedPilotCount());
         $this->assertSame('Grace', $leaderboard->standings($ada)->first()['name']);
     }
@@ -95,13 +158,21 @@ final class LeaderboardQueryTest extends TestCase
     {
         $pilot = User::factory()->create();
 
-        $this->progress($pilot, $this->challenge(), points: 30);
+        $live = $this->challenge();
+        $this->progress($pilot, $live, points: 30);
         $this->progress($pilot, $this->challenge(published: false), points: 70);
 
         $leaderboard = resolve(Leaderboard::class);
 
         $this->assertSame(['completed' => 1, 'stars' => 3], $leaderboard->statsFor($pilot));
-        $this->assertSame([1], $leaderboard->completedCountsByCourse($pilot)->values()->all());
+
+        // Keyed by course id, which is how the catalogue cards look their own
+        // count up. A count returned under any other key reads as zero on
+        // every card rather than failing.
+        $this->assertSame(
+            [$live->course_id => 1],
+            $leaderboard->completedCountsByCourse($pilot)->all(),
+        );
     }
 
     private function challenge(bool $published = true): Challenge

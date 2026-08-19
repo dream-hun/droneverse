@@ -4,19 +4,22 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Concerns\CourseContent;
 use App\Enums\ChallengeStatus;
-use App\Enums\Plan;
+use App\Observers\ChallengeObserver;
 use Database\Factories\ChallengeFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
+ * A flyable mission attached to a course.
+ *
  * @property int $id
  * @property int $course_id
  * @property string $title
@@ -34,8 +37,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 #[Fillable(['course_id', 'title', 'slug', 'briefing', 'order', 'difficulty', 'required_plan', 'starter_code', 'solution_code', 'environment', 'success_criteria', 'max_score', 'is_published'])]
 #[Hidden(['solution_code'])]
+#[ObservedBy(ChallengeObserver::class)]
 final class Challenge extends Model
 {
+    use CourseContent;
+
     /** @use HasFactory<ChallengeFactory> */
     use HasFactory;
 
@@ -50,48 +56,6 @@ final class Challenge extends Model
     public function getRouteKeyName(): string
     {
         return 'slug';
-    }
-
-    /**
-     * Whether this mission can be flown as part of the given course.
-     *
-     * Both ends have to be live and the challenge has to actually belong to
-     * the course in the URL, or the pair is indistinguishable from content
-     * that does not exist. Every route carrying a course/challenge pair
-     * asks this one question, so the answer cannot drift between them.
-     */
-    public function isPlayableIn(Course $course): bool
-    {
-        return $this->is_published
-            && $course->is_published
-            && $this->course_id === $course->id;
-    }
-
-    /**
-     * The plan a pilot needs to fly this mission as part of the given course.
-     *
-     * A mission normally states no tier of its own and takes its course's,
-     * which keeps a course and its missions from drifting apart. Setting a
-     * value is the deliberate exception: it is how Precision Flight stays a
-     * browsable Starter course whose missions are all Pro.
-     *
-     * The course is passed in rather than read off the relation because every
-     * caller already has it from the route, and reaching for `$this->course`
-     * here would fire a query per row on a course page.
-     */
-    public function requiredPlanIn(Course $course): Plan
-    {
-        return Plan::tryFrom($this->required_plan ?? '') ?? $course->requiredPlan();
-    }
-
-    /**
-     * Whether this viewer's plan reaches the mission. Guests get Starter.
-     */
-    public function isUnlockedFor(?User $user, Course $course): bool
-    {
-        $plan = $user?->plan() ?? Plan::Starter;
-
-        return $plan->covers($this->requiredPlanIn($course));
     }
 
     /**
@@ -112,14 +76,6 @@ final class Challenge extends Model
 
         return $progress->status === ChallengeStatus::Completed
             || $progress->attempts >= self::ATTEMPTS_BEFORE_SOLUTION;
-    }
-
-    /**
-     * @return BelongsTo<Course, $this>
-     */
-    public function course(): BelongsTo
-    {
-        return $this->belongsTo(Course::class);
     }
 
     /**

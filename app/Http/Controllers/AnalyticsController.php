@@ -39,23 +39,23 @@ final class AnalyticsController extends Controller
              * pilot happened to score, so a mission nobody has half-cleared
              * would look nearly beaten.
              */
-            'selected' => $selected === null ? null : [
+            'selected' => $selected instanceof Challenge ? [
                 'slug' => $selected->slug,
                 'title' => $selected->title,
                 'maxScore' => $selected->max_score,
-            ],
+            ] : null,
             /*
              * The curve and the cohort are the two aggregates on this page
              * that read a whole mission's runs, and they sit below the fold.
              * Deferring them lets the summary and the weak-spot list paint
              * first, and a pilot who has flown nothing never pays for either.
              */
-            'curve' => $selected === null
-                ? []
-                : Inertia::defer(fn (): array => $flightLog->missionCurve($user, $selected)),
-            'cohort' => $selected === null
-                ? null
-                : Inertia::defer(fn (): ?array => $flightLog->cohortFor($user, $selected)),
+            'curve' => $selected instanceof Challenge
+                ? Inertia::defer(fn (): array => $flightLog->missionCurve($user, $selected))
+                : [],
+            'cohort' => $selected instanceof Challenge
+                ? Inertia::defer(fn (): ?array => $flightLog->cohortFor($user, $selected))
+                : null,
             'weakSpots' => $flightLog->weakSpots($user),
         ]);
     }

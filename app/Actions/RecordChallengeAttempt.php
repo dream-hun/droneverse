@@ -35,9 +35,19 @@ final readonly class RecordChallengeAttempt
      * that only records improvements cannot answer how long the improvement
      * took.
      *
-     * Both happen inside one transaction. A run without its merge would
-     * inflate the attempt curve past the attempt counter beside it, and a
-     * merge without its run would leave a gap in the curve that no later
+     * Two more writes follow each of them, but not from here. The leaderboard
+     * and the analytics page read rollups rather than aggregating these
+     * tables live, and those rollups are maintained by
+     * {@see \App\Observers\ChallengeRunObserver} and
+     * {@see \App\Observers\UserChallengeProgressObserver} — a total that only
+     * stays right while every caller remembers to update it is a total that
+     * will eventually be wrong, and this action is not the only thing that
+     * writes these rows. Both observers fire inside the transaction below, so
+     * a rollup can never commit without the row it was derived from.
+     *
+     * Both writes happen inside one transaction. A run without its merge
+     * would inflate the attempt curve past the attempt counter beside it, and
+     * a merge without its run would leave a gap in the curve that no later
      * write can fill, so neither is allowed to land alone. The row is locked
      * for the duration so concurrent submissions from the same pilot cannot
      * produce lost updates.
@@ -57,7 +67,11 @@ final readonly class RecordChallengeAttempt
         $score = max(0, min($result['score'], $challenge->max_score));
         $stars = max(0, min($result['stars'], self::MAX_STARS));
 
-        UserChallengeProgress::query()->firstOrCreate([
+        // `createOrFirst` is safe when two first attempts land together: the
+        // unique key elects one creator and the other request selects that
+        // same row before both serialize on the lock below. `firstOrCreate`
+        // leaks the duplicate-key exception to the losing request.
+        UserChallengeProgress::query()->createOrFirst([
             'user_id' => $user->id,
             'challenge_id' => $challenge->id,
         ]);
@@ -105,13 +119,17 @@ final readonly class RecordChallengeAttempt
             return $progress;
         });
 
-        // This run may have moved the pilot up the board, so no cached view
-        // of it can be trusted anymore.
-        $this->leaderboard->forget();
-
-        // And it is a new point on their own curve, which every cached
-        // analytics slice was computed without.
-        $this->flightLog->forget();
+        /*
+         * This run may have moved the pilot up this course's board and the
+         * overall one, and it is a new point on their own curve. Both read
+         * models are told what moved rather than told to forget everything:
+         * a run here says nothing about another course's ranking or another
+         * pilot's analytics, and retiring those too meant the busiest
+         * mission on the site decided how often every other cached slice was
+         * rebuilt.
+         */
+        $this->leaderboard->forgetCourse($challenge->course_id);
+        $this->flightLog->forget($user, $challenge);
 
         return $progress;
     }

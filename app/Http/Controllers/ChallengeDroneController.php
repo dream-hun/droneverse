@@ -37,7 +37,7 @@ final class ChallengeDroneController extends Controller
         Challenge $challenge,
         SelectMissionDrone $selectDrone,
     ): RedirectResponse {
-        abort_unless($challenge->isPlayableIn($course), 404);
+        abort_unless($challenge->isAvailableIn($course), 404);
         abort_unless($challenge->isUnlockedFor($request->user(), $course), 403);
 
         $drone = $request->drone();

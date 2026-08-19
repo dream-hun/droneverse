@@ -8,6 +8,7 @@ use App\Enums\Plan;
 use App\Http\Middleware\VerifyLemonSqueezyWebhookSignature;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Route;
 use LemonSqueezy\Laravel\Subscription;
 use Tests\TestCase;
@@ -486,7 +487,7 @@ final class LemonSqueezyWebhookTest extends TestCase
 
         $this->assertNotNull($route, sprintf('There is no route named [%s].', $routeName));
 
-        return app('router')->gatherRouteMiddleware($route);
+        return resolve(Router::class)->gatherRouteMiddleware($route);
     }
 
     /**

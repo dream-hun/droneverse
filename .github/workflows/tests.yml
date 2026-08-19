@@ -68,5 +68,96 @@ jobs:
       - name: Run Type Analysis
         run: composer types:check
 
+      - name: Check Frontend Types
+        run: npm run types:check
+
+      - name: Frontend Tests
+        run: npm run test
+
+      - name: Tests
+        run: php artisan test
+
+  # The suite runs on SQLite, and the application runs on MySQL. That is
+  # normally a fair trade, but not for the code that exists *because* the two
+  # differ: RebuildRollups::latestCompletion() branches on the driver because a
+  # null `max()` over a `timestamp` materialises as the zero date on MySQL, and
+  # NO_ZERO_DATE then rejects the row and fails the whole rebuild. The SQLite
+  # half is covered; the half that guards a production failure was never once
+  # executed. One job, on one PHP version, so that it is.
+  mysql:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: droneverse_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.5'
+          tools: composer:v2
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: '22'
+
+      - name: Install Node Dependencies
+        run: npm i
+
+      - name: Install Dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Copy Environment File
+        run: cp .env.example .env
+
+      - name: Generate Application Key
+        run: php artisan key:generate
+
+      # The Blade root view resolves the Vite manifest, so every page test
+      # needs the built assets whichever database is behind it.
+      - name: Build Assets
+        run: npm run build
+
+      # phpunit.xml pins the connection, so the connection is what gets
+      # rewritten — not the process environment. PHPUnit does treat a real
+      # environment variable as taking precedence over an unforced `<env>`
+      # entry, but a MySQL job that quietly ran on SQLite would burn CI
+      # minutes and prove nothing, so the two `grep`s make the rewrite itself
+      # the thing that fails if it ever stops matching.
+      - name: Point the suite at MySQL
+        run: |
+          sed -i 's|<env name="DB_CONNECTION" value="sqlite"/>|<env name="DB_CONNECTION" value="mysql"/>|' phpunit.xml
+          sed -i 's|<env name="DB_DATABASE" value=":memory:"/>|<env name="DB_DATABASE" value="droneverse_test"/>|' phpunit.xml
+          grep -q '<env name="DB_CONNECTION" value="mysql"/>' phpunit.xml
+          grep -q '<env name="DB_DATABASE" value="droneverse_test"/>' phpunit.xml
+
+      # Host, port and credentials are not in phpunit.xml at all, so they come
+      # from .env — where .env.example leaves them commented out.
+      - name: Point .env at the service container
+        run: |
+          {
+            echo 'DB_HOST=127.0.0.1'
+            echo 'DB_PORT=3306'
+            echo 'DB_USERNAME=root'
+            echo 'DB_PASSWORD=root'
+          } >> .env
+
       - name: Tests
         run: php artisan test

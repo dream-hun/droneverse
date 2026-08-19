@@ -23,9 +23,9 @@ return new class extends Migration
      * when the score was set.
      *
      * The unique key on `(user_id, quiz_id)` is what makes the
-     * firstOrCreate-then-lock dance in App\Actions\RecordQuizAttempt safe:
-     * two concurrent submissions race to create, one loses on the constraint,
-     * and both then serialize on the same row.
+     * create-or-select-then-lock flow in App\Actions\RecordQuizAttempt safe:
+     * concurrent first submissions converge on this row before serializing
+     * their progress merge.
      */
     public function up(): void
     {

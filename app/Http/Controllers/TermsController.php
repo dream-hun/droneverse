@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\BuildLegalIdentity;
-use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Date;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -27,7 +27,7 @@ final class TermsController extends Controller
      */
     public function __invoke(BuildLegalIdentity $identity): Response
     {
-        $effective = Carbon::parse((string) config('legal.effective.terms'));
+        $effective = Date::parse((string) config('legal.effective.terms'));
 
         return Inertia::render('legal/terms', [
             'identity' => $identity->handle(),

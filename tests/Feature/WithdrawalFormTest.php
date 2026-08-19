@@ -137,6 +137,6 @@ final class WithdrawalFormTest extends TestCase
 
     private function pdf(): string
     {
-        return app(BuildWithdrawalForm::class)->handle();
+        return resolve(BuildWithdrawalForm::class)->handle();
     }
 }

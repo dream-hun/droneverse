@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\BuildLegalIdentity;
-use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Date;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -25,7 +25,7 @@ final class PrivacyController extends Controller
      */
     public function __invoke(BuildLegalIdentity $identity): Response
     {
-        $effective = Carbon::parse((string) config('legal.effective.privacy'));
+        $effective = Date::parse((string) config('legal.effective.privacy'));
 
         return Inertia::render('legal/privacy', [
             'identity' => $identity->handle(),

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Enums\Plan;
 use App\Models\Challenge;
 use App\Models\ChallengeRun;
 use App\Models\Course;
@@ -148,7 +149,7 @@ final class ChallengeRunTest extends TestCase
     public function test_a_run_is_never_recorded_for_a_mission_the_pilot_cannot_reach(): void
     {
         $user = User::factory()->create();
-        $course = Course::factory()->requiring(\App\Enums\Plan::Pro)->create();
+        $course = Course::factory()->requiring(Plan::Pro)->create();
         $challenge = Challenge::factory()->for($course)->create();
 
         $this->actingAs($user)->postJson(

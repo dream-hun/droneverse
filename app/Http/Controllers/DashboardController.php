@@ -29,7 +29,7 @@ final class DashboardController extends Controller
          * so the first request does not run them just to throw them away.
          */
         return Inertia::render('dashboard', [
-            'courses' => Inertia::defer(fn () => CourseCardResource::collection(
+            'courses' => Inertia::defer(fn (): array => CourseCardResource::collection(
                 Course::catalog()->get(),
                 $leaderboard->completedCountsByCourse($user),
                 $user->plan(),

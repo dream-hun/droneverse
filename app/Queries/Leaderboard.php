@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
-use App\Enums\ChallengeStatus;
 use App\Models\Course;
+use App\Models\PilotCourseTotals;
 use App\Models\User;
 use App\Models\UserChallengeProgress;
 use App\Queries\Support\SliceCache;
@@ -19,11 +19,13 @@ use stdClass;
 /**
  * Ranked pilot standings, and the per-pilot totals shown alongside them.
  *
- * This is a read model over {@see UserChallengeProgress}, not a second way
- * to write one. Ranking is a full aggregate over the largest table in the
- * schema and the board is read far more often than it changes, so every
- * view of it is cached here against a generation counter that
- * {@see self::forget()} bumps when a run moves a pilot's totals.
+ * This is a read model over {@see UserChallengeProgress}, not a second way to
+ * write one — but it no longer reads that table directly. Ranking is a full
+ * aggregate and the board is read far more often than it changes, so it is
+ * served from two things instead: {@see PilotCourseTotals}, which collapses a
+ * pilot's progress in a course to a single row as it is written, and a cache
+ * over that, keyed against generation counters that {@see self::forgetCourse()}
+ * bumps when a run moves a pilot's totals.
  *
  * It is deliberately not on the progress model. The entity is a row a pilot
  * owns and writes to; this is a cached, ranked projection over all of them,
@@ -41,6 +43,14 @@ final readonly class Leaderboard
      * — a pilot renaming themselves, a course being published or pulled.
      */
     private const int BOARD_TTL_SECONDS = 300;
+
+    /**
+     * The scope naming the board drawn from every course at once.
+     *
+     * Every run bumps it, because every run can move it. Per-course boards
+     * get a scope of their own from {@see self::courseScope()}.
+     */
+    private const string OVERALL_SCOPE = 'all';
 
     /**
      * The generation-keyed cache the board's slices live in.
@@ -65,11 +75,10 @@ final readonly class Leaderboard
      */
     public function completedCountsByCourse(User $user): Collection
     {
+        // Already one row per course, so this is a lookup rather than an
+        // aggregate: the count the rollup keeps is the count being asked for.
         return $this->playableFor($user)
-            ->where('user_challenge_progress.status', ChallengeStatus::Completed)
-            ->selectRaw('challenges.course_id as course_id, count(*) as completed')
-            ->groupBy('challenges.course_id')
-            ->pluck('completed', 'course_id');
+            ->pluck('pilot_course_totals.completed', 'pilot_course_totals.course_id');
     }
 
     /**
@@ -84,9 +93,10 @@ final readonly class Leaderboard
     {
         $row = $this->playableFor($user)
             ->selectRaw(
-                'count(case when user_challenge_progress.status = ? then 1 end) as completed, coalesce(sum(user_challenge_progress.stars), 0) as stars',
-                [ChallengeStatus::Completed->value],
+                'coalesce(sum(pilot_course_totals.completed), 0) as completed, '
+                .'coalesce(sum(pilot_course_totals.stars), 0) as stars',
             )
+            ->toBase()
             ->first();
 
         return [
@@ -106,7 +116,8 @@ final readonly class Leaderboard
     public function standings(User $viewer, ?Course $course = null, int $limit = 25): Collection
     {
         $rows = $this->remember(
-            sprintf('standings:%s:%d', $this->scopeKey($course), $limit),
+            sprintf('standings:%d', $limit),
+            [$this->scopeFor($course)],
             fn (): array => $this->standingRows(
                 $this->standingsQuery($course)->limit($limit)->get()->all(),
             ),
@@ -132,7 +143,11 @@ final readonly class Leaderboard
     public function standingFor(User $viewer, ?Course $course = null): ?array
     {
         $row = $this->remember(
-            sprintf('standing:%s:%d', $this->scopeKey($course), $viewer->id),
+            sprintf('standing:%d', $viewer->id),
+            // Scoped to the board rather than to the viewer: a rank is a
+            // statement about where this pilot sits among all of them, so
+            // anyone's run can move it.
+            [$this->scopeFor($course)],
             function () use ($course, $viewer): ?array {
                 $row = DB::query()
                     ->fromSub($this->standingsQuery($course), 'standings')
@@ -162,94 +177,116 @@ final readonly class Leaderboard
     public function rankedPilotCount(?Course $course = null): int
     {
         return $this->remember(
-            sprintf('pilots:%s', $this->scopeKey($course)),
+            'pilots',
+            [$this->scopeFor($course)],
             fn (): int => $this->inCourse($this->playable(), $course)
                 ->distinct()
-                ->count('user_challenge_progress.user_id'),
+                ->count('pilot_course_totals.user_id'),
         );
     }
 
     /**
-     * Retire every cached view of the board.
+     * Retire the cached views of the board a run in this course could move.
      *
-     * Called when a run changes a pilot's totals. Rather than tracking which
-     * of the per-course and per-viewer entries a given run could have moved,
-     * the generation counter is bumped and every old key simply stops being
-     * looked up — the stale entries age out on their own.
+     * Two of them, and only two. A run inside a course changes that course's
+     * board and the overall one; it cannot reorder a board drawn from a
+     * different course's missions, and those go on being served. That is the
+     * whole reason the counter is per board rather than per read model —
+     * previously any run anywhere retired every course's board at once, so
+     * the busiest course's traffic decided how often the quietest one paid
+     * for its ranking aggregate.
+     *
+     * The overall board is still retired by every run, because every run
+     * really can move it. What stops that from becoming a stampede is the
+     * build lock in {@see SliceCache}: the viewers who miss together queue
+     * behind one rebuild instead of each running their own.
      */
-    public function forget(): void
+    public function forgetCourse(int $courseId): void
     {
-        $this->cache->flush();
+        $this->cache->flush(self::OVERALL_SCOPE, $this->courseScope($courseId));
     }
 
     /**
-     * Cache a slice of the board against the current generation.
+     * Cache a slice of the board against the generation of the board it reads.
      *
      * A thin pass-through to {@see SliceCache}, which carries the reasoning
-     * behind the generation counter, the wrapped values and the build lock.
-     * The one decision that stays here is `$shared`: only this class knows
-     * which of its slices every viewer reads and which belong to one pilot.
+     * behind the generation counters, the wrapped values and the build lock.
+     * Two decisions stay here: which board a slice reads, and `$shared` —
+     * only this class knows which of its slices every viewer reads and which
+     * belong to one pilot.
      *
      * @template TValue
      *
+     * @param  list<string>  $scopes
      * @param  Closure(): TValue  $compute
      * @return TValue
      */
-    private function remember(string $key, Closure $compute, bool $shared = true): mixed
+    private function remember(string $key, array $scopes, Closure $compute, bool $shared = true): mixed
     {
-        return $this->cache->remember($key, $compute, $shared);
+        return $this->cache->remember($key, $scopes, $compute, $shared);
     }
 
     /**
-     * Cache-key fragment naming the slice of the board being read.
+     * The board a slice is drawn from.
      *
      * The overall board and each per-course board are separate populations,
-     * so they must never share an entry.
+     * so they never share an entry and never retire each other. The scope is
+     * part of the cache key as well as the invalidation unit, so naming it
+     * here is all that keeps the two in step.
      */
-    private function scopeKey(?Course $course): string
+    private function scopeFor(?Course $course): string
     {
-        return $course instanceof Course ? (string) $course->id : 'all';
+        return $course instanceof Course
+            ? $this->courseScope($course->id)
+            : self::OVERALL_SCOPE;
+    }
+
+    private function courseScope(int $courseId): string
+    {
+        return sprintf('course:%d', $courseId);
     }
 
     /**
-     * Progress rows for content that is still playable today.
+     * Course totals for content that is still playable today.
      *
      * Every aggregate here reads through this, so "playable" means exactly
-     * one thing everywhere: a published challenge inside a published course.
-     * Retiring either end retires the progress from all of them at once,
-     * with no predicate left behind to drift out of step.
+     * one thing everywhere. Half of it is enforced by the join below —
+     * retiring a course takes its totals off the board at once, with no
+     * predicate left behind to drift out of step. The other half, whether an
+     * individual mission is published, is already folded into the stored
+     * totals by {@see \App\Actions\RollUpCourseTotals}, which is why
+     * {@see \App\Observers\ChallengeObserver} has to rebuild a course when
+     * that changes.
      *
-     * @return EloquentBuilder<UserChallengeProgress>
+     * @return EloquentBuilder<PilotCourseTotals>
      */
     private function playable(): EloquentBuilder
     {
-        return UserChallengeProgress::query()
-            ->join('challenges', 'challenges.id', '=', 'user_challenge_progress.challenge_id')
-            ->join('courses', 'courses.id', '=', 'challenges.course_id')
-            ->where('challenges.is_published', true)
+        return PilotCourseTotals::query()
+            ->join('courses', 'courses.id', '=', 'pilot_course_totals.course_id')
             ->where('courses.is_published', true);
     }
 
     /**
      * {@see self::playable()} narrowed to one pilot.
      *
-     * @return EloquentBuilder<UserChallengeProgress>
+     * @return EloquentBuilder<PilotCourseTotals>
      */
     private function playableFor(User $user): EloquentBuilder
     {
-        return $this->playable()->where('user_challenge_progress.user_id', $user->id);
+        return $this->playable()->where('pilot_course_totals.user_id', $user->id);
     }
 
     /**
-     * Narrow a playable-progress query to one course, or leave it global.
+     * Narrow a playable-totals query to one course, or leave it global.
      *
-     * @param  EloquentBuilder<UserChallengeProgress>  $query
-     * @return EloquentBuilder<UserChallengeProgress>
+     * @param  EloquentBuilder<PilotCourseTotals>  $query
+     * @return EloquentBuilder<PilotCourseTotals>
      */
     private function inCourse(EloquentBuilder $query, ?Course $course): EloquentBuilder
     {
         if ($course instanceof Course) {
-            $query->where('challenges.course_id', $course->id);
+            $query->where('pilot_course_totals.course_id', $course->id);
         }
 
         return $query;
@@ -264,19 +301,24 @@ final readonly class Leaderboard
      * while the row order breaks the tie in favor of whoever finished
      * first. "rank" and "position" are reserved words in MySQL, hence
      * `place`.
+     *
+     * The group-by is over {@see PilotCourseTotals} rather than over every
+     * progress row in the schema, which divides the ranking scan by the
+     * number of missions in a course — and for a single-course board leaves
+     * no grouping to do at all, since the rollup already holds one row per
+     * pilot there.
      */
     private function standingsQuery(?Course $course = null): QueryBuilder
     {
         $totals = $this->inCourse($this->playable(), $course)
-            ->join('users', 'users.id', '=', 'user_challenge_progress.user_id')
+            ->join('users', 'users.id', '=', 'pilot_course_totals.user_id')
             ->groupBy('users.id', 'users.name')
             ->selectRaw(
                 'users.id as user_id, users.name as name, '
-                .'coalesce(sum(user_challenge_progress.best_score), 0) as points, '
-                .'coalesce(sum(user_challenge_progress.stars), 0) as stars, '
-                .'count(case when user_challenge_progress.status = ? then 1 end) as completed, '
-                .'max(user_challenge_progress.completed_at) as finished_at',
-                [ChallengeStatus::Completed->value],
+                .'coalesce(sum(pilot_course_totals.points), 0) as points, '
+                .'coalesce(sum(pilot_course_totals.stars), 0) as stars, '
+                .'coalesce(sum(pilot_course_totals.completed), 0) as completed, '
+                .'max(pilot_course_totals.finished_at) as finished_at',
             );
 
         return DB::query()

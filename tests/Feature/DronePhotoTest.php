@@ -10,8 +10,11 @@ use App\Models\Course;
 use App\Models\DronePhoto;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use RuntimeException;
 use Tests\TestCase;
 
 final class DronePhotoTest extends TestCase
@@ -297,6 +300,93 @@ final class DronePhotoTest extends TestCase
         $response->assertUnprocessable();
         $response->assertJsonValidationErrors('image');
         $this->assertDatabaseCount('drone_photos', 500);
+
+        $this->assertSame(
+            [],
+            Storage::disk('photos')->allFiles(),
+            'a photo the quota refused was still written to the disk',
+        );
+    }
+
+    public function test_the_quota_is_counted_in_the_same_transaction_that_writes_the_photo(): void
+    {
+        /*
+         * A count followed by an insert is a check-then-act, and the
+         * simulator uploads from a queue that can have several photos in
+         * flight at once — so a pilot sitting on the limit could put as many
+         * past it as they had requests in the air. What closes that is a lock
+         * on the pilot's own row, held from the count until the insert
+         * commits.
+         *
+         * The lock itself cannot be asserted here: this suite runs on SQLite,
+         * which has no row locking and compiles `lockForUpdate` away to
+         * nothing, and one connection cannot stage the race anyway. What can
+         * be asserted is the property the lock depends on and that a refactor
+         * would break first — that the two statements are inside one
+         * transaction at all. A lock taken in a transaction the insert is not
+         * part of is released before the insert happens and protects nothing.
+         */
+        Storage::fake('photos');
+
+        $user = User::factory()->create();
+        $course = Course::factory()->create();
+        $challenge = Challenge::factory()->for($course)->create();
+
+        $levelAtInsert = null;
+
+        Event::listen(
+            'eloquent.creating: '.DronePhoto::class,
+            function () use (&$levelAtInsert): void {
+                $levelAtInsert = DB::transactionLevel();
+            },
+        );
+
+        $this->actingAs($user)->postJson(
+            route('challenges.photos.store', [$course, $challenge]),
+            $this->payload(),
+        )->assertCreated();
+
+        $this->assertNotNull($levelAtInsert, 'the photo was never inserted');
+        $this->assertGreaterThan(
+            0,
+            $levelAtInsert,
+            'the photo was written outside the transaction the quota was counted in',
+        );
+    }
+
+    public function test_a_photo_whose_row_never_lands_leaves_no_file_behind(): void
+    {
+        /*
+         * The file is the one write the transaction cannot roll back. If it
+         * were left where it fell, every failed upload would cost bytes that
+         * nothing knows about and nothing will ever come back for — invisible
+         * to the pilot, invisible to the log, and paid for monthly.
+         */
+        Storage::fake('photos');
+
+        $user = User::factory()->create();
+        $course = Course::factory()->create();
+        $challenge = Challenge::factory()->for($course)->create();
+
+        Event::listen('eloquent.creating: '.DronePhoto::class, function (): never {
+            throw new RuntimeException('the database went away');
+        });
+
+        try {
+            $this->actingAs($user)->postJson(
+                route('challenges.photos.store', [$course, $challenge]),
+                $this->payload(),
+            );
+        } catch (RuntimeException) {
+            // The failure is the point; what it left behind is the assertion.
+        }
+
+        $this->assertDatabaseCount('drone_photos', 0);
+        $this->assertSame(
+            [],
+            Storage::disk('photos')->allFiles(),
+            'a failed upload left its bytes on the disk with no row pointing at them',
+        );
     }
 
     public function test_a_photo_url_is_a_link_that_expires(): void

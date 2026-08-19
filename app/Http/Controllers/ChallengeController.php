@@ -37,7 +37,7 @@ final class ChallengeController extends Controller
         FlightLog $flightLog,
         ResolveMissionDrone $resolveDrone,
     ): Response {
-        abort_unless($challenge->isPlayableIn($course), 404);
+        abort_unless($challenge->isAvailableIn($course), 404);
         abort_unless($challenge->isUnlockedFor($request->user(), $course), 403);
 
         $user = $request->user();
@@ -113,7 +113,7 @@ final class ChallengeController extends Controller
         RecordChallengeAttempt $recordAttempt,
         ResolveMissionDrone $resolveDrone,
     ): JsonResponse {
-        abort_unless($challenge->isPlayableIn($course), 404);
+        abort_unless($challenge->isAvailableIn($course), 404);
         abort_unless($challenge->isUnlockedFor($request->user(), $course), 403);
 
         $run = $request->run();

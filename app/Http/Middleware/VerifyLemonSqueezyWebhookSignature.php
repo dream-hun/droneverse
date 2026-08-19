@@ -44,21 +44,15 @@ final class VerifyLemonSqueezyWebhookSignature
     {
         $secret = config('lemon-squeezy.signing_secret');
 
-        if (! is_string($secret) || $secret === '') {
-            throw new AccessDeniedHttpException('Webhook signature verification is not configured.');
-        }
+        throw_if(! is_string($secret) || $secret === '', AccessDeniedHttpException::class, 'Webhook signature verification is not configured.');
 
         $signature = $request->header('X-Signature');
 
-        if (! is_string($signature) || $signature === '') {
-            throw new AccessDeniedHttpException('Missing webhook signature.');
-        }
+        throw_if(! is_string($signature) || $signature === '', AccessDeniedHttpException::class, 'Missing webhook signature.');
 
         $expected = hash_hmac('sha256', $request->getContent(), $secret);
 
-        if (! hash_equals($expected, $signature)) {
-            throw new AccessDeniedHttpException('Invalid webhook signature.');
-        }
+        throw_unless(hash_equals($expected, $signature), AccessDeniedHttpException::class, 'Invalid webhook signature.');
 
         return $next($request);
     }

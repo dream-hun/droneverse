@@ -6,6 +6,7 @@ namespace App\Queries;
 
 use App\Models\Challenge;
 use App\Models\ChallengeRun;
+use App\Models\PilotMissionStats;
 use App\Models\User;
 use App\Queries\Support\SliceCache;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
@@ -23,12 +24,21 @@ use stdClass;
  * coming down, which mission is actually costing the most attempts — is a
  * question about the runs.
  *
+ * Only one of them still reads the runs themselves. {@see self::missionCurve()}
+ * is a list of individual flights and there is nothing to roll a curve up
+ * into; every other slice is a *total*, and totals are read from
+ * {@see PilotMissionStats}, which is maintained as runs land. The difference
+ * is not a constant factor: aggregating the raw table made the cost of
+ * reading a pilot's analytics grow with how much they had flown, and the
+ * curve is bounded by {@see self::CURVE_POINTS} where the aggregates were
+ * bounded by nothing.
+ *
  * Scoped throughout to content that is still playable, matching
  * {@see Leaderboard}: retiring a mission takes it out of the pilot's
  * analytics the same way it takes it off the board, so the two never
  * disagree about what counts.
  *
- * Cached against a generation counter that {@see self::forget()} bumps when a
+ * Cached against generation counters that {@see self::forget()} bumps when a
  * run lands. Most slices here are per-pilot and are read far less often than
  * the leaderboard, so the cache is mostly there to stop a page refresh
  * re-running four aggregates.
@@ -70,17 +80,27 @@ final readonly class FlightLog
     ) {}
 
     /**
-     * Retire every cached slice.
+     * Retire the cached slices this run could have moved, and no others.
      *
-     * Called when a run lands. A run changes its pilot's summary, their curve
-     * on that mission and their weak-spot ranking, and it moves the cohort
-     * every other pilot on that mission is measured against — so rather than
-     * work out which of those a given run touched, all of them are retired at
-     * once.
+     * A run changes exactly three populations: everything drawn from this
+     * pilot's runs (their summary, the missions they have flown, their weak
+     * spots), their own curve on this mission, and the cohort every pilot on
+     * this mission is measured against. Three counters, one write each.
+     *
+     * What this replaces is the reason it exists. There was a single counter
+     * per read model, so one pilot landing a run retired every cached slice
+     * belonging to every pilot — on a page where almost every slice is
+     * per-pilot and could not possibly have been affected. The busier the
+     * simulator got, the closer the analytics cache came to never being read
+     * at all.
      */
-    public function forget(): void
+    public function forget(User $user, Challenge $challenge): void
     {
-        $this->cache->flush();
+        $this->cache->flush(
+            $this->pilotScope($user),
+            $this->flightScope($user, $challenge),
+            $this->missionScope($challenge),
+        );
     }
 
     /**
@@ -98,6 +118,10 @@ final readonly class FlightLog
     {
         return $this->cache->remember(
             sprintf('curve:%d:%d', $challenge->id, $user->id),
+            // Only this pilot's runs on this mission are in it, so a run they
+            // fly elsewhere leaves the curve alone — and another pilot's run
+            // here never touched it in the first place.
+            [$this->flightScope($user, $challenge)],
             function () use ($user, $challenge): array {
                 // Newest first, then reversed: the index is ordered by id, so
                 // taking the tail of a long history costs the same as taking
@@ -158,15 +182,20 @@ final readonly class FlightLog
     {
         return $this->cache->remember(
             sprintf('summary:%d', $user->id),
+            [$this->pilotScope($user)],
             function () use ($user): array {
+                // One row per mission flown rather than one per run, so a
+                // pilot's two hundredth attempt costs this aggregate exactly
+                // what their second did.
                 $row = $this->playableFor($user)
                     ->selectRaw(
-                        'count(*) as runs, '
-                        .'count(distinct challenge_runs.challenge_id) as missions_flown, '
-                        .'count(distinct case when challenge_runs.completed = ? then challenge_runs.challenge_id end) as missions_cleared, '
-                        .'count(case when challenge_runs.collisions = 0 then 1 end) as clean_runs, '
-                        .'coalesce(sum(challenge_runs.elapsed_seconds), 0) as flight_seconds, '
-                        .'coalesce(max(challenge_runs.score), 0) as best_score',
+                        'coalesce(sum(pilot_mission_stats.runs), 0) as runs, '
+                        .'count(*) as missions_flown, '
+                        .'count(case when pilot_mission_stats.cleared = ? then 1 end) as missions_cleared, '
+                        .'coalesce(sum(pilot_mission_stats.clean_runs), 0) as clean_runs, '
+                        .'coalesce(sum(pilot_mission_stats.elapsed_seconds_total), 0) as flight_seconds, '
+                        .'coalesce(max(pilot_mission_stats.best_score), 0) as best_score, '
+                        .'avg(pilot_mission_stats.attempts_to_clear) as mean_attempts_to_clear',
                         [true],
                     )
                     ->toBase()
@@ -175,13 +204,23 @@ final readonly class FlightLog
                 $runs = (int) ($row->runs ?? 0);
                 $flown = (int) ($row->missions_flown ?? 0);
                 $cleared = (int) ($row->missions_cleared ?? 0);
+                $meanAttempts = $row->mean_attempts_to_clear ?? null;
 
                 return [
                     'runs' => $runs,
                     'missionsFlown' => $flown,
                     'missionsCleared' => $cleared,
                     'clearRate' => $flown === 0 ? 0.0 : round($cleared / $flown, 3),
-                    'meanAttemptsToClear' => $this->meanAttemptsToClear($user),
+                    /*
+                     * `avg` skips the nulls, and null is exactly what a
+                     * mission the pilot has never cleared stores — so the
+                     * mean is taken over the missions that have a number,
+                     * and stays null when none of them do. That is a
+                     * different statement from zero.
+                     */
+                    'meanAttemptsToClear' => $meanAttempts === null
+                        ? null
+                        : round((float) $meanAttempts, 1),
                     'flightSeconds' => round((float) ($row->flight_seconds ?? 0), 1),
                     'cleanRunRate' => $runs === 0
                         ? 0.0
@@ -206,26 +245,20 @@ final readonly class FlightLog
     {
         return $this->cache->remember(
             sprintf('missions:%d', $user->id),
+            [$this->pilotScope($user)],
             function () use ($user): array {
+                // Already one row per mission, so there is nothing left to
+                // group: the rollup is the shape this slice wanted.
                 $rows = $this->playableFor($user)
-                    ->groupBy(
-                        'challenges.id',
-                        'challenges.title',
-                        'challenges.slug',
-                        'courses.title',
-                        'courses.slug',
-                    )
                     ->selectRaw(
                         'challenges.title as challenge_title, '
                         .'challenges.slug as challenge_slug, '
                         .'courses.title as course_title, '
                         .'courses.slug as course_slug, '
-                        .'count(*) as runs, '
-                        .'max(challenge_runs.id) as last_run_id, '
-                        .'max(case when challenge_runs.completed = ? then 1 else 0 end) as cleared',
-                        [true],
+                        .'pilot_mission_stats.runs as runs, '
+                        .'pilot_mission_stats.cleared as cleared',
                     )
-                    ->orderByDesc('last_run_id')
+                    ->orderByDesc('pilot_mission_stats.last_run_id')
                     ->toBase()
                     ->get()
                     ->all();
@@ -258,28 +291,22 @@ final readonly class FlightLog
     {
         return $this->cache->remember(
             sprintf('weak-spots:%d:%d', $user->id, $limit),
+            [$this->pilotScope($user)],
             function () use ($user, $limit): array {
                 $rows = $this->playableFor($user)
-                    ->groupBy(
-                        'challenges.id',
-                        'challenges.title',
-                        'challenges.slug',
-                        'challenges.max_score',
-                        'courses.title',
-                        'courses.slug',
-                    )
-                    ->havingRaw('count(*) >= ?', [self::WEAK_SPOT_MIN_RUNS])
+                    ->where('pilot_mission_stats.runs', '>=', self::WEAK_SPOT_MIN_RUNS)
                     ->selectRaw(
                         'challenges.title as challenge_title, '
                         .'challenges.slug as challenge_slug, '
                         .'challenges.max_score as max_score, '
                         .'courses.title as course_title, '
                         .'courses.slug as course_slug, '
-                        .'count(*) as runs, '
-                        .'coalesce(max(challenge_runs.score), 0) as best_score, '
-                        .'coalesce(avg(challenge_runs.collisions), 0) as mean_collisions, '
-                        .'max(case when challenge_runs.completed = ? then 1 else 0 end) as cleared',
-                        [true],
+                        .'pilot_mission_stats.runs as runs, '
+                        .'pilot_mission_stats.best_score as best_score, '
+                        .'pilot_mission_stats.cleared as cleared, '
+                        // Summed rather than averaged in the rollup, so the
+                        // mean is exact however many runs it is taken over.
+                        .'pilot_mission_stats.collisions_total * 1.0 / pilot_mission_stats.runs as mean_collisions',
                     )
                     ->orderBy('cleared')
                     ->orderByDesc('runs')
@@ -321,11 +348,15 @@ final readonly class FlightLog
     {
         return $this->cache->remember(
             sprintf('cohort:%d:%d', $challenge->id, $user->id),
+            // A percentile is a statement about the whole population on this
+            // mission, so anyone's run here moves it — including this
+            // pilot's, which bumps the mission scope along with their own.
+            [$this->missionScope($challenge)],
             function () use ($user, $challenge): ?array {
-                $yourBest = DB::table('challenge_runs')
+                $yourBest = DB::table('pilot_mission_stats')
                     ->where('user_id', $user->id)
                     ->where('challenge_id', $challenge->id)
-                    ->max('score');
+                    ->value('best_score');
 
                 if ($yourBest === null) {
                     return null;
@@ -333,20 +364,18 @@ final readonly class FlightLog
 
                 $yourBest = (int) $yourBest;
 
-                // One row per pilot who has flown this mission, carrying
-                // their best. `bests` is the population the percentile is
-                // taken over, so a pilot with forty runs counts once.
-                $bests = DB::table('challenge_runs')
+                /*
+                 * The rollup is already one row per pilot carrying their
+                 * best, which is the population a percentile is taken over —
+                 * so the grouping subquery this used to need is gone, and
+                 * what is left reads a single index over one mission's rows.
+                 */
+                $row = DB::table('pilot_mission_stats')
                     ->where('challenge_id', $challenge->id)
-                    ->groupBy('user_id')
-                    ->selectRaw('max(score) as best');
-
-                $row = DB::query()
-                    ->fromSub($bests, 'bests')
                     ->selectRaw(
                         'count(*) as pilots, '
-                        .'count(case when best < ? then 1 end) as below, '
-                        .'coalesce(max(best), 0) as top_best',
+                        .'count(case when best_score < ? then 1 end) as below, '
+                        .'coalesce(max(best_score), 0) as top_best',
                         [$yourBest],
                     )
                     ->first();
@@ -367,59 +396,60 @@ final readonly class FlightLog
     }
 
     /**
-     * How many runs it takes this pilot to clear a mission, on average.
-     *
-     * Counted up to and including the run that cleared it — everything after
-     * is a pilot chasing stars on a mission they have already beaten, and
-     * folding that in would make a pilot who kept practising look slower than
-     * one who moved on.
-     *
-     * Null when they have not cleared anything yet, which is a different
-     * statement from zero.
+     * Everything drawn from one pilot's runs, wherever they were flown.
      */
-    private function meanAttemptsToClear(User $user): ?float
+    private function pilotScope(User $user): string
     {
-        $firstClears = DB::table('challenge_runs')
-            ->where('user_id', $user->id)
-            ->where('completed', true)
-            ->groupBy('challenge_id')
-            ->selectRaw('challenge_id, min(id) as cleared_id');
-
-        $perMission = DB::table('challenge_runs')
-            ->joinSub($firstClears, 'first_clears', function ($join): void {
-                $join->on('first_clears.challenge_id', '=', 'challenge_runs.challenge_id');
-            })
-            ->where('challenge_runs.user_id', $user->id)
-            ->whereColumn('challenge_runs.id', '<=', 'first_clears.cleared_id')
-            ->groupBy('challenge_runs.challenge_id')
-            ->selectRaw('count(*) as attempts');
-
-        $mean = DB::query()->fromSub($perMission, 'per_mission')->avg('attempts');
-
-        return $mean === null ? null : round((float) $mean, 1);
+        return sprintf('pilot:%d', $user->id);
     }
 
     /**
-     * Runs against content that is still playable, for one pilot.
+     * One pilot's runs on one mission.
      *
-     * Every aggregate here reads through this, so "playable" means exactly
-     * one thing — a published challenge inside a published course — and
-     * retiring either end retires the runs from all of them at once.
+     * Narrower than {@see self::pilotScope()} on purpose: a curve is the one
+     * slice that cares about a single pairing, and giving it a scope of its
+     * own is what lets a pilot's flight on another mission leave it standing.
+     */
+    private function flightScope(User $user, Challenge $challenge): string
+    {
+        return sprintf('flight:%d:%d', $user->id, $challenge->id);
+    }
+
+    /**
+     * Every pilot's runs on one mission — the cohort a percentile is taken
+     * over.
+     */
+    private function missionScope(Challenge $challenge): string
+    {
+        return sprintf('mission:%d', $challenge->id);
+    }
+
+    /**
+     * Mission totals for content that is still playable, for one pilot.
+     *
+     * Every slice but the curve reads through this, so "playable" means
+     * exactly one thing — a published challenge inside a published course —
+     * and retiring either end retires the totals from all of them at once.
+     *
+     * That filter is the reason {@see PilotMissionStats} is keyed
+     * by mission rather than rolled up any further: the publication check
+     * stays a live join here, so pulling a mission takes it out of every
+     * pilot's analytics immediately, with no rollup to rebuild first.
      *
      * Callers running an aggregate over it must finish with `toBase()`.
-     * Eloquent would otherwise hydrate a ChallengeRun out of a row that is
-     * counts and averages rather than a run, and the model's casts would be
-     * applied to columns that are not its own.
+     * Eloquent would otherwise hydrate a PilotMissionStats out of a row that
+     * is counts and averages rather than a mission's totals, and the model's
+     * casts would be applied to columns that are not its own.
      *
-     * @return EloquentBuilder<ChallengeRun>
+     * @return EloquentBuilder<PilotMissionStats>
      */
     private function playableFor(User $user): EloquentBuilder
     {
-        return ChallengeRun::query()
-            ->join('challenges', 'challenges.id', '=', 'challenge_runs.challenge_id')
+        return PilotMissionStats::query()
+            ->join('challenges', 'challenges.id', '=', 'pilot_mission_stats.challenge_id')
             ->join('courses', 'courses.id', '=', 'challenges.course_id')
             ->where('challenges.is_published', true)
             ->where('courses.is_published', true)
-            ->where('challenge_runs.user_id', $user->id);
+            ->where('pilot_mission_stats.user_id', $user->id);
     }
 }

@@ -14,8 +14,9 @@ on:
       - master
       - workos
 
+# Read-only: this workflow reports on the code, it no longer rewrites it.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   quality:
@@ -35,17 +36,16 @@ jobs:
           composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist
           npm install
 
+      # The check-only variants, deliberately. Every step here used to run the
+      # writing one — `pint --parallel`, `prettier --write`, `eslint --fix` —
+      # which rewrites the checkout and exits 0, and the auto-commit step that
+      # would have published those rewrites was commented out. The job could
+      # not fail, so nothing it covers was ever actually enforced.
       - name: Run Pint
-        run: composer lint
+        run: composer lint:check
 
-      - name: Format Frontend
-        run: npm run format
+      - name: Check Frontend Formatting
+        run: npm run format:check
 
       - name: Lint Frontend
-        run: npm run lint
-
-      # - name: Commit Changes
-      #   uses: stefanzweifel/git-auto-commit-action@v7
-      #   with:
-      #     commit_message: fix code style
-      #     commit_options: '--no-verify'
+        run: npm run lint:check

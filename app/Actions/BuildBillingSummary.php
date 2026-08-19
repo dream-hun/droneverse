@@ -182,8 +182,10 @@ final readonly class BuildBillingSummary
         foreach ($plan->variants() as $variant) {
             $priceId = $plan->priceId($variant);
             $amount = $plan->amount($variant);
-
-            if ($priceId === null || $amount === null) {
+            if ($priceId === null) {
+                continue;
+            }
+            if ($amount === null) {
                 continue;
             }
 

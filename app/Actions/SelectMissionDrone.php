@@ -24,7 +24,7 @@ final readonly class SelectMissionDrone
     /**
      * Save the pilot's drone for this mission.
      *
-     * `firstOrCreate` because a pilot may pick their airframe before they
+     * `createOrFirst` because a pilot may pick their airframe before they
      * have ever flown, which is the normal case and the whole point of
      * choosing one. The row it creates is a progress row at its defaults —
      * `not_started`, no score, no attempts — so a mission somebody has only
@@ -32,7 +32,7 @@ final readonly class SelectMissionDrone
      */
     public function handle(User $user, Challenge $challenge, DroneModel $drone): UserChallengeProgress
     {
-        $progress = UserChallengeProgress::query()->firstOrCreate([
+        $progress = UserChallengeProgress::query()->createOrFirst([
             'user_id' => $user->id,
             'challenge_id' => $challenge->id,
         ]);

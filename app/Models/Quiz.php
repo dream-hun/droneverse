@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use App\Enums\Plan;
+use App\Concerns\CourseContent;
 use Database\Factories\QuizFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -19,7 +18,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  *
  * The catalog's second half. A {@see Challenge} asks whether a pilot can make
  * the drone do something; a quiz asks whether they understood why. Both are
- * authored content hanging off a {@see Course}, both are gated the same way,
+ * authored content hanging off a {@see Course}, both are gated the same way —
+ * which is now {@see CourseContent} rather than a second copy of the rules —
  * and neither knows anything about billing beyond the plan name it stores.
  *
  * @property int $id
@@ -36,51 +36,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable(['course_id', 'title', 'slug', 'description', 'order', 'required_plan', 'pass_percentage', 'is_published'])]
 final class Quiz extends Model
 {
+    use CourseContent;
+
     /** @use HasFactory<QuizFactory> */
     use HasFactory;
 
     public function getRouteKeyName(): string
     {
         return 'slug';
-    }
-
-    /**
-     * Whether this quiz can be taken as part of the given course.
-     *
-     * The exact counterpart of {@see Challenge::isPlayableIn()}, and it has to
-     * stay that way: both ends have to be live and the quiz has to actually
-     * belong to the course in the URL, or the pair is indistinguishable from
-     * content that does not exist. Every route carrying a course/quiz pair
-     * asks this one question.
-     */
-    public function isAvailableIn(Course $course): bool
-    {
-        return $this->is_published
-            && $course->is_published
-            && $this->course_id === $course->id;
-    }
-
-    /**
-     * The plan a pilot needs to take this quiz as part of the given course.
-     *
-     * Mirrors {@see Challenge::requiredPlanIn()} exactly, including the reason
-     * the course is passed in rather than read off the relation: every caller
-     * already has it from the route, and reaching for `$this->course` here
-     * would fire a query per row on a course page.
-     */
-    public function requiredPlanIn(Course $course): Plan
-    {
-        return Plan::tryFrom($this->required_plan ?? '') ?? $course->requiredPlan();
-    }
-
-    /**
-     * Whether this viewer's plan reaches the quiz. Guests get Starter.
-     */
-    public function isUnlockedFor(?User $user, Course $course): bool
-    {
-        $plan = $user?->plan() ?? Plan::Starter;
-
-        return $plan->covers($this->requiredPlanIn($course));
     }
 
     /**
@@ -95,14 +58,6 @@ final class Quiz extends Model
     public function isPassedBy(int $score): bool
     {
         return $score >= $this->pass_percentage;
-    }
-
-    /**
-     * @return BelongsTo<Course, $this>
-     */
-    public function course(): BelongsTo
-    {
-        return $this->belongsTo(Course::class);
     }
 
     /**

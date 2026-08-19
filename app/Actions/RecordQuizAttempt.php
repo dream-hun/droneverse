@@ -54,7 +54,10 @@ final readonly class RecordQuizAttempt
         // able to become a truncated row or a failed insert.
         $score = max(0, min($result['score'], 100));
 
-        UserQuizProgress::query()->firstOrCreate([
+        // See RecordChallengeAttempt: a first attempt can be submitted twice
+        // concurrently, so creation must recover from the unique-key race
+        // before the row-level lock serializes the progress merge.
+        UserQuizProgress::query()->createOrFirst([
             'user_id' => $user->id,
             'quiz_id' => $quiz->id,
         ]);

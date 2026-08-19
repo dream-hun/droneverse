@@ -58,6 +58,29 @@ export default defineConfig({
             },
         },
     },
+    optimizeDeps: {
+        /**
+         * Leaves the physics engine's generated bindings out of the dev
+         * server's dependency pre-bundle, because there must only ever be one
+         * copy of them.
+         *
+         * wasm-bindgen splits the engine in two: a `.wasm` binary, and a
+         * JavaScript glue module holding the heap that hands objects between
+         * the two sides. The binary's imports are wired to the glue module the
+         * browser loads for it — the real file in node_modules. Pre-bundling
+         * inlines a second copy of that glue into the optimized
+         * `@react-three/rapier` chunk, with a second, empty heap, and the app
+         * calls through that one: it registers `performance` in heap A, hands
+         * the index to the binary, and the binary reads it back out of heap B.
+         * Every step of the world then threw `getObject(...).now is not a
+         * function`, thousands of times a second, and the viewport locked up.
+         *
+         * Excluded, the chunk imports the same glue the binary does. This
+         * costs nothing in production, where the whole graph is bundled at
+         * once and the question of a second copy never comes up.
+         */
+        exclude: ['@dimforge/rapier3d'],
+    },
     resolve: {
         alias: {
             // The physics engine's WASM ships as a real .wasm asset instead

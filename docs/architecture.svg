@@ -1,0 +1,226 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1700" height="1302" viewBox="0 0 1700 1302">
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M 0 0 L 10 5 L 0 10 z" fill="#94A3B8"/>
+  </marker>
+  <marker id="arrowP" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M 0 0 L 10 5 L 0 10 z" fill="#8B5CF6"/>
+  </marker>
+</defs>
+<rect width="1700" height="1302" fill="#FBFBFD"/>
+<text x="36" y="58" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="30" font-weight="700" fill="#0F172A">DroneVerse — System Architecture</text>
+<text x="36" y="86" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" fill="#475569">Browser-based drone programming platform · Laravel 13 / PHP 8.5 · Inertia v3 + React 19 · three.js + Rapier · Lemon Squeezy subscriptions</text>
+<text x="1664" y="58" text-anchor="end" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="12" fill="#64748B">Companion to docs/project-report.md</text>
+<text x="1664" y="86" text-anchor="end" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="12" fill="#64748B">The browser flies; the server decides what a flight was worth.</text>
+<rect x="36" y="118" width="1074" height="300" rx="14" fill="#F2F6FF" stroke="#93B4FC" stroke-width="1.5"/>
+<text x="54" y="149" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16.5" font-weight="700" letter-spacing="1.1" fill="#1D4ED8">1 · CLIENT — Inertia SPA in the pilot's browser</text>
+<rect x="54" y="166" width="336" height="112" rx="9" fill="#FFFFFF" stroke="#C9DAFE" stroke-width="1.25"/>
+<text x="68" y="190" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">Inertia pages · React 19</text>
+<text x="68" y="210" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>welcome · courses · challenges/play · quizzes · photos</text>
+<text x="68" y="225" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>leaderboard · analytics · pricing · settings · auth</text>
+<text x="68" y="240" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>Wayfinder typed callers — no hand-written URLs</text>
+<text x="68" y="255" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>shared props carry plan + granted features (a hint)</text>
+<rect x="404" y="166" width="336" height="112" rx="9" fill="#FFFFFF" stroke="#C9DAFE" stroke-width="1.25"/>
+<text x="418" y="190" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">UI layer</text>
+<text x="418" y="210" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>Tailwind v4 · shadcn + Radix primitives</text>
+<text x="418" y="225" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>sonner toasts on every create / edit / delete</text>
+<text x="418" y="240" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>next-themes appearance · Inter, JetBrains Mono</text>
+<text x="418" y="255" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>Monaco editor for the pilot’s mission code</text>
+<rect x="754" y="166" width="336" height="112" rx="9" fill="#FFFFFF" stroke="#C9DAFE" stroke-width="1.25"/>
+<text x="768" y="190" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">3D simulator · react-three-fiber</text>
+<text x="768" y="210" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>three.js scene: city props, obstacles, drone rig</text>
+<text x="768" y="225" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>Rapier physics — the airframe is a rigid body</text>
+<text x="768" y="240" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>camera rig · flight HUD · console · briefing panel</text>
+<text x="768" y="255" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>airframe picked per mission (Pro-gated server-side)</text>
+<rect x="54" y="290" width="336" height="112" rx="9" fill="#FFFFFF" stroke="#C9DAFE" stroke-width="1.25"/>
+<text x="68" y="314" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">Sandboxed Web Worker</text>
+<text x="68" y="334" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>runs the pilot’s program off the main thread</text>
+<text x="68" y="349" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>fetch / XHR / WebSocket / EventSource stubbed out</text>
+<text x="68" y="364" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>every drone.* call is a postMessage round trip,</text>
+<text x="82" y="379" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">resolved only once physics carries it out</text>
+<rect x="404" y="290" width="336" height="112" rx="9" fill="#FFFFFF" stroke="#C9DAFE" stroke-width="1.25"/>
+<text x="418" y="314" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">Telemetry + preview grader</text>
+<text x="418" y="334" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>flight path sampled off the frame loop at 20 Hz</text>
+<text x="418" y="349" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>grader.ts scores on landing — a preview only,</text>
+<text x="432" y="364" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">mirroring the server’s policy so UI is instant</text>
+<text x="418" y="379" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>submits { code, path[], collisions, photos[] }</text>
+<rect x="754" y="290" width="336" height="112" rx="9" fill="#FFFFFF" stroke="#C9DAFE" stroke-width="1.25"/>
+<text x="768" y="314" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">Camera + upload queue</text>
+<text x="768" y="334" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>the shutter captures frames during the flight</text>
+<text x="768" y="349" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>upload-queue.ts turns a burst into a trickle —</text>
+<text x="782" y="364" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">one POST at a time, flight never waits on it</text>
+<text x="768" y="379" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>a rejected upload does not stall the ones behind</text>
+<rect x="36" y="452" width="1074" height="138" rx="14" fill="#FFFBF0" stroke="#F3C579" stroke-width="1.5"/>
+<text x="54" y="483" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16.5" font-weight="700" letter-spacing="1.1" fill="#B45309">2 · HTTP EDGE — routing, middleware, asset pipeline</text>
+<rect x="54" y="498" width="250" height="76" rx="9" fill="#FFFFFF" stroke="#FADFB0" stroke-width="1.25"/>
+<text x="68" y="522" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">routes/</text>
+<text x="68" y="542" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>web · courses · billing · settings</text>
+<text x="68" y="557" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>catalog bound by slug, pilot rows by uuid</text>
+<rect x="316" y="498" width="250" height="76" rx="9" fill="#FFFFFF" stroke="#FADFB0" stroke-width="1.25"/>
+<text x="330" y="522" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">Middleware</text>
+<text x="330" y="542" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>auth · verified · can:&lt;Feature&gt; · throttle</text>
+<text x="330" y="557" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>HandleInertiaRequests · HandleAppearance</text>
+<rect x="578" y="498" width="250" height="76" rx="9" fill="#FFFFFF" stroke="#FADFB0" stroke-width="1.25"/>
+<text x="592" y="522" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">Webhook guards</text>
+<text x="592" y="542" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>VerifyLemonSqueezyWebhookSignature</text>
+<text x="592" y="557" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>PreventLemonSqueezyWebhookRetryLoops</text>
+<rect x="840" y="498" width="250" height="76" rx="9" fill="#FFFFFF" stroke="#FADFB0" stroke-width="1.25"/>
+<text x="854" y="522" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">Build pipeline</text>
+<text x="854" y="542" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>Vite 8 · Inertia SSR · Wayfinder codegen</text>
+<text x="854" y="557" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>three.js split into its own chunk</text>
+<rect x="36" y="624" width="1074" height="372" rx="14" fill="#FFF5F6" stroke="#F1A3B4" stroke-width="1.5"/>
+<text x="54" y="655" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16.5" font-weight="700" letter-spacing="1.1" fill="#BE123C">3 · APPLICATION — Laravel 13 · thin controllers, logic in Actions</text>
+<rect x="54" y="670" width="336" height="140" rx="9" fill="#FFFFFF" stroke="#F9CBD5" stroke-width="1.25"/>
+<text x="68" y="694" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">Controllers — HTTP shape only</text>
+<text x="68" y="714" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>Welcome · Course · Challenge · ChallengeDrone</text>
+<text x="68" y="729" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>Quiz · DronePhoto · Dashboard · Leaderboard</text>
+<text x="68" y="744" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>Analytics · Pricing · Checkout · Settings\*</text>
+<text x="68" y="759" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>resolve binding → abort_unless → call actions</text>
+<text x="68" y="774" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>404 (not playable) before 403 (not entitled)</text>
+<text x="68" y="789" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>guards repeated here, never inherited from a page</text>
+<rect x="404" y="670" width="336" height="140" rx="9" fill="#FFFFFF" stroke="#F9CBD5" stroke-width="1.25"/>
+<text x="418" y="694" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">Form Requests + Resources</text>
+<text x="418" y="714" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>StoreChallengeAttempt is the trust boundary: it</text>
+<text x="432" y="729" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">accepts no score, no stars, no claim of success</text>
+<text x="418" y="744" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>StoreQuizAttempt · StoreDronePhoto · Checkout</text>
+<text x="418" y="759" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>UpdateMissionDrone · ChangePlan</text>
+<text x="418" y="774" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>Resources shape server state into page props —</text>
+<text x="432" y="789" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">answer keys and solution_code never travel</text>
+<rect x="754" y="670" width="336" height="140" rx="9" fill="#FFFFFF" stroke="#F9CBD5" stroke-width="1.25"/>
+<text x="768" y="694" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">Entitlement + authorization</text>
+<text x="768" y="714" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>Plan enum — catalogue depth, Plan::covers()</text>
+<text x="768" y="729" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>Feature enum — capabilities, registered 1:1 as</text>
+<text x="782" y="744" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">Gates, so can: middleware and React agree</text>
+<text x="768" y="759" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>ResolvePlanForUser: override ▸ subscription ▸</text>
+<text x="782" y="774" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">Starter, memoised on the User instance</text>
+<text x="768" y="789" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>Policies per model · HasPlan concern</text>
+<rect x="54" y="826" width="336" height="154" rx="9" fill="#FFFFFF" stroke="#F9CBD5" stroke-width="1.25"/>
+<text x="68" y="850" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">Actions — flight &amp; learning</text>
+<text x="68" y="870" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>ReconstructRunTelemetry replays the submitted</text>
+<text x="82" y="885" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">path against the mission’s own geometry</text>
+<text x="68" y="900" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>GradeSimulatorRun is the authority on a score:</text>
+<text x="82" y="915" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">objectives 70 / landing 20 / time 10, −10 hit</text>
+<text x="68" y="930" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>RecordChallengeAttempt — firstOrCreate outside</text>
+<text x="82" y="945" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">the txn, lockForUpdate merge inside it</text>
+<text x="68" y="960" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>GradeQuizSubmission · RecordQuizAttempt</text>
+<rect x="404" y="826" width="336" height="154" rx="9" fill="#FFFFFF" stroke="#F9CBD5" stroke-width="1.25"/>
+<text x="418" y="850" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">Actions — billing, plans &amp; media</text>
+<text x="418" y="870" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>StartCheckout · ResolveCheckoutPrice</text>
+<text x="418" y="885" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>SwapSubscription · Cancel · Resume</text>
+<text x="418" y="900" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>BuildPricingCatalog · BuildBillingSummary</text>
+<text x="418" y="915" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>BuildLemonSqueezyClientConfig · ResolvePlanForUser</text>
+<text x="418" y="930" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>StoreDronePhoto · Resolve/SelectMissionDrone</text>
+<text x="418" y="945" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>variant IDs read from config, never database rows</text>
+<text x="418" y="960" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>Fortify actions: register, profile, password rules</text>
+<rect x="754" y="826" width="336" height="154" rx="9" fill="#FFFFFF" stroke="#F9CBD5" stroke-width="1.25"/>
+<text x="768" y="850" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">Queries (cached read models) + Models</text>
+<text x="768" y="870" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>Leaderboard — ranked projection behind a</text>
+<text x="782" y="885" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">generation counter, stampede lock, arrays only</text>
+<text x="768" y="900" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>FlightLog — per-pilot analytics over runs</text>
+<text x="768" y="915" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>DefaultSubscription</text>
+<text x="768" y="930" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>Models run unguarded with @property-read; uuid</text>
+<text x="782" y="945" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">route keys, slugs for public catalog content</text>
+<text x="768" y="960" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>preventLazyLoading armed outside production</text>
+<rect x="36" y="1030" width="1074" height="236" rx="14" fill="#F1FCF7" stroke="#8DD3B8" stroke-width="1.5"/>
+<text x="54" y="1061" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16.5" font-weight="700" letter-spacing="1.1" fill="#047857">4 · PERSISTENCE &amp; STORAGE</text>
+<rect x="54" y="1076" width="336" height="172" rx="9" fill="#FFFFFF" stroke="#BFE9D6" stroke-width="1.25"/>
+<text x="68" y="1100" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">Relational database</text>
+<text x="68" y="1120" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>SQLite in development · MySQL 8 in production</text>
+<text x="68" y="1135" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>courses · challenges (JSON environment + criteria)</text>
+<text x="68" y="1150" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>drone_models · quizzes · questions · options</text>
+<text x="68" y="1165" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>user_challenge_progress — monotonic, unique on</text>
+<text x="82" y="1180" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">(user, challenge) · challenge_runs, append-only</text>
+<text x="68" y="1195" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>user_quiz_progress · quiz_attempts</text>
+<text x="68" y="1210" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>users · passkeys · two-factor columns</text>
+<text x="68" y="1225" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>lemon_squeezy customers / subscriptions / orders</text>
+<rect x="404" y="1076" width="336" height="172" rx="9" fill="#FFFFFF" stroke="#BFE9D6" stroke-width="1.25"/>
+<text x="418" y="1100" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">Cache · Sessions · Queue</text>
+<text x="418" y="1120" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>database driver today; Redis in the target</text>
+<text x="432" y="1135" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">topology (§9.4 of docs/project-report.md)</text>
+<text x="418" y="1150" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>leaderboard:{generation}:… keys, 300 s TTL —</text>
+<text x="432" y="1165" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">invalidation is one counter bump per attempt</text>
+<text x="418" y="1180" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>sessions in the database are the one thing</text>
+<text x="432" y="1195" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">keeping the web tier from being stateless</text>
+<text x="418" y="1210" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>jobs table exists; app/Jobs is still empty, so</text>
+<text x="432" y="1225" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">every request does all of its own work inline</text>
+<rect x="754" y="1076" width="336" height="172" rx="9" fill="#FFFFFF" stroke="#BFE9D6" stroke-width="1.25"/>
+<text x="768" y="1100" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">File storage — drone photos</text>
+<text x="768" y="1120" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>private local disk (dev) / S3 (prod), through</text>
+<text x="782" y="1135" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">league/flysystem-aws-s3-v3</text>
+<text x="768" y="1150" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>never web-readable: each frame reaches the pilot</text>
+<text x="782" y="1165" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">as a short-lived expiring URL</text>
+<text x="768" y="1180" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>StoreDronePhoto validates the decoded bytes</text>
+<text x="782" y="1195" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">before anything touches the disk</text>
+<text x="768" y="1210" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>500 photos per pilot · DronePhotoPolicy guards</text>
+<text x="782" y="1225" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">both reading and deleting</text>
+<path d="M 300 422 L 300 448" stroke="#94A3B8" stroke-width="1.6" fill="none" marker-end="url(#arrow)"/>
+<text x="310" y="439" text-anchor="start" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-style="italic" fill="#64748B">Inertia visit · attempt POST · photo POST</text>
+<path d="M 800 448 L 800 422" stroke="#94A3B8" stroke-width="1.6" fill="none" marker-end="url(#arrow)"/>
+<text x="790" y="439" text-anchor="end" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-style="italic" fill="#64748B">page props · graded result · expiring URLs</text>
+<path d="M 300 594 L 300 620" stroke="#94A3B8" stroke-width="1.6" fill="none" marker-end="url(#arrow)"/>
+<text x="310" y="611" text-anchor="start" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-style="italic" fill="#64748B">validated, throttled, authorized request</text>
+<path d="M 800 620 L 800 594" stroke="#94A3B8" stroke-width="1.6" fill="none" marker-end="url(#arrow)"/>
+<text x="790" y="611" text-anchor="end" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-style="italic" fill="#64748B">Inertia response · small JSON payloads</text>
+<path d="M 300 1000 L 300 1026" stroke="#94A3B8" stroke-width="1.6" fill="none" marker-end="url(#arrow)"/>
+<text x="310" y="1017" text-anchor="start" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-style="italic" fill="#64748B">one transaction per attempt · cache bump</text>
+<path d="M 800 1026 L 800 1000" stroke="#94A3B8" stroke-width="1.6" fill="none" marker-end="url(#arrow)"/>
+<text x="790" y="1017" text-anchor="end" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-style="italic" fill="#64748B">read models · signed URLs · entitlement</text>
+<rect x="1200" y="118" width="464" height="532" rx="14" fill="#F8F5FF" stroke="#BFA8F5" stroke-width="1.5"/>
+<text x="1218" y="149" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16.5" font-weight="700" letter-spacing="1.1" fill="#6D28D9">5 · EXTERNAL SERVICES</text>
+<rect x="1218" y="166" width="428" height="210" rx="9" fill="#FFFFFF" stroke="#DACCFA" stroke-width="1.25"/>
+<text x="1232" y="190" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">Lemon Squeezy — subscriptions</text>
+<text x="1232" y="210" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>Hosted checkout overlay: no card details ever reach this</text>
+<text x="1246" y="225" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">application, and no price is trusted from the client.</text>
+<text x="1232" y="255" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>Outbound (throttled 20/min each): create customer, open</text>
+<text x="1246" y="270" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">checkout, swap plan, cancel, resume.</text>
+<text x="1232" y="300" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>Inbound: POST /lemon-squeezy/webhook — the only endpoint</text>
+<text x="1246" y="315" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">that grants paid access with no session behind it. The</text>
+<text x="1246" y="330" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">whole `web` group is dropped, and signature checking is</text>
+<text x="1246" y="345" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">unconditional, so a missing secret fails closed.</text>
+<rect x="1218" y="392" width="428" height="160" rx="9" fill="#FFFFFF" stroke="#DACCFA" stroke-width="1.25"/>
+<text x="1232" y="416" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">Webhook → entitlement chain</text>
+<text x="1232" y="436" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>1 · Lemon Squeezy posts a signed event</text>
+<text x="1232" y="451" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>2 · VerifyLemonSqueezyWebhookSignature (unconditional)</text>
+<text x="1232" y="466" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>3 · PreventLemonSqueezyWebhookRetryLoops absorbs the</text>
+<text x="1246" y="481" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">   already-recorded and unknown-account deliveries</text>
+<text x="1232" y="496" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>4 · the package’s WebhookController writes the subscription</text>
+<text x="1232" y="511" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>5 · ResolvePlanForUser reads it on the next request</text>
+<text x="1232" y="526" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>6 · Plan gates catalogue depth, Feature gates capability</text>
+<rect x="1218" y="568" width="428" height="66" rx="9" fill="#FFFFFF" stroke="#DACCFA" stroke-width="1.25"/>
+<text x="1232" y="592" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">Mail</text>
+<text x="1232" y="612" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>email verification, password reset, 2FA recovery codes</text>
+<text x="1232" y="627" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>log driver in development · SMTP in production</text>
+<rect x="1200" y="684" width="464" height="582" rx="14" fill="#F8FAFC" stroke="#B4C0CE" stroke-width="1.5"/>
+<text x="1218" y="715" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16.5" font-weight="700" letter-spacing="1.1" fill="#475569">6 · BUILD, DEPLOY &amp; QUALITY</text>
+<rect x="1218" y="732" width="428" height="120" rx="9" fill="#FFFFFF" stroke="#D5DDE6" stroke-width="1.25"/>
+<text x="1232" y="756" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">Laravel Cloud</text>
+<text x="1232" y="776" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>Deploy target. .cloud/config.json links this checkout to an</text>
+<text x="1246" y="791" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">organisation and application, and is git-ignored — it is</text>
+<text x="1246" y="806" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">machine-local state, not a project artefact.</text>
+<text x="1232" y="821" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>Production flips CACHE / SESSION / QUEUE to Redis,</text>
+<text x="1246" y="836" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">FILESYSTEM_DISK to s3, and APP_ENV to production.</text>
+<rect x="1218" y="868" width="428" height="100" rx="9" fill="#FFFFFF" stroke="#D5DDE6" stroke-width="1.25"/>
+<text x="1232" y="892" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">Observability</text>
+<text x="1232" y="912" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>opcodesio/log-viewer · laravel/pail</text>
+<text x="1232" y="927" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>Laravel Boost browser-logs during development</text>
+<text x="1232" y="942" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>Model::preventLazyLoading() armed outside production, so</text>
+<text x="1246" y="957" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">an N+1 fails the test suite rather than the live database</text>
+<rect x="1218" y="984" width="428" height="266" rx="9" fill="#FFFFFF" stroke="#D5DDE6" stroke-width="1.25"/>
+<text x="1232" y="1008" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">Quality gates</text>
+<text x="1232" y="1028" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>PHP</text>
+<text x="1246" y="1043" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">Pint (style) · Larastan level 7 · Rector</text>
+<text x="1246" y="1058" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">PHPUnit 12 — feature tests built on factories</text>
+<text x="1232" y="1088" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>TypeScript / React</text>
+<text x="1246" y="1103" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">ESLint · Prettier · tsc --noEmit · Vitest</text>
+<text x="1246" y="1118" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">(airframe, physics and simulator session units)</text>
+<text x="1232" y="1148" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>Contracts the suite pins</text>
+<text x="1246" y="1163" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">· the client grader must equal GradeSimulatorRun</text>
+<text x="1246" y="1178" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">· leaderboard cache generation semantics</text>
+<text x="1246" y="1193" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">· entitlement precedence and gate registration</text>
+<text x="1232" y="1223" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>The suite runs on SQLite + the array cache while</text>
+<text x="1246" y="1238" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">production runs MySQL + a shared store (a known gap).</text>
+<path d="M 1110 700 L 1130 700 L 1130 268 L 1200 268" fill="none" stroke="#8B5CF6" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrowP)"/>
+<text transform="rotate(-90 1124 620)" x="1124" y="620" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="10.5" font-style="italic" fill="#7C3AED">checkout · plan swap · cancel · resume</text>
+<path d="M 1200 452 L 1176 452 L 1176 556 L 1110 556" fill="none" stroke="#8B5CF6" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrowP)"/>
+<text transform="rotate(-90 1170 548)" x="1170" y="548" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="10.5" font-style="italic" fill="#7C3AED">signed webhook</text>
+</svg>

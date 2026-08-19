@@ -685,7 +685,7 @@ final class BillingTest extends TestCase
          * pointing back at this page, which would pass a laxer assertion for
          * entirely the wrong reason.
          */
-        $version = app(HandleInertiaRequests::class)->version($this->app['request']);
+        $version = resolve(HandleInertiaRequests::class)->version($this->app->make('request'));
 
         $this->actingAs($user)
             ->get(route('payment-method.edit'), [

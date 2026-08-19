@@ -59,8 +59,8 @@ final class WelcomeController extends Controller
     {
         try {
             return DroneModelResource::one($fleetDefault->handle());
-        } catch (RuntimeException $e) {
-            report($e);
+        } catch (RuntimeException $runtimeException) {
+            report($runtimeException);
 
             return null;
         }

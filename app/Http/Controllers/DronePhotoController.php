@@ -65,7 +65,7 @@ final class DronePhotoController extends Controller
         Challenge $challenge,
         StoreDronePhoto $storePhoto,
     ): JsonResponse {
-        abort_unless($challenge->isPlayableIn($course), 404);
+        abort_unless($challenge->isAvailableIn($course), 404);
         abort_unless($challenge->isUnlockedFor($request->user(), $course), 403);
 
         $photo = $storePhoto->handle($request->user(), $challenge, $request->photo());

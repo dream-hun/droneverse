@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Observers\ChallengeRunObserver;
 use Carbon\CarbonInterface;
 use Database\Factories\ChallengeRunFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -52,6 +54,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'landed',
     'timed_out',
 ])]
+#[ObservedBy(ChallengeRunObserver::class)]
 final class ChallengeRun extends Model
 {
     /** @use HasFactory<ChallengeRunFactory> */

@@ -72,7 +72,7 @@ final class AnalyticsTest extends TestCase
             'challenge_id' => $retired->id,
         ]);
 
-        $summary = app(FlightLog::class)->summaryFor($user);
+        $summary = resolve(FlightLog::class)->summaryFor($user);
 
         $this->assertSame(2, $summary['runs']);
         $this->assertSame(1, $summary['missionsFlown']);
@@ -91,7 +91,7 @@ final class AnalyticsTest extends TestCase
             ]);
         }
 
-        $curve = app(FlightLog::class)->missionCurve($user, $challenge);
+        $curve = resolve(FlightLog::class)->missionCurve($user, $challenge);
 
         $this->assertSame([20, 60, 40, 90], array_column($curve, 'score'));
         $this->assertSame([1, 2, 3, 4], array_column($curve, 'attempt'));
@@ -104,7 +104,7 @@ final class AnalyticsTest extends TestCase
         $user = User::factory()->onPlan(Plan::Pro)->create();
         $challenge = Challenge::factory()->create();
 
-        $this->assertSame([], app(FlightLog::class)->missionCurve($user, $challenge));
+        $this->assertSame([], resolve(FlightLog::class)->missionCurve($user, $challenge));
     }
 
     public function test_another_pilots_runs_never_appear_on_your_curve(): void
@@ -124,7 +124,7 @@ final class AnalyticsTest extends TestCase
             'challenge_id' => $challenge->id,
         ]);
 
-        $curve = app(FlightLog::class)->missionCurve($user, $challenge);
+        $curve = resolve(FlightLog::class)->missionCurve($user, $challenge);
 
         $this->assertSame([10], array_column($curve, 'score'));
     }
@@ -149,7 +149,7 @@ final class AnalyticsTest extends TestCase
             'challenge_id' => $challenge->id,
         ]);
 
-        $summary = app(FlightLog::class)->summaryFor($user);
+        $summary = resolve(FlightLog::class)->summaryFor($user);
 
         $this->assertSame(3.0, $summary['meanAttemptsToClear']);
         $this->assertSame(5, $summary['runs']);
@@ -184,7 +184,7 @@ final class AnalyticsTest extends TestCase
             'challenge_id' => $flownOnce->id,
         ]);
 
-        $weakSpots = app(FlightLog::class)->weakSpots($user);
+        $weakSpots = resolve(FlightLog::class)->weakSpots($user);
 
         $this->assertSame(
             ['Stuck Here', 'Hard Won'],
@@ -220,7 +220,7 @@ final class AnalyticsTest extends TestCase
             'challenge_id' => $challenge->id,
         ]);
 
-        $cohort = app(FlightLog::class)->cohortFor($viewer, $challenge);
+        $cohort = resolve(FlightLog::class)->cohortFor($viewer, $challenge);
 
         $this->assertNotNull($cohort);
         $this->assertSame(50, $cohort['yourBest']);
@@ -240,7 +240,7 @@ final class AnalyticsTest extends TestCase
             'challenge_id' => $challenge->id,
         ]);
 
-        $this->assertNull(app(FlightLog::class)->cohortFor($viewer, $challenge));
+        $this->assertNull(resolve(FlightLog::class)->cohortFor($viewer, $challenge));
     }
 
     public function test_an_unknown_mission_slug_falls_back_to_the_most_recently_flown(): void

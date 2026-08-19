@@ -38,3 +38,13 @@ yarn-error.log
 /.ai
 /.cloud
 .env.before_lerd
+/.cursor/
+/.gemini/
+/.github/copilot-instructions.md
+/.junie/
+.lerd.yaml
+.node-version
+.php-version
+GEMINI.md
+/public/vendor/
+

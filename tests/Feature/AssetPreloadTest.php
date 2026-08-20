@@ -29,9 +29,7 @@ test('every preloaded asset is referenced by a stylesheet the page links', funct
     preg_match_all('#<link[^>]*rel="preload"[^>]*>#i', $html, $preloads);
     preg_match_all('#<link[^>]*rel="stylesheet"[^>]*href="([^"]+)"[^>]*>#i', $html, $sheets);
 
-    $localPath = function (string $url): string {
-        return public_path(parse_url($url, PHP_URL_PATH) ?? '');
-    };
+    $localPath = fn (string $url): string => public_path(parse_url($url, PHP_URL_PATH) ?? '');
 
     $linked = '';
     foreach ($sheets[1] as $href) {

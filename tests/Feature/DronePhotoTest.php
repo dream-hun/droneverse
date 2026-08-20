@@ -83,6 +83,7 @@ test('a photo without telemetry stores a null position', function (): void {
     );
 
     $response->assertCreated();
+
     expect(DronePhoto::query()->sole()->position)->toBeNull();
 });
 
@@ -395,6 +396,7 @@ test('a stored photo is returned with an expiring url', function (): void {
     );
 
     $response->assertCreated();
+
     expect((string) $response->json('url'))->toContain('expiration=');
 });
 

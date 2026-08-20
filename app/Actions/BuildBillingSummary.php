@@ -185,6 +185,7 @@ final readonly class BuildBillingSummary
             if ($priceId === null) {
                 continue;
             }
+
             if ($amount === null) {
                 continue;
             }

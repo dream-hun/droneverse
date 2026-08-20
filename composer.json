@@ -31,7 +31,7 @@
         "laravel/sail": "^1.65",
         "mockery/mockery": "^1.6.12",
         "nunomaduro/collision": "^8.9.5",
-        "phpunit/phpunit": "^12.5.33",
+        "pestphp/pest": "^5.1",
         "rector/rector": "^2.6.1"
     },
     "autoload": {

@@ -298,6 +298,7 @@ test('a client supplied score is ignored', function (): void {
     $response->assertOk();
     $response->assertJsonPath('result.completed', false);
     $response->assertJsonPath('result.stars', 0);
+
     expect($response->json('result.score'))->toBeLessThan(100);
 });
 
@@ -597,6 +598,7 @@ test('a run is charged the time the flight would have taken', function (): void 
     );
 
     $response->assertOk();
+
     expect($response->json('result.elapsedSeconds'))->toBeGreaterThan(2);
     $response->assertJsonPath('result.timedOut', true);
     $response->assertJsonPath('result.completed', false);

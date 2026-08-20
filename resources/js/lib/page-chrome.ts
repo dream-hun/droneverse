@@ -10,11 +10,26 @@
  *
  * So the list lives here, on its own, where a test can hold it to account.
  * Adding a public page means adding it here in the same breath.
+ *
+ * `docs` is the reference manual, which is public for the same reason the rest
+ * of this list is: it is read before anybody has an account.
+ *
+ * `courses/` is the whole subtree: the catalog, a course and its written guide
+ * are all open to guests, all linked from the marketing header, and all
+ * indexed. The signed-in pilot reads them in the same chrome — they are one
+ * page each, not two, and a mission opens the cockpit from there.
+ *
+ * resources/views/app.blade.php repeats this list for the same reason it
+ * exists, and has to be changed with it: the pages below are dark whatever the
+ * visitor prefers, and only the server can put that on `<html>` before the
+ * first paint.
  */
 export function bringsOwnChrome(component: string): boolean {
     return (
         component === 'welcome' ||
         component === 'pricing' ||
-        component.startsWith('legal/')
+        component === 'docs' ||
+        component.startsWith('legal/') ||
+        component.startsWith('courses/')
     );
 }

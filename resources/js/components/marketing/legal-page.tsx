@@ -1,7 +1,9 @@
 import { Head } from '@inertiajs/react';
 import type { ReactNode } from 'react';
-import { SiteFooter } from '@/components/marketing/site-footer';
-import { SiteHeader } from '@/components/marketing/site-header';
+import {
+    MarketingPageHeader,
+    MarketingShell,
+} from '@/components/marketing/marketing-shell';
 import type { LegalIdentity, LegalRevision } from '@/types/legal';
 
 export type LegalSection = {
@@ -124,91 +126,70 @@ export function LegalPage({
                 <meta name="description" content={lede} />
             </Head>
 
-            {/*
-             * The same root the landing and pricing pages open on, class for
-             * class. `theme-droneverse` is the brand palette — orange accent
-             * on near-black — and it is dark-only by design, which is why the
-             * `dark` class is hardcoded beside it rather than left to the
-             * visitor's preference. A legal page in the default app palette
-             * next to a landing page in this one reads as a different site,
-             * which is the last thing a terms page should read as.
-             */}
-            <div className="theme-droneverse dark flex min-h-screen flex-col bg-background font-sans text-foreground selection:bg-primary selection:text-primary-foreground">
-                <SiteHeader />
+            <MarketingShell>
+                <MarketingPageHeader
+                    eyebrow="Legal"
+                    title={title}
+                    lede={lede}
+                    meta={
+                        <span>
+                            In effect since{' '}
+                            <time dateTime={updatedAt.iso}>
+                                {updatedAt.label}
+                            </time>
+                        </span>
+                    }
+                />
 
-                <main className="flex-1">
-                    <header className="border-b border-border">
-                        <div className="mx-auto max-w-7xl px-6 py-16">
-                            <p className="font-mono text-xs tracking-widest text-primary uppercase">
-                                Legal
-                            </p>
-                            <h1 className="mt-4 max-w-3xl text-4xl font-bold tracking-tighter text-foreground uppercase sm:text-5xl">
-                                {title}
-                            </h1>
-                            <p className="mt-6 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                                {lede}
-                            </p>
-                            <p className="mt-8 font-mono text-xs tracking-widest text-muted-foreground uppercase">
-                                In effect since{' '}
-                                <time dateTime={updatedAt.iso}>
-                                    {updatedAt.label}
-                                </time>
-                            </p>
-                        </div>
-                    </header>
-
-                    <div className="mx-auto grid max-w-7xl gap-12 px-6 py-16 lg:grid-cols-[16rem_1fr] lg:gap-16">
-                        <nav
-                            aria-label="On this page"
-                            className="lg:sticky lg:top-24 lg:self-start"
-                        >
-                            <h2 className="font-mono text-xs tracking-widest text-primary uppercase">
-                                On this page
-                            </h2>
-                            <ol className="mt-4 space-y-2">
-                                {sections.map((section, index) => (
-                                    <li
-                                        key={section.id}
-                                        className="flex gap-3 text-sm"
-                                    >
-                                        <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                                            {String(index + 1).padStart(2, '0')}
-                                        </span>
-                                        <a
-                                            href={`#${section.id}`}
-                                            className="text-muted-foreground transition-colors hover:text-primary"
-                                        >
-                                            {section.title}
-                                        </a>
-                                    </li>
-                                ))}
-                            </ol>
-                        </nav>
-
-                        <article className="max-w-3xl space-y-14">
+                <div className="mx-auto grid max-w-7xl gap-12 px-6 py-16 lg:grid-cols-[16rem_1fr] lg:gap-16">
+                    <nav
+                        aria-label="On this page"
+                        className="lg:sticky lg:top-24 lg:self-start"
+                    >
+                        <h2 className="font-mono text-xs tracking-widest text-primary uppercase">
+                            On this page
+                        </h2>
+                        <ol className="mt-4 space-y-2">
                             {sections.map((section, index) => (
-                                <section
+                                <li
                                     key={section.id}
-                                    id={section.id}
-                                    className="scroll-mt-24"
+                                    className="flex gap-3 text-sm"
                                 >
-                                    <h2 className="flex gap-4 text-lg font-bold tracking-tighter text-foreground uppercase">
-                                        <span className="font-mono text-sm text-primary tabular-nums">
-                                            {String(index + 1).padStart(2, '0')}
-                                        </span>
+                                    <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                                        {String(index + 1).padStart(2, '0')}
+                                    </span>
+                                    <a
+                                        href={`#${section.id}`}
+                                        className="text-muted-foreground transition-colors hover:text-primary"
+                                    >
                                         {section.title}
-                                    </h2>
-                                    <div className="mt-5 space-y-4 border-l border-border pl-4 text-sm leading-relaxed text-muted-foreground sm:pl-6 [&_a]:text-primary [&_a]:underline [&_dt]:font-mono [&_dt]:text-xs [&_dt]:tracking-widest [&_dt]:text-primary [&_dt]:uppercase [&_h3]:mt-6 [&_h3]:font-mono [&_h3]:text-xs [&_h3]:tracking-widest [&_h3]:text-foreground [&_h3]:uppercase [&_li]:mt-2 [&_strong]:font-semibold [&_strong]:text-foreground [&_ul]:list-disc [&_ul]:pl-5">
-                                        {section.body}
-                                    </div>
-                                </section>
+                                    </a>
+                                </li>
                             ))}
-                        </article>
-                    </div>
-                </main>
+                        </ol>
+                    </nav>
 
-                <SiteFooter />
-            </div>
+                    <article className="max-w-3xl space-y-14">
+                        {sections.map((section, index) => (
+                            <section
+                                key={section.id}
+                                id={section.id}
+                                className="scroll-mt-24"
+                            >
+                                <h2 className="flex gap-4 text-lg font-bold tracking-tighter text-foreground uppercase">
+                                    <span className="font-mono text-sm text-primary tabular-nums">
+                                        {String(index + 1).padStart(2, '0')}
+                                    </span>
+                                    {section.title}
+                                </h2>
+                                <div className="mt-5 space-y-4 border-l border-border pl-4 text-sm leading-relaxed text-muted-foreground sm:pl-6 [&_a]:text-primary [&_a]:underline [&_dt]:font-mono [&_dt]:text-xs [&_dt]:tracking-widest [&_dt]:text-primary [&_dt]:uppercase [&_h3]:mt-6 [&_h3]:font-mono [&_h3]:text-xs [&_h3]:tracking-widest [&_h3]:text-foreground [&_h3]:uppercase [&_li]:mt-2 [&_strong]:font-semibold [&_strong]:text-foreground [&_ul]:list-disc [&_ul]:pl-5">
+                                    {section.body}
+                                </div>
+                            </section>
+                        ))}
+                    </article>
+                </div>
+            </MarketingShell>
         </>
     );
 }

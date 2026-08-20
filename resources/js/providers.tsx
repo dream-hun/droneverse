@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { CookieNotice } from '@/components/cookie-notice';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useFlashToast } from '@/hooks/use-flash-toast';
@@ -29,6 +30,13 @@ export function Providers({ children }: { children: ReactNode }) {
         <TooltipProvider delayDuration={0}>
             {children}
             <Toaster />
+            {/*
+             * Beside the toaster rather than in a layout, for the same reason
+             * the toaster is: the marketing and legal pages render with no
+             * layout at all, and those are exactly the pages a first-time
+             * visitor lands on — which is the visit the notice exists for.
+             */}
+            <CookieNotice />
         </TooltipProvider>
     );
 }

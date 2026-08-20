@@ -5,12 +5,26 @@ declare(strict_types=1);
 use App\Http\Controllers\ChallengeController;
 use App\Http\Controllers\ChallengeDroneController;
 use App\Http\Controllers\CourseController;
+use App\Http\Controllers\CourseDocsController;
 use App\Http\Controllers\DronePhotoController;
 use App\Http\Controllers\QuizController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('courses', [CourseController::class, 'index'])->name('courses.index');
 Route::get('courses/{course:slug}', [CourseController::class, 'show'])->name('courses.show');
+
+/*
+ * The written guide behind a course: what it teaches, the drone commands it
+ * is built on, and worked examples a pilot can copy into the editor.
+ *
+ * Public, and deliberately so. It sits beside the catalog rather than behind
+ * the auth wall because it is part of the same argument the course page
+ * makes — and because the examples are authored for the documentation, not
+ * lifted from the missions, so an open page gives away no reference solution.
+ * Courses whose guide has not been written 404 here; see
+ * App\Actions\BuildCourseDocumentation.
+ */
+Route::get('courses/{course:slug}/docs', CourseDocsController::class)->name('courses.docs');
 
 Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('courses/{course:slug}/challenges/{challenge:slug}', [ChallengeController::class, 'show'])->name('challenges.show');

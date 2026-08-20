@@ -271,9 +271,7 @@ export default function Privacy({ identity, updatedAt }: Props) {
                             We set no advertising cookies and run no third-party
                             analytics or tracking scripts.
                         </strong>{' '}
-                        There is nothing here that follows you between sites,
-                        which is why you are not being asked to dismiss a
-                        consent banner.
+                        There is nothing here that follows you between sites.
                     </p>
                     <p>The cookies we do set are the ones the site needs:</p>
                     <ul>
@@ -293,6 +291,11 @@ export default function Privacy({ identity, updatedAt }: Props) {
                             Your <strong>light or dark appearance</strong>{' '}
                             preference, kept in your own browser.
                         </li>
+                        <li>
+                            Whether your <strong>sidebar</strong> was left open
+                            or collapsed, so the page you return to looks like
+                            the one you left.
+                        </li>
                     </ul>
                     <p>
                         These are strictly necessary to provide a service you
@@ -301,6 +304,23 @@ export default function Privacy({ identity, updatedAt }: Props) {
                         Directive. When you open a checkout, Lemon Squeezy loads
                         its own script and may set its own cookies as merchant
                         of record; that is covered by their policy.
+                    </p>
+                    <p>
+                        On your first visit a short notice says the same thing
+                        in one paragraph and links back here.{' '}
+                        <strong>
+                            It is a notice and not a consent request, and it has
+                            no accept or reject button
+                        </strong>{' '}
+                        — because every cookie listed above is set whether or
+                        not you click anything, so asking your permission for
+                        them would be asking for something we do not need and
+                        offering a refusal we could not honour. Dismissing it
+                        stores a single flag in your browser's own local
+                        storage, which is never sent to us. If we ever add
+                        anything that does require consent, this section, that
+                        notice and the date at the top of this page all change
+                        together.
                     </p>
                 </>
             ),

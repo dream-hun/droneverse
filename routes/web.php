@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DocsController;
 use App\Http\Controllers\LeaderboardController;
 use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\TermsController;
@@ -12,6 +13,17 @@ use App\Http\Controllers\WithdrawalFormController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', WelcomeController::class)->name('home');
+
+/*
+ * The reference manual: every command, every worked example, and how a run is
+ * scored.
+ *
+ * Public, and deliberately the most public thing here. It is what somebody
+ * deciding whether to write any of this reads first, it is what a pilot comes
+ * back to mid-mission, and both of those are worth more open than gated —
+ * see App\Http\Controllers\DocsController for why nothing on it is withheld.
+ */
+Route::get('docs', DocsController::class)->name('docs');
 
 /*
  * Both public, and both linked from the register form rather than only from

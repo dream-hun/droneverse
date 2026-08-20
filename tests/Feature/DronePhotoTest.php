@@ -2,503 +2,471 @@
 
 declare(strict_types=1);
 
-namespace Tests\Feature;
-
 use App\Enums\Plan;
 use App\Models\Challenge;
 use App\Models\Course;
 use App\Models\DronePhoto;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use RuntimeException;
-use Tests\TestCase;
-
-final class DronePhotoTest extends TestCase
-{
-    use RefreshDatabase;
-
-    /** A real 1x1 PNG so image validation exercises actual decoding. */
-    private const string TINY_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
-
-    public function test_a_photo_cannot_be_uploaded_to_a_mission_the_plan_does_not_cover(): void
-    {
-        Storage::fake('photos');
-
-        $user = User::factory()->create();
-        $course = Course::factory()->requiring(Plan::Pro)->create();
-        $challenge = Challenge::factory()->for($course)->create();
-
-        $response = $this->actingAs($user)->postJson(
-            route('challenges.photos.store', [$course, $challenge]),
-            $this->payload(),
-        );
-
-        $response->assertForbidden();
-
-        $this->assertSame(0, DronePhoto::query()->count());
-        Storage::disk('photos')->assertDirectoryEmpty('/');
-    }
-
-    public function test_guests_cannot_store_photos(): void
-    {
-        $course = Course::factory()->create();
-        $challenge = Challenge::factory()->for($course)->create();
-
-        $response = $this->post(
-            route('challenges.photos.store', [$course, $challenge]),
-            $this->payload(),
-        );
-
-        $response->assertRedirect(route('login'));
-    }
-
-    public function test_a_simulator_photo_is_stored_on_disk_and_in_the_log(): void
-    {
-        Storage::fake('photos');
-
-        $user = User::factory()->create();
-        $course = Course::factory()->create();
-        $challenge = Challenge::factory()->for($course)->create();
-
-        $response = $this->actingAs($user)->postJson(
-            route('challenges.photos.store', [$course, $challenge]),
-            $this->payload(['label' => 'rooftop-drop']),
-        );
-
-        $response->assertCreated();
-        $response->assertJsonPath('label', 'rooftop-drop');
-
-        $photo = DronePhoto::query()->sole();
-
-        $this->assertSame($user->id, $photo->user_id);
-        $this->assertSame($challenge->id, $photo->challenge_id);
-        $this->assertSame('rooftop-drop', $photo->label);
-        $this->assertSame(
-            ['x' => 4.2, 'y' => 9.5, 'z' => -8.1, 'headingDeg' => 182.5],
-            $photo->position,
-        );
-        Storage::disk('photos')->assertExists($photo->path);
-        $this->assertStringEndsWith('.png', $photo->path);
-    }
-
-    public function test_a_photo_without_telemetry_stores_a_null_position(): void
-    {
-        Storage::fake('photos');
-
-        $user = User::factory()->create();
-        $course = Course::factory()->create();
-        $challenge = Challenge::factory()->for($course)->create();
-
-        $response = $this->actingAs($user)->postJson(
-            route('challenges.photos.store', [$course, $challenge]),
-            ['image' => 'data:image/png;base64,'.self::TINY_PNG],
-        );
-
-        $response->assertCreated();
-        $this->assertNull(DronePhoto::query()->sole()->position);
-    }
-
-    public function test_payloads_that_are_not_data_urls_are_rejected(): void
-    {
-        Storage::fake('photos');
-
-        $user = User::factory()->create();
-        $course = Course::factory()->create();
-        $challenge = Challenge::factory()->for($course)->create();
-
-        $response = $this->actingAs($user)->postJson(
-            route('challenges.photos.store', [$course, $challenge]),
-            $this->payload(['image' => 'https://example.com/image.png']),
-        );
-
-        $response->assertUnprocessable();
-        $response->assertJsonValidationErrors('image');
-        $this->assertDatabaseCount('drone_photos', 0);
-    }
-
-    public function test_base64_that_is_not_a_real_image_is_rejected(): void
-    {
-        Storage::fake('photos');
-
-        $user = User::factory()->create();
-        $course = Course::factory()->create();
-        $challenge = Challenge::factory()->for($course)->create();
-
-        $response = $this->actingAs($user)->postJson(
-            route('challenges.photos.store', [$course, $challenge]),
-            $this->payload([
-                'image' => 'data:image/png;base64,'.base64_encode('definitely not an image'),
-            ]),
-        );
-
-        $response->assertUnprocessable();
-        $response->assertJsonValidationErrors('image');
-        $this->assertDatabaseCount('drone_photos', 0);
-        $this->assertEmpty(Storage::disk('photos')->allFiles());
-    }
-
-    public function test_photos_cannot_be_stored_on_unpublished_content(): void
-    {
-        Storage::fake('photos');
-
-        $user = User::factory()->create();
-        $course = Course::factory()->create();
-        $challenge = Challenge::factory()->for($course)->unpublished()->create();
-
-        $response = $this->actingAs($user)->postJson(
-            route('challenges.photos.store', [$course, $challenge]),
-            $this->payload(),
-        );
-
-        $response->assertNotFound();
-        $this->assertDatabaseCount('drone_photos', 0);
-    }
-
-    public function test_photos_cannot_be_stored_for_a_challenge_from_another_course(): void
-    {
-        Storage::fake('photos');
-
-        $user = User::factory()->create();
-        $course = Course::factory()->create();
-        $otherCourse = Course::factory()->create();
-        $challenge = Challenge::factory()->for($otherCourse)->create();
-
-        $response = $this->actingAs($user)->postJson(
-            route('challenges.photos.store', [$course, $challenge]),
-            $this->payload(),
-        );
-
-        $response->assertNotFound();
-        $this->assertDatabaseCount('drone_photos', 0);
-    }
-
-    public function test_the_photo_log_shows_only_the_users_own_photos(): void
-    {
-        $user = User::factory()->create();
-        $other = User::factory()->create();
-        $course = Course::factory()->create();
-        $challenge = Challenge::factory()->for($course)->create();
-
-        $mine = DronePhoto::factory()->for($user)->for($challenge)->create(['label' => 'mine']);
-        DronePhoto::factory()->for($other)->for($challenge)->create(['label' => 'theirs']);
-
-        $response = $this->actingAs($user)->get(route('photos.index'));
-
-        $response->assertOk();
-        $response->assertInertia(fn ($page) => $page
-            ->component('photos/index')
-            ->count('photos', 1)
-            ->where('photos.0.id', $mine->uuid)
-            ->where('photos.0.label', 'mine')
-            ->where('photos.0.challengeTitle', $challenge->title)
-            ->where('total', 1));
-    }
-
-    public function test_a_stored_photo_is_identified_to_the_client_by_its_uuid(): void
-    {
-        Storage::fake('photos');
-
-        $user = User::factory()->create();
-        $course = Course::factory()->create();
-        $challenge = Challenge::factory()->for($course)->create();
-
-        $response = $this->actingAs($user)->postJson(
-            route('challenges.photos.store', [$course, $challenge]),
-            $this->payload(),
-        );
-
-        $response->assertCreated();
-
-        $photo = DronePhoto::query()->sole();
-
-        $this->assertTrue(Str::isUuid($photo->uuid));
-        $response->assertJsonPath('id', $photo->uuid);
-
-        // The auto-increment key must not travel with it: the whole point of
-        // the uuid is that the client never learns the row's position.
-        $this->assertNotSame($photo->id, $response->json('id'));
-    }
-
-    public function test_a_photo_is_addressed_by_uuid_and_not_by_id(): void
-    {
-        Storage::fake('photos');
-
-        $user = User::factory()->create();
-        $photo = DronePhoto::factory()->for($user)->create();
-        Storage::disk('photos')->put($photo->path, 'jpeg-bytes');
-
-        $this->assertStringContainsString($photo->uuid, route('photos.destroy', $photo));
-
-        // A malformed key is rejected as content that does not exist, which
-        // is what stops the endpoint from confirming anything about the ids
-        // either side of it.
-        $this->actingAs($user)
-            ->delete(url('/photos/'.$photo->id))
-            ->assertNotFound();
-
-        $this->assertDatabaseHas('drone_photos', ['id' => $photo->id]);
-        Storage::disk('photos')->assertExists($photo->path);
-    }
-
-    public function test_guests_cannot_view_the_photo_log(): void
-    {
-        $response = $this->get(route('photos.index'));
-
-        $response->assertRedirect(route('login'));
-    }
-
-    public function test_a_user_can_delete_their_own_photo_and_its_file(): void
-    {
-        Storage::fake('photos');
-
-        $user = User::factory()->create();
-        $photo = DronePhoto::factory()->for($user)->create();
-        Storage::disk('photos')->put($photo->path, 'jpeg-bytes');
-
-        $response = $this->actingAs($user)->delete(route('photos.destroy', $photo));
-
-        $response->assertRedirect();
-        $this->assertDatabaseMissing('drone_photos', ['id' => $photo->id]);
-        Storage::disk('photos')->assertMissing($photo->path);
-    }
-
-    public function test_a_user_cannot_delete_someone_elses_photo(): void
-    {
-        Storage::fake('photos');
-
-        $user = User::factory()->create();
-        $other = User::factory()->create();
-        $photo = DronePhoto::factory()->for($other)->create();
-        Storage::disk('photos')->put($photo->path, 'jpeg-bytes');
-
-        $response = $this->actingAs($user)->delete(route('photos.destroy', $photo));
-
-        $response->assertForbidden();
-        $this->assertDatabaseHas('drone_photos', ['id' => $photo->id]);
-        Storage::disk('photos')->assertExists($photo->path);
-    }
-
-    public function test_the_photo_log_has_a_storage_cap(): void
-    {
-        Storage::fake('photos');
-
-        $user = User::factory()->create();
-        $course = Course::factory()->create();
-        $challenge = Challenge::factory()->for($course)->create();
-
-        DronePhoto::factory()->for($user)->for($challenge)->count(500)->create();
-
-        $response = $this->actingAs($user)->postJson(
-            route('challenges.photos.store', [$course, $challenge]),
-            $this->payload(),
-        );
-
-        $response->assertUnprocessable();
-        $response->assertJsonValidationErrors('image');
-        $this->assertDatabaseCount('drone_photos', 500);
-
-        $this->assertSame(
-            [],
-            Storage::disk('photos')->allFiles(),
-            'a photo the quota refused was still written to the disk',
-        );
-    }
-
-    public function test_the_quota_is_counted_in_the_same_transaction_that_writes_the_photo(): void
-    {
-        /*
-         * A count followed by an insert is a check-then-act, and the
-         * simulator uploads from a queue that can have several photos in
-         * flight at once — so a pilot sitting on the limit could put as many
-         * past it as they had requests in the air. What closes that is a lock
-         * on the pilot's own row, held from the count until the insert
-         * commits.
-         *
-         * The lock itself cannot be asserted here: this suite runs on SQLite,
-         * which has no row locking and compiles `lockForUpdate` away to
-         * nothing, and one connection cannot stage the race anyway. What can
-         * be asserted is the property the lock depends on and that a refactor
-         * would break first — that the two statements are inside one
-         * transaction at all. A lock taken in a transaction the insert is not
-         * part of is released before the insert happens and protects nothing.
-         */
-        Storage::fake('photos');
-
-        $user = User::factory()->create();
-        $course = Course::factory()->create();
-        $challenge = Challenge::factory()->for($course)->create();
-
-        $levelAtInsert = null;
-
-        Event::listen(
-            'eloquent.creating: '.DronePhoto::class,
-            function () use (&$levelAtInsert): void {
-                $levelAtInsert = DB::transactionLevel();
-            },
-        );
 
+/** A real 1x1 PNG so image validation exercises actual decoding. */
+const TINY_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+test('a photo cannot be uploaded to a mission the plan does not cover', function (): void {
+    Storage::fake('photos');
+
+    $user = User::factory()->create();
+    $course = Course::factory()->requiring(Plan::Pro)->create();
+    $challenge = Challenge::factory()->for($course)->create();
+
+    $response = $this->actingAs($user)->postJson(
+        route('challenges.photos.store', [$course, $challenge]),
+        payload(),
+    );
+
+    $response->assertForbidden();
+
+    $this->assertSame(0, DronePhoto::query()->count());
+    Storage::disk('photos')->assertDirectoryEmpty('/');
+});
+
+test('guests cannot store photos', function (): void {
+    $course = Course::factory()->create();
+    $challenge = Challenge::factory()->for($course)->create();
+
+    $response = $this->post(
+        route('challenges.photos.store', [$course, $challenge]),
+        payload(),
+    );
+
+    $response->assertRedirect(route('login'));
+});
+
+test('a simulator photo is stored on disk and in the log', function (): void {
+    Storage::fake('photos');
+
+    $user = User::factory()->create();
+    $course = Course::factory()->create();
+    $challenge = Challenge::factory()->for($course)->create();
+
+    $response = $this->actingAs($user)->postJson(
+        route('challenges.photos.store', [$course, $challenge]),
+        payload(['label' => 'rooftop-drop']),
+    );
+
+    $response->assertCreated();
+    $response->assertJsonPath('label', 'rooftop-drop');
+
+    $photo = DronePhoto::query()->sole();
+
+    $this->assertSame($user->id, $photo->user_id);
+    $this->assertSame($challenge->id, $photo->challenge_id);
+    $this->assertSame('rooftop-drop', $photo->label);
+    $this->assertSame(
+        ['x' => 4.2, 'y' => 9.5, 'z' => -8.1, 'headingDeg' => 182.5],
+        $photo->position,
+    );
+    Storage::disk('photos')->assertExists($photo->path);
+    $this->assertStringEndsWith('.png', $photo->path);
+});
+
+test('a photo without telemetry stores a null position', function (): void {
+    Storage::fake('photos');
+
+    $user = User::factory()->create();
+    $course = Course::factory()->create();
+    $challenge = Challenge::factory()->for($course)->create();
+
+    $response = $this->actingAs($user)->postJson(
+        route('challenges.photos.store', [$course, $challenge]),
+        ['image' => 'data:image/png;base64,'.TINY_PNG],
+    );
+
+    $response->assertCreated();
+    $this->assertNull(DronePhoto::query()->sole()->position);
+});
+
+test('payloads that are not data urls are rejected', function (): void {
+    Storage::fake('photos');
+
+    $user = User::factory()->create();
+    $course = Course::factory()->create();
+    $challenge = Challenge::factory()->for($course)->create();
+
+    $response = $this->actingAs($user)->postJson(
+        route('challenges.photos.store', [$course, $challenge]),
+        payload(['image' => 'https://example.com/image.png']),
+    );
+
+    $response->assertUnprocessable();
+    $response->assertJsonValidationErrors('image');
+    $this->assertDatabaseCount('drone_photos', 0);
+});
+
+test('base64 that is not a real image is rejected', function (): void {
+    Storage::fake('photos');
+
+    $user = User::factory()->create();
+    $course = Course::factory()->create();
+    $challenge = Challenge::factory()->for($course)->create();
+
+    $response = $this->actingAs($user)->postJson(
+        route('challenges.photos.store', [$course, $challenge]),
+        payload([
+            'image' => 'data:image/png;base64,'.base64_encode('definitely not an image'),
+        ]),
+    );
+
+    $response->assertUnprocessable();
+    $response->assertJsonValidationErrors('image');
+    $this->assertDatabaseCount('drone_photos', 0);
+    $this->assertEmpty(Storage::disk('photos')->allFiles());
+});
+
+test('photos cannot be stored on unpublished content', function (): void {
+    Storage::fake('photos');
+
+    $user = User::factory()->create();
+    $course = Course::factory()->create();
+    $challenge = Challenge::factory()->for($course)->unpublished()->create();
+
+    $response = $this->actingAs($user)->postJson(
+        route('challenges.photos.store', [$course, $challenge]),
+        payload(),
+    );
+
+    $response->assertNotFound();
+    $this->assertDatabaseCount('drone_photos', 0);
+});
+
+test('photos cannot be stored for a challenge from another course', function (): void {
+    Storage::fake('photos');
+
+    $user = User::factory()->create();
+    $course = Course::factory()->create();
+    $otherCourse = Course::factory()->create();
+    $challenge = Challenge::factory()->for($otherCourse)->create();
+
+    $response = $this->actingAs($user)->postJson(
+        route('challenges.photos.store', [$course, $challenge]),
+        payload(),
+    );
+
+    $response->assertNotFound();
+    $this->assertDatabaseCount('drone_photos', 0);
+});
+
+test('the photo log shows only the users own photos', function (): void {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    $course = Course::factory()->create();
+    $challenge = Challenge::factory()->for($course)->create();
+
+    $mine = DronePhoto::factory()->for($user)->for($challenge)->create(['label' => 'mine']);
+    DronePhoto::factory()->for($other)->for($challenge)->create(['label' => 'theirs']);
+
+    $response = $this->actingAs($user)->get(route('photos.index'));
+
+    $response->assertOk();
+    $response->assertInertia(fn ($page) => $page
+        ->component('photos/index')
+        ->count('photos', 1)
+        ->where('photos.0.id', $mine->uuid)
+        ->where('photos.0.label', 'mine')
+        ->where('photos.0.challengeTitle', $challenge->title)
+        ->where('total', 1));
+});
+
+test('a stored photo is identified to the client by its uuid', function (): void {
+    Storage::fake('photos');
+
+    $user = User::factory()->create();
+    $course = Course::factory()->create();
+    $challenge = Challenge::factory()->for($course)->create();
+
+    $response = $this->actingAs($user)->postJson(
+        route('challenges.photos.store', [$course, $challenge]),
+        payload(),
+    );
+
+    $response->assertCreated();
+
+    $photo = DronePhoto::query()->sole();
+
+    $this->assertTrue(Str::isUuid($photo->uuid));
+    $response->assertJsonPath('id', $photo->uuid);
+
+    // The auto-increment key must not travel with it: the whole point of
+    // the uuid is that the client never learns the row's position.
+    $this->assertNotSame($photo->id, $response->json('id'));
+});
+
+test('a photo is addressed by uuid and not by id', function (): void {
+    Storage::fake('photos');
+
+    $user = User::factory()->create();
+    $photo = DronePhoto::factory()->for($user)->create();
+    Storage::disk('photos')->put($photo->path, 'jpeg-bytes');
+
+    $this->assertStringContainsString($photo->uuid, route('photos.destroy', $photo));
+
+    // A malformed key is rejected as content that does not exist, which
+    // is what stops the endpoint from confirming anything about the ids
+    // either side of it.
+    $this->actingAs($user)
+        ->delete(url('/photos/'.$photo->id))
+        ->assertNotFound();
+
+    $this->assertDatabaseHas('drone_photos', ['id' => $photo->id]);
+    Storage::disk('photos')->assertExists($photo->path);
+});
+
+test('guests cannot view the photo log', function (): void {
+    $response = $this->get(route('photos.index'));
+
+    $response->assertRedirect(route('login'));
+});
+
+test('a user can delete their own photo and its file', function (): void {
+    Storage::fake('photos');
+
+    $user = User::factory()->create();
+    $photo = DronePhoto::factory()->for($user)->create();
+    Storage::disk('photos')->put($photo->path, 'jpeg-bytes');
+
+    $response = $this->actingAs($user)->delete(route('photos.destroy', $photo));
+
+    $response->assertRedirect();
+    $this->assertDatabaseMissing('drone_photos', ['id' => $photo->id]);
+    Storage::disk('photos')->assertMissing($photo->path);
+});
+
+test('a user cannot delete someone elses photo', function (): void {
+    Storage::fake('photos');
+
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    $photo = DronePhoto::factory()->for($other)->create();
+    Storage::disk('photos')->put($photo->path, 'jpeg-bytes');
+
+    $response = $this->actingAs($user)->delete(route('photos.destroy', $photo));
+
+    $response->assertForbidden();
+    $this->assertDatabaseHas('drone_photos', ['id' => $photo->id]);
+    Storage::disk('photos')->assertExists($photo->path);
+});
+
+test('the photo log has a storage cap', function (): void {
+    Storage::fake('photos');
+
+    $user = User::factory()->create();
+    $course = Course::factory()->create();
+    $challenge = Challenge::factory()->for($course)->create();
+
+    DronePhoto::factory()->for($user)->for($challenge)->count(500)->create();
+
+    $response = $this->actingAs($user)->postJson(
+        route('challenges.photos.store', [$course, $challenge]),
+        payload(),
+    );
+
+    $response->assertUnprocessable();
+    $response->assertJsonValidationErrors('image');
+    $this->assertDatabaseCount('drone_photos', 500);
+
+    $this->assertSame(
+        [],
+        Storage::disk('photos')->allFiles(),
+        'a photo the quota refused was still written to the disk',
+    );
+});
+
+test('the quota is counted in the same transaction that writes the photo', function (): void {
+    /*
+     * A count followed by an insert is a check-then-act, and the
+     * simulator uploads from a queue that can have several photos in
+     * flight at once — so a pilot sitting on the limit could put as many
+     * past it as they had requests in the air. What closes that is a lock
+     * on the pilot's own row, held from the count until the insert
+     * commits.
+     *
+     * The lock itself cannot be asserted here: this suite runs on SQLite,
+     * which has no row locking and compiles `lockForUpdate` away to
+     * nothing, and one connection cannot stage the race anyway. What can
+     * be asserted is the property the lock depends on and that a refactor
+     * would break first — that the two statements are inside one
+     * transaction at all. A lock taken in a transaction the insert is not
+     * part of is released before the insert happens and protects nothing.
+     */
+    Storage::fake('photos');
+
+    $user = User::factory()->create();
+    $course = Course::factory()->create();
+    $challenge = Challenge::factory()->for($course)->create();
+
+    $levelAtInsert = null;
+
+    Event::listen(
+        'eloquent.creating: '.DronePhoto::class,
+        function () use (&$levelAtInsert): void {
+            $levelAtInsert = DB::transactionLevel();
+        },
+    );
+
+    $this->actingAs($user)->postJson(
+        route('challenges.photos.store', [$course, $challenge]),
+        payload(),
+    )->assertCreated();
+
+    $this->assertNotNull($levelAtInsert, 'the photo was never inserted');
+    $this->assertGreaterThan(
+        0,
+        $levelAtInsert,
+        'the photo was written outside the transaction the quota was counted in',
+    );
+});
+
+test('a photo whose row never lands leaves no file behind', function (): void {
+    /*
+     * The file is the one write the transaction cannot roll back. If it
+     * were left where it fell, every failed upload would cost bytes that
+     * nothing knows about and nothing will ever come back for — invisible
+     * to the pilot, invisible to the log, and paid for monthly.
+     */
+    Storage::fake('photos');
+
+    $user = User::factory()->create();
+    $course = Course::factory()->create();
+    $challenge = Challenge::factory()->for($course)->create();
+
+    Event::listen('eloquent.creating: '.DronePhoto::class, function (): never {
+        throw new RuntimeException('the database went away');
+    });
+
+    try {
         $this->actingAs($user)->postJson(
             route('challenges.photos.store', [$course, $challenge]),
-            $this->payload(),
-        )->assertCreated();
-
-        $this->assertNotNull($levelAtInsert, 'the photo was never inserted');
-        $this->assertGreaterThan(
-            0,
-            $levelAtInsert,
-            'the photo was written outside the transaction the quota was counted in',
+            payload(),
         );
+    } catch (RuntimeException) {
+        // The failure is the point; what it left behind is the assertion.
     }
 
-    public function test_a_photo_whose_row_never_lands_leaves_no_file_behind(): void
-    {
-        /*
-         * The file is the one write the transaction cannot roll back. If it
-         * were left where it fell, every failed upload would cost bytes that
-         * nothing knows about and nothing will ever come back for — invisible
-         * to the pilot, invisible to the log, and paid for monthly.
-         */
-        Storage::fake('photos');
+    $this->assertDatabaseCount('drone_photos', 0);
+    $this->assertSame(
+        [],
+        Storage::disk('photos')->allFiles(),
+        'a failed upload left its bytes on the disk with no row pointing at them',
+    );
+});
 
-        $user = User::factory()->create();
-        $course = Course::factory()->create();
-        $challenge = Challenge::factory()->for($course)->create();
+test('a photo url is a link that expires', function (): void {
+    Storage::fake('photos');
+    $this->freezeTime();
 
-        Event::listen('eloquent.creating: '.DronePhoto::class, function (): never {
-            throw new RuntimeException('the database went away');
-        });
+    $user = User::factory()->create();
+    $photo = DronePhoto::factory()->for($user)->create();
+    Storage::disk('photos')->put($photo->path, 'jpeg-bytes');
 
-        try {
-            $this->actingAs($user)->postJson(
-                route('challenges.photos.store', [$course, $challenge]),
-                $this->payload(),
-            );
-        } catch (RuntimeException) {
-            // The failure is the point; what it left behind is the assertion.
-        }
+    parse_str((string) parse_url($photo->url(), PHP_URL_QUERY), $query);
 
-        $this->assertDatabaseCount('drone_photos', 0);
-        $this->assertSame(
-            [],
-            Storage::disk('photos')->allFiles(),
-            'a failed upload left its bytes on the disk with no row pointing at them',
-        );
-    }
+    // A photo is private to the pilot who took it, so the URL has to stop
+    // working on its own. A permanent link would outlive both the pilot's
+    // access to the mission and the photo's own deletion.
+    $this->assertArrayHasKey('expiration', $query);
+    $this->assertSame(
+        now()->addMinutes(30)->getTimestamp(),
+        (int) $query['expiration'],
+    );
+});
 
-    public function test_a_photo_url_is_a_link_that_expires(): void
-    {
-        Storage::fake('photos');
-        $this->freezeTime();
+test('the photo log serves expiring urls', function (): void {
+    Storage::fake('photos');
 
-        $user = User::factory()->create();
-        $photo = DronePhoto::factory()->for($user)->create();
-        Storage::disk('photos')->put($photo->path, 'jpeg-bytes');
+    $user = User::factory()->create();
+    $course = Course::factory()->create();
+    $challenge = Challenge::factory()->for($course)->create();
+    DronePhoto::factory()->for($user)->for($challenge)->create();
 
-        parse_str((string) parse_url($photo->url(), PHP_URL_QUERY), $query);
+    $response = $this->actingAs($user)->get(route('photos.index'));
 
-        // A photo is private to the pilot who took it, so the URL has to stop
-        // working on its own. A permanent link would outlive both the pilot's
-        // access to the mission and the photo's own deletion.
-        $this->assertArrayHasKey('expiration', $query);
-        $this->assertSame(
-            now()->addMinutes(30)->getTimestamp(),
-            (int) $query['expiration'],
-        );
-    }
+    $response->assertOk();
+    $response->assertInertia(fn ($page) => $page
+        ->component('photos/index')
+        ->where('photos.0.url', fn (string $url): bool => str_contains($url, 'expiration=')));
+});
 
-    public function test_the_photo_log_serves_expiring_urls(): void
-    {
-        Storage::fake('photos');
+test('a stored photo is returned with an expiring url', function (): void {
+    Storage::fake('photos');
 
-        $user = User::factory()->create();
-        $course = Course::factory()->create();
-        $challenge = Challenge::factory()->for($course)->create();
-        DronePhoto::factory()->for($user)->for($challenge)->create();
+    $user = User::factory()->create();
+    $course = Course::factory()->create();
+    $challenge = Challenge::factory()->for($course)->create();
 
-        $response = $this->actingAs($user)->get(route('photos.index'));
+    $response = $this->actingAs($user)->postJson(
+        route('challenges.photos.store', [$course, $challenge]),
+        payload(),
+    );
 
-        $response->assertOk();
-        $response->assertInertia(fn ($page) => $page
-            ->component('photos/index')
-            ->where('photos.0.url', fn (string $url): bool => str_contains($url, 'expiration=')));
-    }
+    $response->assertCreated();
+    $this->assertStringContainsString('expiration=', (string) $response->json('url'));
+});
 
-    public function test_a_stored_photo_is_returned_with_an_expiring_url(): void
-    {
-        Storage::fake('photos');
+test('photos are written to the configured disk', function (): void {
+    Storage::fake('photos');
+    Storage::fake('s3');
+    config(['filesystems.photo_disk' => 's3']);
 
-        $user = User::factory()->create();
-        $course = Course::factory()->create();
-        $challenge = Challenge::factory()->for($course)->create();
+    $user = User::factory()->create();
+    $course = Course::factory()->create();
+    $challenge = Challenge::factory()->for($course)->create();
 
-        $response = $this->actingAs($user)->postJson(
-            route('challenges.photos.store', [$course, $challenge]),
-            $this->payload(),
-        );
+    $response = $this->actingAs($user)->postJson(
+        route('challenges.photos.store', [$course, $challenge]),
+        payload(),
+    );
 
-        $response->assertCreated();
-        $this->assertStringContainsString('expiration=', (string) $response->json('url'));
-    }
+    $response->assertCreated();
 
-    public function test_photos_are_written_to_the_configured_disk(): void
-    {
-        Storage::fake('photos');
-        Storage::fake('s3');
-        config(['filesystems.photo_disk' => 's3']);
+    $photo = DronePhoto::query()->sole();
 
-        $user = User::factory()->create();
-        $course = Course::factory()->create();
-        $challenge = Challenge::factory()->for($course)->create();
+    // The point of the config key: on a host whose filesystem does not
+    // survive a release, nothing may fall back to the local disk.
+    Storage::disk('s3')->assertExists($photo->path);
+    Storage::disk('photos')->assertDirectoryEmpty('/');
+});
 
-        $response = $this->actingAs($user)->postJson(
-            route('challenges.photos.store', [$course, $challenge]),
-            $this->payload(),
-        );
+test('deleting a photo removes the file from the configured disk', function (): void {
+    Storage::fake('photos');
+    Storage::fake('s3');
+    config(['filesystems.photo_disk' => 's3']);
 
-        $response->assertCreated();
+    $user = User::factory()->create();
+    $photo = DronePhoto::factory()->for($user)->create();
+    Storage::disk('s3')->put($photo->path, 'jpeg-bytes');
 
-        $photo = DronePhoto::query()->sole();
+    $response = $this->actingAs($user)->delete(route('photos.destroy', $photo));
 
-        // The point of the config key: on a host whose filesystem does not
-        // survive a release, nothing may fall back to the local disk.
-        Storage::disk('s3')->assertExists($photo->path);
-        Storage::disk('photos')->assertDirectoryEmpty('/');
-    }
+    $response->assertRedirect();
+    $this->assertDatabaseMissing('drone_photos', ['id' => $photo->id]);
+    Storage::disk('s3')->assertMissing($photo->path);
+});
 
-    public function test_deleting_a_photo_removes_the_file_from_the_configured_disk(): void
-    {
-        Storage::fake('photos');
-        Storage::fake('s3');
-        config(['filesystems.photo_disk' => 's3']);
-
-        $user = User::factory()->create();
-        $photo = DronePhoto::factory()->for($user)->create();
-        Storage::disk('s3')->put($photo->path, 'jpeg-bytes');
-
-        $response = $this->actingAs($user)->delete(route('photos.destroy', $photo));
-
-        $response->assertRedirect();
-        $this->assertDatabaseMissing('drone_photos', ['id' => $photo->id]);
-        Storage::disk('s3')->assertMissing($photo->path);
-    }
-
-    /**
-     * @param  array<string, mixed>  $overrides
-     * @return array<string, mixed>
-     */
-    private function payload(array $overrides = []): array
-    {
-        return array_merge([
-            'image' => 'data:image/png;base64,'.self::TINY_PNG,
-            'label' => 'test-shot',
-            'x' => 4.2,
-            'y' => 9.5,
-            'z' => -8.1,
-            'heading' => 182.5,
-        ], $overrides);
-    }
+/**
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function payload(array $overrides = []): array
+{
+    return array_merge([
+        'image' => 'data:image/png;base64,'.TINY_PNG,
+        'label' => 'test-shot',
+        'x' => 4.2,
+        'y' => 9.5,
+        'z' => -8.1,
+        'heading' => 182.5,
+    ], $overrides);
 }

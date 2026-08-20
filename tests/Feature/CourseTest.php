@@ -140,3 +140,73 @@ test('a course page mixes locked and unlocked missions', function (): void {
                 ->where('challenges.1.title', 'Paid')
                 ->where('challenges.1.locked', true)));
 });
+
+/*
+ * What a catalog card costs is a question about the course's missions, not
+ * about the course's own row. `required_plan` on a course is only the default
+ * its missions inherit, and Precision Flight is shipped as a browsable Starter
+ * course whose every mission is Pro — a card badged from the row alone would
+ * advertise it as free to fly.
+ */
+test('a course whose missions all inherit a free tier charges for nothing', function (): void {
+    $course = Course::factory()->create();
+    Challenge::factory()->for($course)->count(3)->create();
+
+    $this->get(route('courses.index'))
+        ->assertInertia(fn ($page) => $page
+            ->loadDeferredProps(fn ($reload) => $reload
+                ->where('courses.0.challengesCount', 3)
+                ->where('courses.0.freeChallengesCount', 3)
+                ->where('courses.0.missionPlan', null)));
+});
+
+test('a starter course with pro missions is not sold as free', function (): void {
+    $course = Course::factory()->create();
+    Challenge::factory()->for($course)->requiring(Plan::Pro)->count(4)->create();
+
+    $this->get(route('courses.index'))
+        ->assertInertia(fn ($page) => $page
+            ->loadDeferredProps(fn ($reload) => $reload
+                // The course's own tier is still Starter: the page stays open.
+                ->where('courses.0.requiredPlan', 'starter')
+                ->where('courses.0.locked', false)
+                // What flying it costs is the other question, and it is Pro.
+                ->where('courses.0.freeChallengesCount', 0)
+                ->where('courses.0.missionPlan', 'pro')));
+});
+
+test('a paid course whose missions inherit falls back to its own tier', function (): void {
+    $course = Course::factory()->requiring(Plan::Pro)->create();
+    Challenge::factory()->for($course)->count(2)->create();
+
+    $this->get(route('courses.index'))
+        ->assertInertia(fn ($page) => $page
+            ->loadDeferredProps(fn ($reload) => $reload
+                ->where('courses.0.freeChallengesCount', 0)
+                ->where('courses.0.missionPlan', 'pro')));
+});
+
+test('a course that is free to start and paid to finish reports both', function (): void {
+    $course = Course::factory()->create();
+    Challenge::factory()->for($course)->count(2)->create(['order' => 0]);
+    Challenge::factory()->for($course)->requiring(Plan::Pro)->count(3)->create(['order' => 1]);
+
+    $this->get(route('courses.index'))
+        ->assertInertia(fn ($page) => $page
+            ->loadDeferredProps(fn ($reload) => $reload
+                ->where('courses.0.challengesCount', 5)
+                ->where('courses.0.freeChallengesCount', 2)
+                ->where('courses.0.missionPlan', 'pro')));
+});
+
+test('an unpublished mission counts towards neither total', function (): void {
+    $course = Course::factory()->create();
+    Challenge::factory()->for($course)->create();
+    Challenge::factory()->for($course)->unpublished()->create();
+
+    $this->get(route('courses.index'))
+        ->assertInertia(fn ($page) => $page
+            ->loadDeferredProps(fn ($reload) => $reload
+                ->where('courses.0.challengesCount', 1)
+                ->where('courses.0.freeChallengesCount', 1)));
+});

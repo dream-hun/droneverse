@@ -1,6 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import AppLogoIcon from '@/components/app-logo-icon';
-import { dashboard, home, login, pricing, register } from '@/routes';
+import { dashboard, docs, home, login, pricing, register } from '@/routes';
 import { index as coursesIndex } from '@/routes/courses';
 
 /**
@@ -36,13 +36,18 @@ export function Wordmark() {
  * three-way tab set stays on the settings screen, where the app palette does
  * follow it.
  */
-export function SiteHeader({ current }: { current?: 'courses' | 'pricing' }) {
+export function SiteHeader({
+    current,
+}: {
+    current?: 'courses' | 'docs' | 'pricing';
+}) {
     const { auth } = usePage().props;
 
     const links = [
         { key: 'why', label: 'Why DroneVerse', href: `${home.url()}#why` },
         { key: 'cockpit', label: 'The cockpit', href: `${home.url()}#cockpit` },
         { key: 'courses', label: 'Courses', href: coursesIndex.url() },
+        { key: 'docs', label: 'Docs', href: docs.url() },
         { key: 'pricing', label: 'Pricing', href: pricing.url() },
     ] as const;
 

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Course;
 use App\Models\User;
 
 /*
@@ -17,6 +18,7 @@ use App\Models\User;
 dataset('public pages', [
     'landing' => ['home'],
     'pricing' => ['pricing'],
+    'manual' => ['docs'],
     'terms' => ['terms'],
     'privacy' => ['privacy'],
 ]);
@@ -28,6 +30,46 @@ test('public pages render dark even for a light preference', function (string $r
     $response->assertSee('class="dark"', false);
     $response->assertSee('color-scheme: dark !important', false);
 })->with('public pages');
+
+/*
+ * The catalogue, a course and its written guide are public pages too — they
+ * carry the marketing header and the brand palette, whoever is looking at
+ * them. Asserted separately from the dataset above because two of the three
+ * routes need a course to point at.
+ */
+test('the course pages render dark even for a light preference', function (): void {
+    $course = Course::factory()->create(['slug' => 'drone-basics']);
+
+    $urls = [
+        route('courses.index'),
+        route('courses.show', $course),
+        route('courses.docs', $course),
+    ];
+
+    foreach ($urls as $url) {
+        $response = $this->withUnencryptedCookie('appearance', 'light')->get($url);
+
+        $response->assertOk();
+        $response->assertSee('class="dark"', false);
+        $response->assertSee('color-scheme: dark !important', false);
+    }
+});
+
+/**
+ * Signing in does not move the catalogue back into the app palette: it is one
+ * page for everybody, and a pilot who prefers light would otherwise get white
+ * gutters around a page that has no light variant.
+ */
+test('the catalogue stays dark for a signed-in pilot who prefers light', function (): void {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->withUnencryptedCookie('appearance', 'light')
+        ->get(route('courses.index'));
+
+    $response->assertOk();
+    $response->assertSee('color-scheme: dark !important', false);
+});
 
 /**
  * The counterpart: the app itself does follow the preference, and the

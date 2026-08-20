@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Actions\BuildCourseDocumentation;
 use App\Enums\Plan;
 use App\Http\Resources\ChallengeSummaryResource;
 use App\Http\Resources\CourseCatalogResource;
@@ -57,7 +58,7 @@ final class CourseController extends Controller
      * are rendered as locked rather than hidden, and the plan check that
      * actually matters lives on the mission routes.
      */
-    public function show(Request $request, Course $course): Response
+    public function show(Request $request, Course $course, BuildCourseDocumentation $documentation): Response
     {
         // Stays on the initial request: a 404 is the whole response, not a
         // section of it, and deferring it would render a page header for a
@@ -74,6 +75,16 @@ final class CourseController extends Controller
                 'difficulty' => $course->difficulty,
                 'requiredPlan' => $course->requiredPlan()->value,
             ],
+            /*
+             * Whether there is a written guide to link to. A config lookup,
+             * so it stays on the initial request with the header it belongs
+             * to rather than deferring alongside the queries below.
+             *
+             * Asked rather than assumed: a course is a row and can be created
+             * long before anyone writes its documentation, and a link that
+             * 404s teaches a pilot to distrust the rest of the page.
+             */
+            'hasDocs' => $documentation->existsFor($course),
             /*
              * The header renders from the course row the route already loaded;
              * only the mission list waits. Both queries sit inside the closure

@@ -26,19 +26,25 @@ final readonly class GradeSimulatorRun
      * mission objectives dominate, landing and finishing in time round it
      * out, and each collision costs a flat penalty on collision-sensitive
      * challenges.
+     *
+     * Public because the manual at /docs publishes them. It reads them from
+     * here rather than restating them in prose, so the page a pilot is told
+     * the rules by cannot drift from the class that applies them — which is
+     * the failure the note above about grader.ts already warns about, with a
+     * second copy nobody would think to check.
      */
-    private const int OBJECTIVE_WEIGHT = 70;
+    public const int OBJECTIVE_WEIGHT = 70;
 
-    private const int LANDING_WEIGHT = 20;
+    public const int LANDING_WEIGHT = 20;
 
-    private const int TIME_WEIGHT = 10;
+    public const int TIME_WEIGHT = 10;
 
-    private const int COLLISION_PENALTY = 10;
+    public const int COLLISION_PENALTY = 10;
 
     /** Finishing under this fraction of the time limit earns the speed star. */
-    private const float FAST_FINISH_RATIO = 0.75;
+    public const float FAST_FINISH_RATIO = 0.75;
 
-    private const int MAX_STARS = 3;
+    public const int MAX_STARS = 3;
 
     /**
      * @param  array{waypointsHit: int, waypointsTotal: int, collisions: int, maxAltitude: float, landed: bool, elapsedSeconds: float, timedOut: bool, photosTaken: int, photoTargetsHit: int, photoTargetsTotal: int, photosMissing: int, washRequired: bool, washed: bool}  $telemetry

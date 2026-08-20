@@ -19,7 +19,7 @@ final class CourseCatalogResource
     /**
      * @param  Collection<int, Course>  $courses  courses loaded through {@see Course::catalog()}
      * @param  Collection<int, int>  $completedByCourse  completed counts keyed by course id
-     * @return array<int, array{title: string, slug: string, description: string, difficulty: string, requiredPlan: string, locked: bool, challengesCount: int, completedCount: int}>
+     * @return array<int, array{title: string, slug: string, description: string, difficulty: string, requiredPlan: string, missionPlan: string|null, locked: bool, challengesCount: int, freeChallengesCount: int, completedCount: int}>
      */
     public static function collection(Collection $courses, Collection $completedByCourse, Plan $viewerPlan): array
     {

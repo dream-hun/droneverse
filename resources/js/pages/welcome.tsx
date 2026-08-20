@@ -8,6 +8,7 @@ import {
     Trophy,
 } from 'lucide-react';
 import { LazyDroneShowcase } from '@/components/marketing/lazy-drone-showcase';
+import { SectionLabel } from '@/components/marketing/marketing-shell';
 import { SiteFooter } from '@/components/marketing/site-footer';
 import { SiteHeader } from '@/components/marketing/site-header';
 import { dashboard, leaderboard, register } from '@/routes';
@@ -87,15 +88,6 @@ const SAMPLE_CODE = `async function main(drone) {
     await drone.moveForward(4);
     await drone.land();
 }`;
-
-/** Small caps label that opens each section, matching the header rhythm. */
-function SectionLabel({ children }: { children: string }) {
-    return (
-        <h2 className="mb-12 font-mono text-xs tracking-widest text-primary uppercase">
-            {children}
-        </h2>
-    );
-}
 
 type WelcomeProps = {
     /**
@@ -299,9 +291,9 @@ export default function Welcome({
                                 </h3>
                                 <p className="leading-relaxed text-muted-foreground">
                                     Start with a hover you can hold. Finish
-                                    flying a full shift over a city block. Every
-                                    course is free and unlocks the moment you
-                                    make an account.
+                                    flying a full shift over a city block. The
+                                    first courses are free the moment you make
+                                    an account; the rest come with Pro.
                                 </p>
                             </div>
 

@@ -106,12 +106,25 @@ export type CourseSummary = {
     /** The tier this course's content belongs to. */
     requiredPlan: PlanValue;
     /**
+     * The plan the missions this course charges for need, or null when it
+     * charges for none of them.
+     *
+     * Deliberately not the same question as `requiredPlan`: a course's own
+     * tier is the default its missions inherit, and a Starter course is
+     * allowed to hold Pro missions — Precision Flight is exactly that. This is
+     * the field that says what flying it costs, and the one a card should be
+     * badged from.
+     */
+    missionPlan: PlanValue | null;
+    /**
      * The viewer's plan does not reach that tier. The card is still shown and
      * still followed — the course page is open to everyone — so this only
      * changes how the card is badged.
      */
     locked: boolean;
     challengesCount: number;
+    /** How many of those cost nothing to fly. */
+    freeChallengesCount: number;
     completedCount: number;
 };
 

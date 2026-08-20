@@ -23,6 +23,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $order
  * @property bool $is_published
  * @property-read int|null $challenges_count
+ * @property-read int|null $free_challenges_count
+ * @property-read string|null $mission_plan
  */
 #[Fillable(['title', 'slug', 'description', 'difficulty', 'required_plan', 'order', 'is_published'])]
 final class Course extends Model
@@ -98,8 +100,29 @@ final class Course extends Model
     }
 
     /**
-     * Scope to the browsable catalog: published courses in display order,
-     * with their published-challenge counts.
+     * Scope to the browsable catalog: published courses in display order, with
+     * the counts and the tier a catalog card is drawn from.
+     *
+     * Three aggregates rather than one, because "how many missions" is not the
+     * question a visitor arrives with. `free_challenges_count` is how many of
+     * them cost nothing, and `mission_plan` is the tier the rest sit in. A
+     * course's own `required_plan` answers neither: it is the default its
+     * missions inherit, not what they charge, and
+     * {@see \App\Concerns\CourseContent::requiredPlanIn()} exists precisely so
+     * that Precision Flight can be a browsable Starter course whose every
+     * mission is Pro. A card badged from `required_plan` alone advertises that
+     * course as free to fly, which it is not.
+     *
+     * Both extra clauses are correlated subqueries against the outer `courses`
+     * row. That correlation is the point: it resolves the inherited case — a
+     * mission stating no tier of its own — in SQL, rather than by loading every
+     * mission in the catalog to ask each one.
+     *
+     * `mission_plan` takes the first stated tier it finds rather than the
+     * highest. Nothing sells a course mixing two paid tiers, and if one ever
+     * ships, naming either of them is a guess; this is the cheap answer and it
+     * is documented as such rather than dressed up with an ordering that would
+     * imply more than it knows.
      *
      * @param  Builder<Course>  $query
      */
@@ -107,7 +130,24 @@ final class Course extends Model
     protected function catalog(Builder $query): void
     {
         $query->published()
-            ->withCount(['challenges' => fn ($challenges) => $challenges->published()])
+            ->withCount([
+                'challenges' => fn ($challenges) => $challenges->published(),
+                'challenges as free_challenges_count' => fn ($challenges) => $challenges
+                    ->published()
+                    ->where(fn ($tier) => $tier
+                        ->where('challenges.required_plan', Plan::Starter->value)
+                        ->orWhere(fn ($inherited) => $inherited
+                            ->whereNull('challenges.required_plan')
+                            ->where('courses.required_plan', Plan::Starter->value))),
+            ])
+            ->addSelect(['mission_plan' => Challenge::query()
+                ->published()
+                ->whereColumn('challenges.course_id', 'courses.id')
+                ->whereNotNull('challenges.required_plan')
+                ->where('challenges.required_plan', '!=', Plan::Starter->value)
+                ->select('challenges.required_plan')
+                ->limit(1),
+            ])
             ->orderBy('order');
     }
 }

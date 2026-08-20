@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import CheckoutController from '@/actions/App/Http/Controllers/CheckoutController';
 import SubscriptionController from '@/actions/App/Http/Controllers/Settings/SubscriptionController';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { SectionLabel } from '@/components/marketing/marketing-shell';
 import { SiteFooter } from '@/components/marketing/site-footer';
 import { SiteHeader } from '@/components/marketing/site-header';
 import {
@@ -71,15 +72,6 @@ function ctaClass(emphasised: boolean) {
         emphasised
             ? 'bg-primary text-primary-foreground hover:brightness-110'
             : 'border border-border text-foreground hover:border-primary hover:text-primary',
-    );
-}
-
-/** Small caps label that opens each section, matching the header rhythm. */
-function SectionLabel({ children }: { children: string }) {
-    return (
-        <h2 className="mb-12 font-mono text-xs tracking-widest text-primary uppercase">
-            {children}
-        </h2>
     );
 }
 

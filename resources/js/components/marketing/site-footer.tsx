@@ -2,6 +2,7 @@ import { Link, usePage } from '@inertiajs/react';
 import { Wordmark } from '@/components/marketing/site-header';
 import {
     dashboard,
+    docs,
     leaderboard,
     login,
     pricing,
@@ -37,6 +38,7 @@ export function SiteFooter({ courses = [] }: { courses?: MarketingCourse[] }) {
                     label: course.title,
                     href: showCourse(course.slug),
                 })),
+                { label: 'Documentation', href: docs() },
                 { label: 'Pricing', href: pricing() },
             ],
         },

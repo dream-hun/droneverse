@@ -44,6 +44,12 @@ type CardGridProps<TItem> = {
     layout?: 'grid' | 'stack';
     columns?: GridColumns;
     className?: string;
+    /**
+     * Merged onto the list and its placeholders alike, so a page that wants a
+     * different rhythm — the public catalogue sets `gap-1` for panels that sit
+     * flush — changes both together rather than only the loaded state.
+     */
+    listClassName?: string;
     itemClassName?: string;
 };
 
@@ -85,14 +91,17 @@ export function CardGrid<TItem>({
     layout = 'grid',
     columns = 3,
     className,
+    listClassName,
     itemClassName,
 }: CardGridProps<TItem>) {
     const effectiveColumns: GridColumns = layout === 'stack' ? 1 : columns;
 
-    const listClass =
+    const listClass = cn(
         layout === 'stack'
             ? 'flex flex-col gap-3'
-            : cn('grid gap-4', gridColumnsClass(effectiveColumns));
+            : cn('grid gap-4', gridColumnsClass(effectiveColumns)),
+        listClassName,
+    );
 
     const placeholders = skeleton ? (
         <div aria-hidden="true" className={listClass}>

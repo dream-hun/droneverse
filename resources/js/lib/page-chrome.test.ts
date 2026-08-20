@@ -7,23 +7,38 @@ describe('bringsOwnChrome', () => {
         expect(bringsOwnChrome('pricing')).toBe(true);
         expect(bringsOwnChrome('legal/terms')).toBe(true);
         expect(bringsOwnChrome('legal/privacy')).toBe(true);
+        expect(bringsOwnChrome('docs')).toBe(true);
+    });
+
+    /**
+     * The catalog, a course and its guide are one public section, and the
+     * cockpit a mission opens is not part of it.
+     */
+    it('claims the whole course subtree', () => {
+        expect(bringsOwnChrome('courses/index')).toBe(true);
+        expect(bringsOwnChrome('courses/show')).toBe(true);
+        expect(bringsOwnChrome('courses/docs')).toBe(true);
+        expect(bringsOwnChrome('challenges/show')).toBe(false);
+        expect(bringsOwnChrome('quizzes/show')).toBe(false);
     });
 
     it('leaves the signed-in pages to the app shell', () => {
         expect(bringsOwnChrome('dashboard')).toBe(false);
         expect(bringsOwnChrome('leaderboard')).toBe(false);
         expect(bringsOwnChrome('analytics')).toBe(false);
-        expect(bringsOwnChrome('courses/show')).toBe(false);
         expect(bringsOwnChrome('settings/profile')).toBe(false);
         expect(bringsOwnChrome('auth/login')).toBe(false);
     });
 
     /**
-     * The prefix is matched at the start, not anywhere: a signed-in page that
-     * merely mentions a public one in its name still belongs to the app shell.
+     * The prefixes are matched at the start, not anywhere: a signed-in page
+     * that merely mentions a public one in its name still belongs to the app
+     * shell.
      */
     it('matches on the leading segment rather than anywhere in the name', () => {
-        expect(bringsOwnChrome('courses/legal/terms')).toBe(false);
+        expect(bringsOwnChrome('settings/courses')).toBe(false);
+        expect(bringsOwnChrome('settings/docs')).toBe(false);
         expect(bringsOwnChrome('settings/pricing')).toBe(false);
+        expect(bringsOwnChrome('photos/legal/terms')).toBe(false);
     });
 });

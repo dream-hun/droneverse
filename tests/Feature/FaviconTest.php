@@ -28,7 +28,7 @@ test('the ico is a valid multi size icon resource', function (): void {
 test('the svg uses the droneverse mark and brand colour', function (): void {
     $svg = (string) file_get_contents(public_path('favicon.svg'));
 
-    expect($svg)->toContain('#0084D1');
+    expect($svg)->toContain('#F54900');
     expect($svg)->not->toContain('#FF2D20');
 });
 

@@ -209,7 +209,7 @@
 <text x="1232" y="1008" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#0F172A">Quality gates</text>
 <text x="1232" y="1028" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>PHP</text>
 <text x="1246" y="1043" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">Pint (style) · Larastan level 7 · Rector</text>
-<text x="1246" y="1058" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">PHPUnit 12 — feature tests built on factories</text>
+<text x="1246" y="1058" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">Pest 5 — feature tests built on factories</text>
 <text x="1232" y="1088" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569"><tspan fill="#94A3B8">▪ </tspan>TypeScript / React</text>
 <text x="1246" y="1103" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">ESLint · Prettier · tsc --noEmit · Vitest</text>
 <text x="1246" y="1118" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.4" fill="#475569">(airframe, physics and simulator session units)</text>

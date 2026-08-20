@@ -30,19 +30,16 @@ final readonly class BuildPricingCatalog
      * sell them, and nothing to move until they resume. See
      * App\Queries\DefaultSubscription.
      *
-     * @return array{plans: array<int, array<string, mixed>>, comparison: array<int, array<string, mixed>>, salesEmail: string|null}
+     * @return array{plans: array<int, array<string, mixed>>, comparison: array<int, array<string, mixed>>}
      */
     public function handle(Plan $viewer, bool $isGuest, bool $hasSubscription = false, bool $canSwitch = false): array
     {
-        $salesEmail = config('plans.sales_email');
-
         return [
             'plans' => array_map(
                 fn (Plan $plan): array => $this->card($plan, $viewer, $isGuest, $hasSubscription, $canSwitch),
                 Plan::cases(),
             ),
             'comparison' => $this->comparison(),
-            'salesEmail' => is_string($salesEmail) && $salesEmail !== '' ? $salesEmail : null,
         ];
     }
 
@@ -147,10 +144,10 @@ final readonly class BuildPricingCatalog
      * What the plan's button does.
      *
      * Read top to bottom: the free tier is an account rather than a purchase,
-     * a sales-led tier is never a button that charges, and everything below
-     * that is about this particular viewer — what they already hold, whether
-     * they hold it through a subscription that can be moved, what their plan
-     * already covers, and whether the tier is on sale at all.
+     * and everything below that is about this particular viewer — what they
+     * already hold, whether they hold it through a subscription that can be
+     * moved, what their plan already covers, and whether the tier is on sale at
+     * all.
      *
      * @return array{action: string, label: string}
      */
@@ -171,7 +168,6 @@ final readonly class BuildPricingCatalog
         }
 
         return match (true) {
-            ! $plan->isSelfServe() => ['action' => 'contact', 'label' => 'Contact sales'],
             $plan === $viewer => ['action' => 'current', 'label' => 'Your current plan'],
             /*
              * A subscription that is cancelled but still inside the period it

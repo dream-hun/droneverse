@@ -26,7 +26,6 @@ beforeEach(function (): void {
              */
             'team' => ['monthly' => 'var_team_monthly'],
         ],
-        'plans.sales_email' => 'sales@example.test',
     ]);
 
     /*
@@ -42,8 +41,7 @@ test('a guest can read the pricing page', function (): void {
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('pricing')
-            ->has('plans', count(Plan::cases()))
-            ->where('salesEmail', 'sales@example.test'));
+            ->has('plans', count(Plan::cases())));
 
     Http::assertNothingSent();
 });
@@ -206,11 +204,10 @@ test('a guest is not told that starter is their current plan', function (): void
 });
 
 /**
- * Team is bought the same way Pro is. Enterprise is the only tier a button
- * cannot buy, and not because of what has shipped: a private deployment and
- * an SLA are terms, and there is no amount to charge until they are agreed.
+ * Team is bought the same way Pro is: a classroom of ten is a card payment,
+ * and every tier on this page is now sold from a button.
  */
-test('team is bought from the page and only enterprise points at sales', function (): void {
+test('team is bought from the page like pro', function (): void {
     $this->actingAs(User::factory()->create())
         ->get(route('pricing'))
         ->assertInertia(fn ($page) => $page
@@ -219,9 +216,7 @@ test('team is bought from the page and only enterprise points at sales', functio
             ->where('plans.2.cta.label', 'Upgrade to Team')
             ->where('plans.2.prices.monthly.purchasable', true)
             // Priced in the copy, absent from the store, so not for sale.
-            ->where('plans.2.prices.yearly.purchasable', false)
-            ->where('plans.3.value', 'enterprise')
-            ->where('plans.3.cta.action', 'contact'));
+            ->where('plans.2.prices.yearly.purchasable', false));
 });
 
 /**
@@ -345,8 +340,8 @@ test('the comparison grid marks unbuilt capabilities', function (): void {
         ->assertInertia(fn ($page) => $page
             ->where('comparison.0.value', 'python_runtime')
             ->where('comparison.0.available', false)
-            // Starter, Pro, Team, Enterprise.
-            ->where('comparison.0.plans', [false, true, true, true]));
+            // Starter, Pro, Team.
+            ->where('comparison.0.plans', [false, true, true]));
 });
 
 test('the client is never handed a variant id', function (): void {
@@ -477,15 +472,15 @@ test('checkout refuses a billing period the plan does not sell', function (): vo
 });
 
 /**
- * Enterprise is negotiated, so there is no price for a card form to charge
- * however the request is shaped. Enforced where it matters rather than
- * trusted to the pricing page's markup.
+ * Starter is an account rather than a purchase, so there is no price for a
+ * card form to charge however the request is shaped. Enforced where it
+ * matters rather than trusted to the pricing page's markup.
  */
-test('checkout refuses a sales led tier', function (): void {
+test('checkout refuses the free tier', function (): void {
     fakeCheckoutApi();
 
     $this->actingAs(User::factory()->create())
-        ->postJson(route('checkout.store'), ['plan' => 'enterprise', 'variant' => 'monthly'])
+        ->postJson(route('checkout.store'), ['plan' => 'starter', 'variant' => 'monthly'])
         ->assertStatus(422)
         ->assertJsonValidationErrors('plan');
 

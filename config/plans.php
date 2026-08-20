@@ -26,7 +26,7 @@ return [
     | in reverse — mapping a subscribed variant ID back onto the plan it grants.
     | Every variant listed here must therefore be unique across all plans.
     |
-    | Starter is free and Enterprise is sales-led, so neither has an ID.
+    | Starter is free, so it has no ID.
     |
     | Everything here is a subscription. There is no one-off purchase: a plan
     | sold once and honoured forever prices a bet on costs nobody can see yet,
@@ -76,11 +76,11 @@ return [
     | takes a product and a variant together, and refuses a variant that does
     | not belong to the product named beside it.
     |
-    | Only the tiers a pilot can move between need one, which is the same set as
-    | `prices` above minus the sales-led tiers. App\Actions\SwapSubscription
-    | falls back to the product the subscription is already on when a pilot only
-    | changes billing period, so an environment that has never set these can
-    | still switch monthly to yearly — it just cannot move between tiers.
+    | Only the tiers a pilot can move between need one, which is every tier in
+    | `prices` above. App\Actions\SwapSubscription falls back to the product the
+    | subscription is already on when a pilot only changes billing period, so an
+    | environment that has never set these can still switch monthly to yearly —
+    | it just cannot move between tiers.
     |
     */
 
@@ -114,10 +114,10 @@ return [
     | Sales Contact
     |--------------------------------------------------------------------------
     |
-    | Where the Enterprise button points — a private deployment and an SLA are
-    | negotiated, not bought from a card form — and where docs/pricing.md sends
-    | institutions asking about academic pricing. Unset, that button renders
-    | disabled rather than opening an empty mail client.
+    | Where docs/pricing.md sends institutions asking about academic pricing,
+    | and the address /terms and /privacy fall back to when neither contact in
+    | config/legal.php is set — see App\Actions\BuildLegalIdentity. Nothing on
+    | the pricing page reads it: every tier there is bought with a card.
     |
     */
 

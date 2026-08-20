@@ -145,11 +145,10 @@ export default function Terms({ identity, updatedAt }: Props) {
                 <>
                     <p>
                         Starter is free and stays free. Pro and Team are paid
-                        subscriptions billed monthly or yearly, and Enterprise
-                        is agreed separately. What each plan includes, and what
-                        it costs, is set out on the pricing page — that page is
-                        part of these terms, and the price shown there before
-                        you buy is the price you pay.
+                        subscriptions billed monthly or yearly. What each plan
+                        includes, and what it costs, is set out on the pricing
+                        page — that page is part of these terms, and the price
+                        shown there before you buy is the price you pay.
                     </p>
                     <p>
                         <strong>

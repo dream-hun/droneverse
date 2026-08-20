@@ -8,5 +8,5 @@ use Tests\TestCase;
 uses(TestCase::class, RefreshDatabase::class);
 
 test('that true is true', function (): void {
-    $this->assertTrue(true);
+    expect(true)->toBeTrue();
 });

@@ -9,10 +9,10 @@ use Tests\TestCase;
 uses(TestCase::class);
 
 test('starter grants no gated features', function (): void {
-    $this->assertSame([], Plan::Starter->features());
+    expect(Plan::Starter->features())->toBe([]);
 
     foreach (Feature::cases() as $feature) {
-        $this->assertFalse(Plan::Starter->hasFeature($feature));
+        expect(Plan::Starter->hasFeature($feature))->toBeFalse();
     }
 });
 
@@ -29,13 +29,13 @@ test('pro grants every feature the comparison table sells', function (): void {
     ];
 
     foreach ($expected as $feature) {
-        $this->assertTrue(Plan::Pro->hasFeature($feature), $feature->value);
+        expect(Plan::Pro->hasFeature($feature))->toBeTrue($feature->value);
     }
 
-    $this->assertFalse(Plan::Pro->hasFeature(Feature::TeamManagement));
-    $this->assertFalse(Plan::Pro->hasFeature(Feature::ClassroomTools));
-    $this->assertFalse(Plan::Pro->hasFeature(Feature::ApiAccess));
-    $this->assertFalse(Plan::Pro->hasFeature(Feature::Sso));
+    expect(Plan::Pro->hasFeature(Feature::TeamManagement))->toBeFalse();
+    expect(Plan::Pro->hasFeature(Feature::ClassroomTools))->toBeFalse();
+    expect(Plan::Pro->hasFeature(Feature::ApiAccess))->toBeFalse();
+    expect(Plan::Pro->hasFeature(Feature::Sso))->toBeFalse();
 });
 
 /**
@@ -45,41 +45,41 @@ test('pro grants every feature the comparison table sells', function (): void {
  * a credit ledger or not at all.
  */
 test('no plan sells a metered capability', function (): void {
-    $this->assertNotContains(
-        'ai_assistant',
-        Feature::values(),
-        'An AI assistant carries a per-call cost, so it needs a credit ledger before it needs a feature flag.',
-    );
+    expect('ai_assistant')
+        ->not->toBeIn(
+            Feature::values(),
+            'An AI assistant carries a per-call cost, so it needs a credit ledger before it needs a feature flag.',
+        );
 });
 
 test('team adds classroom features on top of pro', function (): void {
-    $this->assertTrue(Plan::Team->hasFeature(Feature::TeamManagement));
-    $this->assertTrue(Plan::Team->hasFeature(Feature::ClassroomTools));
-    $this->assertTrue(Plan::Team->hasFeature(Feature::PythonRuntime));
+    expect(Plan::Team->hasFeature(Feature::TeamManagement))->toBeTrue();
+    expect(Plan::Team->hasFeature(Feature::ClassroomTools))->toBeTrue();
+    expect(Plan::Team->hasFeature(Feature::PythonRuntime))->toBeTrue();
 
-    $this->assertFalse(Plan::Team->hasFeature(Feature::ApiAccess));
-    $this->assertFalse(Plan::Team->hasFeature(Feature::Sso));
+    expect(Plan::Team->hasFeature(Feature::ApiAccess))->toBeFalse();
+    expect(Plan::Team->hasFeature(Feature::Sso))->toBeFalse();
 });
 
 test('enterprise grants every feature', function (): void {
-    $this->assertEqualsCanonicalizing(Feature::cases(), Plan::Enterprise->features());
+    expect(Plan::Enterprise->features())->toEqualCanonicalizing(Feature::cases());
 });
 
 test('catalog coverage ranks the paid tiers above starter', function (): void {
-    $this->assertTrue(Plan::Starter->covers(Plan::Starter));
-    $this->assertFalse(Plan::Starter->covers(Plan::Pro));
+    expect(Plan::Starter->covers(Plan::Starter))->toBeTrue();
+    expect(Plan::Starter->covers(Plan::Pro))->toBeFalse();
 
-    $this->assertTrue(Plan::Pro->covers(Plan::Starter));
-    $this->assertTrue(Plan::Team->covers(Plan::Pro));
-    $this->assertTrue(Plan::Enterprise->covers(Plan::Team));
-    $this->assertFalse(Plan::Pro->covers(Plan::Team));
+    expect(Plan::Pro->covers(Plan::Starter))->toBeTrue();
+    expect(Plan::Team->covers(Plan::Pro))->toBeTrue();
+    expect(Plan::Enterprise->covers(Plan::Team))->toBeTrue();
+    expect(Plan::Pro->covers(Plan::Team))->toBeFalse();
 });
 
 test('only starter is free', function (): void {
-    $this->assertFalse(Plan::Starter->isPaid());
+    expect(Plan::Starter->isPaid())->toBeFalse();
 
     foreach ([Plan::Pro, Plan::Team, Plan::Enterprise] as $plan) {
-        $this->assertTrue($plan->isPaid(), $plan->value);
+        expect($plan->isPaid())->toBeTrue($plan->value);
     }
 });
 
@@ -90,11 +90,11 @@ test('only starter is free', function (): void {
  * amount to charge until they are agreed.
  */
 test('every tier but enterprise and the free one sells itself', function (): void {
-    $this->assertTrue(Plan::Pro->isSelfServe());
-    $this->assertTrue(Plan::Team->isSelfServe());
+    expect(Plan::Pro->isSelfServe())->toBeTrue();
+    expect(Plan::Team->isSelfServe())->toBeTrue();
 
-    $this->assertFalse(Plan::Enterprise->isSelfServe());
-    $this->assertFalse(Plan::Starter->isSelfServe());
+    expect(Plan::Enterprise->isSelfServe())->toBeFalse();
+    expect(Plan::Starter->isSelfServe())->toBeFalse();
 });
 
 /**
@@ -107,9 +107,9 @@ test('product ids are read from configuration', function (): void {
         'team' => '',
     ]]);
 
-    $this->assertSame('prod_pro', Plan::Pro->productId());
-    $this->assertNull(Plan::Team->productId());
-    $this->assertNull(Plan::Starter->productId());
+    expect(Plan::Pro->productId())->toBe('prod_pro');
+    expect(Plan::Team->productId())->toBeNull();
+    expect(Plan::Starter->productId())->toBeNull();
 });
 
 test('price ids are read from configuration', function (): void {
@@ -120,20 +120,17 @@ test('price ids are read from configuration', function (): void {
         'yearly_launch' => '',
     ]]);
 
-    $this->assertSame('var_pro_monthly', Plan::Pro->priceId('monthly'));
-    $this->assertSame(
-        ['monthly' => 'var_pro_monthly', 'yearly' => 'var_pro_yearly'],
-        Plan::Pro->priceIds(),
-    );
+    expect(Plan::Pro->priceId('monthly'))->toBe('var_pro_monthly');
+    expect(Plan::Pro->priceIds())->toBe(['monthly' => 'var_pro_monthly', 'yearly' => 'var_pro_yearly']);
 });
 
 test('unconfigured variants resolve to null rather than a default', function (): void {
     config(['plans.prices.pro' => ['monthly' => null, 'yearly' => '']]);
 
-    $this->assertNull(Plan::Pro->priceId('monthly'));
-    $this->assertNull(Plan::Pro->priceId('yearly'));
-    $this->assertNull(Plan::Pro->priceId('does_not_exist'));
-    $this->assertNull(Plan::Starter->priceId('monthly'));
+    expect(Plan::Pro->priceId('monthly'))->toBeNull();
+    expect(Plan::Pro->priceId('yearly'))->toBeNull();
+    expect(Plan::Pro->priceId('does_not_exist'))->toBeNull();
+    expect(Plan::Starter->priceId('monthly'))->toBeNull();
 });
 
 test('a price id maps back to the plan that sells it', function (): void {
@@ -142,17 +139,17 @@ test('a price id maps back to the plan that sells it', function (): void {
         'team' => ['monthly' => 'var_team_monthly'],
     ]]);
 
-    $this->assertSame(Plan::Pro, Plan::fromPriceId('var_pro_monthly'));
-    $this->assertSame(Plan::Pro, Plan::fromPriceId('var_pro_monthly_launch'));
-    $this->assertSame(Plan::Team, Plan::fromPriceId('var_team_monthly'));
+    expect(Plan::fromPriceId('var_pro_monthly'))->toBe(Plan::Pro);
+    expect(Plan::fromPriceId('var_pro_monthly_launch'))->toBe(Plan::Pro);
+    expect(Plan::fromPriceId('var_team_monthly'))->toBe(Plan::Team);
 });
 
 test('an unrecognised price id grants nothing', function (): void {
     config(['plans.prices' => ['pro' => ['monthly' => 'var_pro_monthly']]]);
 
-    $this->assertNull(Plan::fromPriceId('var_retired_beta_plan'));
-    $this->assertNull(Plan::fromPriceId(null));
-    $this->assertNull(Plan::fromPriceId(''));
+    expect(Plan::fromPriceId('var_retired_beta_plan'))->toBeNull();
+    expect(Plan::fromPriceId(null))->toBeNull();
+    expect(Plan::fromPriceId(''))->toBeNull();
 });
 
 /**
@@ -169,10 +166,10 @@ test('a price id claimed by two plans grants neither', function (): void {
         'team' => ['monthly' => 'var_shared_by_mistake', 'yearly' => 'var_team_yearly'],
     ]]);
 
-    $this->assertNull(Plan::fromPriceId('var_shared_by_mistake'));
+    expect(Plan::fromPriceId('var_shared_by_mistake'))->toBeNull();
 
     // The slip is contained: every other ID still resolves.
-    $this->assertSame(Plan::Team, Plan::fromPriceId('var_team_yearly'));
+    expect(Plan::fromPriceId('var_team_yearly'))->toBe(Plan::Team);
 });
 
 /**
@@ -186,7 +183,7 @@ test('a price id repeated within one plan still grants that plan', function (): 
         'yearly' => 'var_pro_everything',
     ]]);
 
-    $this->assertSame(Plan::Pro, Plan::fromPriceId('var_pro_everything'));
+    expect(Plan::fromPriceId('var_pro_everything'))->toBe(Plan::Pro);
 });
 
 test('unconfigured price ids do not collide on null', function (): void {
@@ -195,8 +192,8 @@ test('unconfigured price ids do not collide on null', function (): void {
         'team' => ['monthly' => null],
     ]]);
 
-    $this->assertNull(Plan::fromPriceId(null));
-    $this->assertNull(Plan::fromPriceId('var_anything'));
+    expect(Plan::fromPriceId(null))->toBeNull();
+    expect(Plan::fromPriceId('var_anything'))->toBeNull();
 });
 
 test('a price id maps back to the billing period it sells', function (): void {
@@ -205,10 +202,10 @@ test('a price id maps back to the billing period it sells', function (): void {
         'yearly' => 'var_pro_yearly',
     ]]);
 
-    $this->assertSame('yearly', Plan::Pro->variantFor('var_pro_yearly'));
-    $this->assertNull(Plan::Pro->variantFor('var_team_monthly'));
-    $this->assertNull(Plan::Pro->variantFor(null));
-    $this->assertNull(Plan::Pro->variantFor(''));
+    expect(Plan::Pro->variantFor('var_pro_yearly'))->toBe('yearly');
+    expect(Plan::Pro->variantFor('var_team_monthly'))->toBeNull();
+    expect(Plan::Pro->variantFor(null))->toBeNull();
+    expect(Plan::Pro->variantFor(''))->toBeNull();
 });
 
 /**
@@ -219,19 +216,19 @@ test('a price id maps back to the billing period it sells', function (): void {
 test('only the subscription tiers offer a billing period', function (): void {
     config(['plans.prices' => []]);
 
-    $this->assertSame(['monthly', 'yearly'], Plan::Pro->variants());
-    $this->assertSame(['monthly', 'yearly'], Plan::Team->variants());
-    $this->assertSame([], Plan::Starter->variants());
-    $this->assertSame([], Plan::Enterprise->variants());
+    expect(Plan::Pro->variants())->toBe(['monthly', 'yearly']);
+    expect(Plan::Team->variants())->toBe(['monthly', 'yearly']);
+    expect(Plan::Starter->variants())->toBe([]);
+    expect(Plan::Enterprise->variants())->toBe([]);
 });
 
 test('display amounts are read from configuration', function (): void {
     config(['plans.amounts.pro' => ['monthly' => 1900, 'yearly' => 19000]]);
 
-    $this->assertSame(1900, Plan::Pro->amount('monthly'));
-    $this->assertSame(19000, Plan::Pro->amount('yearly'));
-    $this->assertNull(Plan::Pro->amount('weekly'));
-    $this->assertNull(Plan::Starter->amount('monthly'));
+    expect(Plan::Pro->amount('monthly'))->toBe(1900);
+    expect(Plan::Pro->amount('yearly'))->toBe(19000);
+    expect(Plan::Pro->amount('weekly'))->toBeNull();
+    expect(Plan::Starter->amount('monthly'))->toBeNull();
 });
 
 /**
@@ -241,10 +238,8 @@ test('display amounts are read from configuration', function (): void {
 test('every offered billing period carries a display amount', function (): void {
     foreach (Plan::cases() as $plan) {
         foreach ($plan->variants() as $variant) {
-            $this->assertIsInt(
-                $plan->amount($variant),
-                sprintf('%s.%s is offered but has no amount in config/plans.php.', $plan->value, $variant),
-            );
+            expect($plan->amount($variant))
+                ->toBeInt(sprintf('%s.%s is offered but has no amount in config/plans.php.', $plan->value, $variant));
         }
     }
 });

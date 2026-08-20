@@ -6,32 +6,31 @@ use App\Enums\Plan;
 use App\Models\Challenge;
 use App\Models\Course;
 use Database\Seeders\CourseSeeder;
+use Pest\Matchers\Any;
 
 test('seeding twice creates no duplicates', function (): void {
     $this->seed(CourseSeeder::class);
 
-    $this->assertSame(5, Course::query()->count());
-    $this->assertSame(20, Challenge::query()->count());
+    expect(Course::query()->count())->toBe(5);
+    expect(Challenge::query()->count())->toBe(20);
 
     $this->seed(CourseSeeder::class);
 
-    $this->assertSame(5, Course::query()->count());
-    $this->assertSame(20, Challenge::query()->count());
+    expect(Course::query()->count())->toBe(5);
+    expect(Challenge::query()->count())->toBe(20);
 });
 
 test('seeded catalog is published and ordered', function (): void {
     $this->seed(CourseSeeder::class);
 
-    $this->assertSame(
-        ['drone-basics', 'precision-flight', 'sensor-flight', 'delivery-ops', 'city-operations'],
-        Course::query()->orderBy('order')->pluck('slug')->all(),
-    );
+    expect(Course::query()->orderBy('order')->pluck('slug')->all())
+        ->toBe(['drone-basics', 'precision-flight', 'sensor-flight', 'delivery-ops', 'city-operations']);
 
-    $this->assertTrue(Course::query()->where('is_published', false)->doesntExist());
-    $this->assertTrue(Challenge::query()->where('is_published', false)->doesntExist());
+    expect(Course::query()->where('is_published', false)->doesntExist())->toBeTrue();
+    expect(Challenge::query()->where('is_published', false)->doesntExist())->toBeTrue();
 
     Course::query()->withCount('challenges')->get()->each(function (Course $course): void {
-        $this->assertGreaterThanOrEqual(1, $course->challenges_count, sprintf('course %s has no challenges', $course->slug));
+        expect($course->challenges_count)->toBeGreaterThanOrEqual(1, sprintf('course %s has no challenges', $course->slug));
     });
 });
 
@@ -44,35 +43,36 @@ test('seeded challenges have playable environments', function (): void {
         $criteria = $challenge->success_criteria;
 
         $this->assertStringContainsString('async function main(drone)', $challenge->starter_code, $slug);
-        $this->assertSame(100, $challenge->max_score, $slug);
+        expect($challenge->max_score)->toBe(100, $slug);
 
         foreach (['x', 'y', 'z', 'yaw'] as $key) {
-            $this->assertArrayHasKey($key, $environment['start'], sprintf('%s: start.%s', $slug, $key));
+            expect($environment['start'])->toHaveKey($key, new Any, sprintf('%s: start.%s', $slug, $key));
         }
 
         $bounds = $environment['bounds'];
 
         foreach (['width', 'depth', 'height'] as $key) {
-            $this->assertArrayHasKey($key, $bounds, sprintf('%s: bounds.%s', $slug, $key));
-            $this->assertGreaterThan(0, $bounds[$key], sprintf('%s: bounds.%s', $slug, $key));
+            expect($bounds)->toHaveKey($key, new Any, sprintf('%s: bounds.%s', $slug, $key));
+            expect($bounds[$key])->toBeGreaterThan(0, sprintf('%s: bounds.%s', $slug, $key));
         }
 
-        $this->assertContains($criteria['type'], ['waypoints', 'gates'], $slug);
-        $this->assertIsBool($criteria['avoid_collisions'], $slug);
-        $this->assertIsBool($criteria['landing_required'], $slug);
-        $this->assertIsArray($criteria['waypoints'], $slug);
-        $this->assertGreaterThanOrEqual(10, $criteria['max_time_seconds'], $slug.': max_time_seconds');
+        expect($criteria['type'])->toBeIn(['waypoints', 'gates'], $slug);
+        expect($criteria['avoid_collisions'])->toBeBool($slug);
+        expect($criteria['landing_required'])->toBeBool($slug);
+        expect($criteria['waypoints'])->toBeArray($slug);
+        expect($criteria['max_time_seconds'])->toBeGreaterThanOrEqual(10, $slug.': max_time_seconds');
 
         if (array_key_exists('min_altitude', $criteria)) {
-            $this->assertGreaterThan(0, $criteria['min_altitude'], $slug.': min_altitude');
-            $this->assertLessThanOrEqual($bounds['height'], $criteria['min_altitude'], $slug.': min_altitude exceeds bounds');
+            expect($criteria['min_altitude'])->toBeGreaterThan(0, $slug.': min_altitude');
+            expect($criteria['min_altitude'])->toBeLessThanOrEqual($bounds['height'], $slug.': min_altitude exceeds bounds');
         }
 
-        $this->assertGreaterThan(0, $environment['goal']['radius'], $slug.': goal radius');
+        expect($environment['goal']['radius'])->toBeGreaterThan(0, $slug.': goal radius');
         assertPointWithinBounds($environment['goal'] + ['y' => 1], $bounds, $slug.': goal');
 
         foreach ($criteria['waypoints'] as $index => $waypoint) {
-            $this->assertGreaterThanOrEqual(0.5, $waypoint['radius'], sprintf('%s: criteria waypoint %s radius too small to hit', $slug, $index));
+            expect($waypoint['radius'])
+                ->toBeGreaterThanOrEqual(0.5, sprintf('%s: criteria waypoint %s radius too small to hit', $slug, $index));
             assertPointWithinBounds($waypoint, $bounds, sprintf('%s: criteria waypoint %s', $slug, $index));
         }
 
@@ -85,7 +85,7 @@ test('seeded challenges have playable environments', function (): void {
         }
 
         foreach ($environment['props'] ?? [] as $index => $prop) {
-            $this->assertContains($prop['kind'], ['car', 'van', 'tree'], sprintf('%s: prop %s kind', $slug, $index));
+            expect($prop['kind'])->toBeIn(['car', 'van', 'tree'], sprintf('%s: prop %s kind', $slug, $index));
             assertPointWithinBounds($prop + ['y' => 1], $bounds, sprintf('%s: prop %s', $slug, $index));
         }
 
@@ -94,21 +94,22 @@ test('seeded challenges have playable environments', function (): void {
         }
 
         if (array_key_exists('photo_targets', $criteria)) {
-            $this->assertNotEmpty($criteria['photo_targets'], $slug.': photo_targets empty');
+            expect($criteria['photo_targets'])->not->toBeEmpty($slug.': photo_targets empty');
 
             foreach ($criteria['photo_targets'] as $index => $target) {
-                $this->assertGreaterThanOrEqual(1, $target['radius'], sprintf('%s: photo target %s radius too small to hit', $slug, $index));
+                expect($target['radius'])
+                    ->toBeGreaterThanOrEqual(1, sprintf('%s: photo target %s radius too small to hit', $slug, $index));
                 assertPointWithinBounds($target + ['y' => 1], $bounds, sprintf('%s: photo target %s', $slug, $index));
             }
         }
 
         if (array_key_exists('min_photos', $criteria)) {
-            $this->assertGreaterThanOrEqual(1, $criteria['min_photos'], $slug.': min_photos');
-            $this->assertLessThanOrEqual(10, $criteria['min_photos'], $slug.': min_photos unreasonably high');
+            expect($criteria['min_photos'])->toBeGreaterThanOrEqual(1, $slug.': min_photos');
+            expect($criteria['min_photos'])->toBeLessThanOrEqual(10, $slug.': min_photos unreasonably high');
         }
 
         if (! empty($criteria['wash_required'])) {
-            $this->assertArrayHasKey('carwash', $environment, $slug.': wash required but no carwash in the environment');
+            expect($environment)->toHaveKey('carwash', new Any, $slug.': wash required but no carwash in the environment');
         }
     });
 });
@@ -121,13 +122,9 @@ test('every seeded challenge ships a reference solution', function (): void {
         $solution = $challenge->solution_code;
         $criteria = $challenge->success_criteria;
 
-        $this->assertNotNull($solution, $slug.': no reference solution');
+        expect($solution)->not->toBeNull($slug.': no reference solution');
         $this->assertStringContainsString('async function main(drone)', $solution, $slug);
-        $this->assertNotSame(
-            $challenge->starter_code,
-            $solution,
-            $slug.': the solution is just the starter code',
-        );
+        expect($solution)->not->toBe($challenge->starter_code, $slug.': the solution is just the starter code');
 
         if ($criteria['landing_required']) {
             $this->assertStringContainsString('drone.land()', $solution, $slug.': never lands');
@@ -138,11 +135,8 @@ test('every seeded challenge ships a reference solution', function (): void {
         $minPhotos = $criteria['min_photos'] ?? 0;
 
         if ($minPhotos > 0) {
-            $this->assertGreaterThanOrEqual(
-                $minPhotos,
-                mb_substr_count($solution, 'drone.takePhoto'),
-                $slug.': fewer takePhoto calls than the mission requires',
-            );
+            expect(mb_substr_count($solution, 'drone.takePhoto'))
+                ->toBeGreaterThanOrEqual($minPhotos, $slug.': fewer takePhoto calls than the mission requires');
         }
     });
 });
@@ -153,35 +147,29 @@ test('city operations exercises the full mission toolkit', function (): void {
     $course = Course::query()->where('slug', 'city-operations')->sole();
     $challenges = $course->challenges()->orderBy('order')->get()->keyBy('slug');
 
-    $this->assertSame(
-        ['downtown-gauntlet', 'street-sweep', 'wash-and-return', 'skyline-survey', 'full-shift'],
-        $challenges->keys()->all(),
-    );
+    expect($challenges->keys()->all())
+        ->toBe(['downtown-gauntlet', 'street-sweep', 'wash-and-return', 'skyline-survey', 'full-shift']);
 
     $sweep = $challenges['street-sweep'];
-    $this->assertNotEmpty($sweep->success_criteria['photo_targets']);
-    $this->assertStringContainsString('drone.scan', $sweep->starter_code);
-    $this->assertTrue(
-        collect($sweep->environment['props'])->contains(
-            fn (array $prop): bool => ($prop['label'] ?? null) === 'delivery-van',
-        ),
-        'street-sweep needs the delivery-van prop its scanner mission hunts for',
-    );
+    expect($sweep->success_criteria['photo_targets'])->not->toBeEmpty();
+    expect($sweep->starter_code)->toContain('drone.scan');
+    expect(collect($sweep->environment['props'])->contains(fn (array $prop): bool => ($prop['label'] ?? null) === 'delivery-van'))
+        ->toBeTrue('street-sweep needs the delivery-van prop its scanner mission hunts for');
 
     $wash = $challenges['wash-and-return'];
-    $this->assertTrue($wash->success_criteria['wash_required']);
-    $this->assertArrayHasKey('carwash', $wash->environment);
+    expect($wash->success_criteria['wash_required'])->toBeTrue();
+    expect($wash->environment)->toHaveKey('carwash');
 
     $survey = $challenges['skyline-survey'];
-    $this->assertSame(3, $survey->success_criteria['min_photos']);
-    $this->assertCount(3, $survey->success_criteria['photo_targets']);
-    $this->assertStringContainsString('drone.takePhoto', $survey->starter_code);
+    expect($survey->success_criteria['min_photos'])->toBe(3);
+    expect($survey->success_criteria['photo_targets'])->toHaveCount(3);
+    expect($survey->starter_code)->toContain('drone.takePhoto');
 
     $shift = $challenges['full-shift'];
-    $this->assertTrue($shift->success_criteria['wash_required']);
-    $this->assertNotEmpty($shift->success_criteria['photo_targets']);
-    $this->assertNotEmpty($shift->success_criteria['waypoints']);
-    $this->assertArrayHasKey('carwash', $shift->environment);
+    expect($shift->success_criteria['wash_required'])->toBeTrue();
+    expect($shift->success_criteria['photo_targets'])->not->toBeEmpty();
+    expect($shift->success_criteria['waypoints'])->not->toBeEmpty();
+    expect($shift->environment)->toHaveKey('carwash');
 });
 
 /**
@@ -201,10 +189,7 @@ test('the starter split matches the pricing copy', function (): void {
         ->pluck('slug')
         ->all();
 
-    $this->assertSame(
-        ['drone-basics', 'precision-flight', 'sensor-flight'],
-        $starterCourses,
-    );
+    expect($starterCourses)->toBe(['drone-basics', 'precision-flight', 'sensor-flight']);
 
     $flyable = Challenge::query()
         ->with('course')
@@ -213,12 +198,9 @@ test('the starter split matches the pricing copy', function (): void {
             $challenge->requiredPlanIn($challenge->course),
         ));
 
-    $this->assertCount(5, $flyable, 'Starter must be able to fly exactly five missions.');
-    $this->assertSame(
-        ['drone-basics'],
-        $flyable->pluck('course.slug')->unique()->values()->all(),
-        'The five free missions should be one complete course, not five scattered ones.',
-    );
+    expect($flyable)->toHaveCount(5, 'Starter must be able to fly exactly five missions.');
+    expect($flyable->pluck('course.slug')->unique()->values()->all())
+        ->toBe(['drone-basics'], 'The five free missions should be one complete course, not five scattered ones.');
 });
 
 test('every seeded mission resolves to a real plan', function (): void {
@@ -227,11 +209,7 @@ test('every seeded mission resolves to a real plan', function (): void {
     Challenge::query()->with('course')->get()->each(function (Challenge $challenge): void {
         $plan = $challenge->requiredPlanIn($challenge->course);
 
-        $this->assertContains(
-            $plan,
-            [Plan::Starter, Plan::Pro],
-            sprintf('mission %s resolves to an unexpected tier', $challenge->slug),
-        );
+        expect($plan)->toBeIn([Plan::Starter, Plan::Pro], sprintf('mission %s resolves to an unexpected tier', $challenge->slug));
     });
 });
 
@@ -245,8 +223,8 @@ test('every seeded mission resolves to a real plan', function (): void {
  */
 function assertPointWithinBounds(array $point, array $bounds, string $context): void
 {
-    test()->assertLessThanOrEqual($bounds['width'] / 2, abs($point['x']), $context.': x outside ground plane');
-    test()->assertLessThanOrEqual($bounds['depth'] / 2, abs($point['z']), $context.': z outside ground plane');
-    test()->assertGreaterThan(0, $point['y'], $context.': y below ground');
-    test()->assertLessThanOrEqual($bounds['height'], $point['y'], $context.': y above bounds');
+    expect(abs($point['x']))->toBeLessThanOrEqual($bounds['width'] / 2, $context.': x outside ground plane');
+    expect(abs($point['z']))->toBeLessThanOrEqual($bounds['depth'] / 2, $context.': z outside ground plane');
+    expect($point['y'])->toBeGreaterThan(0, $context.': y below ground');
+    expect($point['y'])->toBeLessThanOrEqual($bounds['height'], $context.': y above bounds');
 }

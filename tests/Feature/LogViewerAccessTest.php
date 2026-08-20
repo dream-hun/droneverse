@@ -24,7 +24,7 @@ use Illuminate\Support\Facades\Gate;
  * only exact-production environments.
  */
 test('the view log viewer gate is defined', function (): void {
-    $this->assertTrue(Gate::has('viewLogViewer'));
+    expect(Gate::has('viewLogViewer'))->toBeTrue();
 });
 
 test('guests cannot reach the log viewer', function (): void {

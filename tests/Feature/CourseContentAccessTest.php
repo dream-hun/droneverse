@@ -40,7 +40,7 @@ dataset('content', [
 test('published content in a published course is available', function (callable $make): void {
     $course = Course::factory()->create(['is_published' => true]);
 
-    $this->assertTrue($make($course, ['is_published' => true])->isAvailableIn($course));
+    expect($make($course, ['is_published' => true])->isAvailableIn($course))->toBeTrue();
 })->with('content');
 
 /**
@@ -49,7 +49,7 @@ test('published content in a published course is available', function (callable 
 test('unpublished content is not available', function (callable $make): void {
     $course = Course::factory()->create(['is_published' => true]);
 
-    $this->assertFalse($make($course, ['is_published' => false])->isAvailableIn($course));
+    expect($make($course, ['is_published' => false])->isAvailableIn($course))->toBeFalse();
 })->with('content');
 
 /**
@@ -60,7 +60,7 @@ test('unpublished content is not available', function (callable $make): void {
 test('content in an unpublished course is not available', function (callable $make): void {
     $course = Course::factory()->create(['is_published' => false]);
 
-    $this->assertFalse($make($course, ['is_published' => true])->isAvailableIn($course));
+    expect($make($course, ['is_published' => true])->isAvailableIn($course))->toBeFalse();
 })->with('content');
 
 /**
@@ -72,7 +72,7 @@ test('content is not available in a course it does not belong to', function (cal
     $owner = Course::factory()->create(['is_published' => true]);
     $other = Course::factory()->create(['is_published' => true]);
 
-    $this->assertFalse($make($owner, ['is_published' => true])->isAvailableIn($other));
+    expect($make($owner, ['is_published' => true])->isAvailableIn($other))->toBeFalse();
 })->with('content');
 
 /**
@@ -81,10 +81,7 @@ test('content is not available in a course it does not belong to', function (cal
 test('content without a plan of its own inherits its courses', function (callable $make): void {
     $course = Course::factory()->create(['required_plan' => Plan::Pro->value]);
 
-    $this->assertSame(
-        Plan::Pro,
-        $make($course, ['required_plan' => null])->requiredPlanIn($course),
-    );
+    expect($make($course, ['required_plan' => null])->requiredPlanIn($course))->toBe(Plan::Pro);
 })->with('content');
 
 /**
@@ -95,10 +92,7 @@ test('content without a plan of its own inherits its courses', function (callabl
 test('content with a plan of its own overrides its courses', function (callable $make): void {
     $course = Course::factory()->create(['required_plan' => Plan::Starter->value]);
 
-    $this->assertSame(
-        Plan::Pro,
-        $make($course, ['required_plan' => Plan::Pro->value])->requiredPlanIn($course),
-    );
+    expect($make($course, ['required_plan' => Plan::Pro->value])->requiredPlanIn($course))->toBe(Plan::Pro);
 })->with('content');
 
 /**
@@ -109,8 +103,8 @@ test('a guest is treated as a starter pilot', function (callable $make): void {
     $starter = $make($course, ['required_plan' => Plan::Starter->value]);
     $pro = $make($course, ['required_plan' => Plan::Pro->value]);
 
-    $this->assertTrue($starter->isUnlockedFor(null, $course));
-    $this->assertFalse($pro->isUnlockedFor(null, $course));
+    expect($starter->isUnlockedFor(null, $course))->toBeTrue();
+    expect($pro->isUnlockedFor(null, $course))->toBeFalse();
 })->with('content');
 
 /**
@@ -123,8 +117,8 @@ test('a plan unlocks the tiers it covers', function (callable $make): void {
     $starterPilot = User::factory()->create(['plan_override' => Plan::Starter->value]);
     $proPilot = User::factory()->create(['plan_override' => Plan::Pro->value]);
 
-    $this->assertFalse($pro->isUnlockedFor($starterPilot, $course));
-    $this->assertTrue($pro->isUnlockedFor($proPilot, $course));
+    expect($pro->isUnlockedFor($starterPilot, $course))->toBeFalse();
+    expect($pro->isUnlockedFor($proPilot, $course))->toBeTrue();
 })->with('content');
 
 /**
@@ -139,8 +133,5 @@ test('a plan unlocks the tiers it covers', function (callable $make): void {
 test('an unrecognised plan name falls back to starter', function (callable $make): void {
     $course = Course::factory()->create(['required_plan' => 'legacy-tier']);
 
-    $this->assertSame(
-        Plan::Starter,
-        $make($course, ['required_plan' => 'legacy-tier'])->requiredPlanIn($course),
-    );
+    expect($make($course, ['required_plan' => 'legacy-tier'])->requiredPlanIn($course))->toBe(Plan::Starter);
 })->with('content');

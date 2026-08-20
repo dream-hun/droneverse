@@ -383,9 +383,9 @@ test('checkout answers with a url minted for the resolved variant', function ():
     $attributes = $sent->data()['data']['attributes'];
     $relationships = $sent->data()['data']['relationships'];
 
-    $this->assertSame(LemonSqueezy::API.'/checkouts', $sent->url());
-    $this->assertSame('var_pro_yearly', $relationships['variant']['data']['id']);
-    $this->assertSame('droneverse', $relationships['store']['data']['id']);
+    expect($sent->url())->toBe(LemonSqueezy::API.'/checkouts');
+    expect($relationships['variant']['data']['id'])->toBe('var_pro_yearly');
+    expect($relationships['store']['data']['id'])->toBe('droneverse');
 
     /*
      * Sorted before it is compared because the package assembles this array
@@ -398,19 +398,16 @@ test('checkout answers with a url minted for the resolved variant', function ():
     $custom = $attributes['checkout_data']['custom'];
     ksort($custom);
 
-    $this->assertSame([
-        'billable_id' => (string) $user->id,
-        'billable_type' => $user->getMorphClass(),
-        'plan' => 'pro',
-        'subscription_type' => 'default',
-        'variant' => 'yearly',
-    ], $custom);
+    expect($custom)
+        ->toBe(
+            ['billable_id' => (string) $user->id, 'billable_type' => $user->getMorphClass(), 'plan' => 'pro', 'subscription_type' => 'default', 'variant' => 'yearly'],
+        );
 
     /*
      * The overlay needs this; without it the URL only works as a full-page
      * navigation.
      */
-    $this->assertTrue($attributes['checkout_options']['embed']);
+    expect($attributes['checkout_options']['embed'])->toBeTrue();
 });
 
 /**
@@ -427,10 +424,7 @@ test('checkout leaves the browser on the pricing page', function (): void {
         ->postJson(route('checkout.store'), ['plan' => 'pro', 'variant' => 'monthly'])
         ->assertOk();
 
-    $this->assertArrayNotHasKey(
-        'redirect_url',
-        lastRequest()->data()['data']['attributes']['product_options'],
-    );
+    expect(lastRequest()->data()['data']['attributes']['product_options'])->not->toHaveKey('redirect_url');
 });
 
 /**
@@ -440,7 +434,7 @@ test('checkout leaves the browser on the pricing page', function (): void {
  * name our configuration in the message it does reach them as.
  */
 test('an unconfigured store is a validation error rather than a five hundred', function (): void {
-    $this->assertEmpty(config('lemon-squeezy.store'));
+    expect(config('lemon-squeezy.store'))->toBeEmpty();
 
     $response = $this->actingAs(User::factory()->create())
         ->postJson(route('checkout.store'), ['plan' => 'pro', 'variant' => 'monthly']);
@@ -562,7 +556,7 @@ function lastRequest(): Request
 {
     $recorded = Http::recorded();
 
-    test()->assertCount(1, $recorded, 'Checkout should mint its URL with exactly one call.');
+    expect($recorded)->toHaveCount(1, 'Checkout should mint its URL with exactly one call.');
 
     return $recorded->first()[0];
 }

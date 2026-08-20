@@ -52,7 +52,7 @@ test('the quiz page never ships the answer key', function (): void {
         ->missing('quiz.questions.0.explanation'));
 
     // And nothing leaks through the serialized payload by another name.
-    $this->assertStringNotContainsString('is_correct', $response->getContent() ?: '');
+    expect($response->getContent() ?: '')->not->toContain('is_correct');
 });
 
 test('an unpublished quiz returns not found', function (): void {
@@ -322,9 +322,9 @@ test('a pass is never revoked by a later attempt', function (): void {
         ->where('quiz_id', $quiz->id)
         ->firstOrFail();
 
-    $this->assertNotNull($progress->passed_at);
-    $this->assertEquals($passedAt, $progress->passed_at);
-    $this->assertSame(QuizStatus::Passed, $progress->status());
+    expect($progress->passed_at)->not->toBeNull();
+    expect($progress->passed_at)->toEqual($passedAt);
+    expect($progress->status())->toBe(QuizStatus::Passed);
 });
 
 test('every submission writes its own attempt row', function (): void {
@@ -338,12 +338,8 @@ test('every submission writes its own attempt row', function (): void {
         )->assertOk();
     }
 
-    $this->assertSame(3, QuizAttempt::query()->where('user_id', $user->id)->count());
-    $this->assertSame([0, 100, 0], QuizAttempt::query()
-        ->where('user_id', $user->id)
-        ->orderBy('id')
-        ->pluck('score')
-        ->all());
+    expect(QuizAttempt::query()->where('user_id', $user->id)->count())->toBe(3);
+    expect(QuizAttempt::query()->where('user_id', $user->id)->orderBy('id')->pluck('score')->all())->toBe([0, 100, 0]);
 });
 
 test('the pass mark is the quizzes own', function (): void {

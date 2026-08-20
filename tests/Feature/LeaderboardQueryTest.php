@@ -20,7 +20,7 @@ use App\Queries\Leaderboard;
  */
 
 test('it resolves from the container', function (): void {
-    $this->assertInstanceOf(Leaderboard::class, resolve(Leaderboard::class));
+    expect(resolve(Leaderboard::class))->toBeInstanceOf(Leaderboard::class);
 });
 
 test('it ranks pilots by points without a request', function (): void {
@@ -31,9 +31,9 @@ test('it ranks pilots by points without a request', function (): void {
 
     $standings = resolve(Leaderboard::class)->standings($ada);
 
-    $this->assertSame(['Grace', 'Ada'], $standings->pluck('name')->all());
-    $this->assertSame([1, 2], $standings->pluck('rank')->all());
-    $this->assertSame([false, true], $standings->pluck('isYou')->all());
+    expect($standings->pluck('name')->all())->toBe(['Grace', 'Ada']);
+    expect($standings->pluck('rank')->all())->toBe([1, 2]);
+    expect($standings->pluck('isYou')->all())->toBe([false, true]);
 });
 
 test('it reports a pilot who placed outside the listed page', function (): void {
@@ -44,22 +44,18 @@ test('it reports a pilot who placed outside the listed page', function (): void 
 
     $leaderboard = resolve(Leaderboard::class);
 
-    $this->assertSame([], $leaderboard->standings($ada, limit: 1)
-        ->where('isYou', true)
-        ->all());
+    expect($leaderboard->standings($ada, limit: 1)->where('isYou', true)->all())->toBe([]);
 
     $standing = $leaderboard->standingFor($ada);
 
-    $this->assertSame(2, $standing['rank']);
-    $this->assertTrue($standing['isYou']);
+    expect($standing['rank'])->toBe(2);
+    expect($standing['isYou'])->toBeTrue();
 });
 
 test('a pilot who has not flown has no standing', function (): void {
     challenge();
 
-    $this->assertNull(
-        resolve(Leaderboard::class)->standingFor(User::factory()->create()),
-    );
+    expect(resolve(Leaderboard::class)->standingFor(User::factory()->create()))->toBeNull();
 });
 
 test('writing progress retires the cached board', function (): void {
@@ -76,12 +72,12 @@ test('writing progress retires the cached board', function (): void {
 
     $leaderboard = resolve(Leaderboard::class);
 
-    $this->assertSame(1, $leaderboard->rankedPilotCount());
+    expect($leaderboard->rankedPilotCount())->toBe(1);
 
     leaderboardPilot('Grace', $challenge, points: 90);
 
-    $this->assertSame(2, $leaderboard->rankedPilotCount());
-    $this->assertSame('Grace', $leaderboard->standings($ada)->first()['name']);
+    expect($leaderboard->rankedPilotCount())->toBe(2);
+    expect($leaderboard->standings($ada)->first()['name'])->toBe('Grace');
 });
 
 test('choosing an airframe retires the board it puts a pilot on', function (): void {
@@ -97,7 +93,7 @@ test('choosing an airframe retires the board it puts a pilot on', function (): v
 
     $leaderboard = resolve(Leaderboard::class);
 
-    $this->assertSame(1, $leaderboard->rankedPilotCount());
+    expect($leaderboard->rankedPilotCount())->toBe(1);
 
     resolve(SelectMissionDrone::class)->handle(
         User::factory()->create(['name' => 'Grace']),
@@ -105,7 +101,7 @@ test('choosing an airframe retires the board it puts a pilot on', function (): v
         DroneModel::query()->firstOrFail(),
     );
 
-    $this->assertSame(2, $leaderboard->rankedPilotCount());
+    expect($leaderboard->rankedPilotCount())->toBe(2);
 });
 
 test('a run in one course leaves another courses board cached', function (): void {
@@ -122,22 +118,19 @@ test('a run in one course leaves another courses board cached', function (): voi
     $leaderboard = resolve(Leaderboard::class);
 
     // Both boards cached, each answering for one pilot.
-    $this->assertSame(1, $leaderboard->rankedPilotCount($elsewhere->course));
-    $this->assertSame(1, $leaderboard->rankedPilotCount());
+    expect($leaderboard->rankedPilotCount($elsewhere->course))->toBe(1);
+    expect($leaderboard->rankedPilotCount())->toBe(1);
 
     // A pilot earns a place in the other course entirely.
     leaderboardPilot('Grace', $flown, points: 90);
 
-    $this->assertSame(
-        1,
-        $leaderboard->rankedPilotCount($elsewhere->course),
-        "a run in one course retired another course's cached board",
-    );
+    expect($leaderboard->rankedPilotCount($elsewhere->course))
+        ->toBe(1, "a run in one course retired another course's cached board");
 
     // And the overall board, which that run really could have moved, did
     // go: narrowing invalidation must not leave a stale slice standing.
-    $this->assertSame(2, $leaderboard->rankedPilotCount());
-    $this->assertSame('Grace', $leaderboard->standings($ada)->first()['name']);
+    expect($leaderboard->rankedPilotCount())->toBe(2);
+    expect($leaderboard->standings($ada)->first()['name'])->toBe('Grace');
 });
 
 test('it counts only playable content towards a pilots totals', function (): void {
@@ -149,15 +142,12 @@ test('it counts only playable content towards a pilots totals', function (): voi
 
     $leaderboard = resolve(Leaderboard::class);
 
-    $this->assertSame(['completed' => 1, 'stars' => 3], $leaderboard->statsFor($pilot));
+    expect($leaderboard->statsFor($pilot))->toBe(['completed' => 1, 'stars' => 3]);
 
     // Keyed by course id, which is how the catalogue cards look their own
     // count up. A count returned under any other key reads as zero on
     // every card rather than failing.
-    $this->assertSame(
-        [$live->course_id => 1],
-        $leaderboard->completedCountsByCourse($pilot)->all(),
-    );
+    expect($leaderboard->completedCountsByCourse($pilot)->all())->toBe([$live->course_id => 1]);
 });
 
 function challenge(bool $published = true): Challenge

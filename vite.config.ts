@@ -4,7 +4,6 @@ import { wayfinder } from '@laravel/vite-plugin-wayfinder';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import laravel from 'laravel-vite-plugin';
-import { bunny } from 'laravel-vite-plugin/fonts';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
@@ -83,8 +82,7 @@ export default defineConfig({
     },
     resolve: {
         alias: {
-            // The physics engine's WASM ships as a real .wasm asset instead
-            // of base64 inlined into the simulator bundle; see the shim.
+            
             '@dimforge/rapier3d-compat': fileURLToPath(
                 new URL(
                     './resources/js/lib/simulator/rapier-compat-shim.ts',
@@ -94,14 +92,22 @@ export default defineConfig({
         },
     },
     plugins: [
+        /*
+         * No `fonts:` entry. It would fetch Inter from Bunny and emit a
+         * <link rel="preload"> per weight, and every one of those preloads was
+         * dead: the @font-face rules it generates land in their own stylesheet
+         * that `input` never lists, so the page linked app.css alone and no
+         * rule ever named the family. Inter arrives through
+         * `@import '@fontsource-variable/inter'` in app.css instead, under the
+         * family 'Inter Variable' that --font-sans actually asks for.
+         *
+         * The cost was three woff2 files, ~71KB, fetched on every page load and
+         * discarded — plus Firefox's "preloaded ... but not used within a few
+         * seconds" warning, which is the browser reporting exactly that.
+         */
         laravel({
             input: ['resources/css/app.css', 'resources/js/app.tsx'],
             refresh: true,
-            fonts: [
-                bunny('Inter', {
-                    weights: [400, 500, 600],
-                }),
-            ],
         }),
         inertia(),
         react({

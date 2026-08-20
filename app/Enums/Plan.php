@@ -18,7 +18,6 @@ enum Plan: string
     case Starter = 'starter';
     case Pro = 'pro';
     case Team = 'team';
-    case Enterprise = 'enterprise';
 
     /**
      * The plan a subscribed price ID grants.
@@ -64,7 +63,6 @@ enum Plan: string
             self::Starter => 'Starter',
             self::Pro => 'Pro',
             self::Team => 'Team',
-            self::Enterprise => 'Enterprise',
         };
     }
 
@@ -77,7 +75,6 @@ enum Plan: string
             self::Starter => 'Everything you need to find out whether flying code is for you.',
             self::Pro => 'The whole catalogue, every language, and the tools that come with them.',
             self::Team => 'Everything Pro gives one pilot, on its way to a whole classroom.',
-            self::Enterprise => 'Your own deployment, your own identity provider, your own terms.',
         };
     }
 
@@ -145,12 +142,6 @@ enum Plan: string
                 'Seats for 10 students, assignments and shared workspaces — coming soon',
                 '$5/month per additional seat, once seats ship',
             ],
-            self::Enterprise => [
-                'Unlimited users and teams',
-                'SSO, REST API and LMS integration',
-                'Custom branding and private deployment',
-                'Dedicated account manager and an SLA',
-            ],
         };
     }
 
@@ -165,7 +156,7 @@ enum Plan: string
     {
         return match ($this) {
             self::Pro, self::Team => ['monthly', 'yearly'],
-            self::Starter, self::Enterprise => [],
+            self::Starter => [],
         };
     }
 
@@ -199,13 +190,10 @@ enum Plan: string
             Feature::BetaAccess,
         ];
 
-        $team = [...$pro, Feature::TeamManagement, Feature::ClassroomTools];
-
         return match ($this) {
             self::Starter => [],
             self::Pro => $pro,
-            self::Team => $team,
-            self::Enterprise => [...$team, Feature::ApiAccess, Feature::Sso],
+            self::Team => [...$pro, Feature::TeamManagement, Feature::ClassroomTools],
         };
     }
 
@@ -217,9 +205,9 @@ enum Plan: string
     /**
      * Whether a viewer on this plan may reach content requiring `$required`.
      *
-     * Catalogue depth only. Team and Enterprise sit above Pro here because they
-     * include everything Pro sells, not because they unlock extra missions —
-     * which is why this is not the same question as features().
+     * Catalogue depth only. Team sits above Pro here because it includes
+     * everything Pro sells, not because it unlocks extra missions — which is
+     * why this is not the same question as features().
      */
     public function covers(self $required): bool
     {
@@ -232,23 +220,24 @@ enum Plan: string
     }
 
     /**
-     * Whether checkout may be opened for this plan, or whether its CTA has to
-     * point at contact-sales instead.
+     * Whether checkout may be opened for this plan.
      *
-     * Team sells itself: a classroom of ten is a card payment, and docs/pricing.md
-     * has always promised the upgrade is available at any time. Its seat pricing
-     * is bought the same way once Phase 7 lands — a second subscription against
-     * the seat variants — which does not change how the base tier is sold.
+     * Every paid tier is bought with a card: a classroom of ten is a card
+     * payment like any other, and docs/pricing.md has always promised the
+     * upgrade is available at any time. Team's seat pricing is bought the same
+     * way once Phase 7 lands — a second subscription against the seat variants
+     * — which does not change how the base tier is sold.
      *
-     * Enterprise stays sales-led, and not because of what has shipped. A private
-     * deployment, an identity provider and an SLA are terms nobody agrees to
-     * through a card form, and there is no amount to charge until they are.
+     * Starter is the only no. It is an account rather than a purchase and has
+     * no price for a card form to charge, which is what makes it the fallback
+     * a request with an unreadable plan resolves to: refused here rather than
+     * charged for a tier we misread.
      */
     public function isSelfServe(): bool
     {
         return match ($this) {
             self::Pro, self::Team => true,
-            self::Starter, self::Enterprise => false,
+            self::Starter => false,
         };
     }
 
@@ -326,7 +315,6 @@ enum Plan: string
             self::Starter => 0,
             self::Pro => 1,
             self::Team => 2,
-            self::Enterprise => 3,
         };
     }
 }

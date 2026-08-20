@@ -21,6 +21,11 @@ namespace App\Enums;
  * cost to build and free to serve; an AI assistant is the one that would carry
  * a per-call marginal cost, and metering it needs a credit ledger before it
  * needs a flag. Adding the case back means building that ledger with it.
+ *
+ * API access and single sign-on left with the Enterprise tier that was the only
+ * thing granting them. Every case here has to be granted by some plan: the
+ * pricing page renders one comparison row per case, and a row no tier can tick
+ * advertises a capability nobody is able to buy.
  */
 enum Feature: string
 {
@@ -32,8 +37,6 @@ enum Feature: string
     case DownloadableProjects = 'downloadable_projects';
     case TeamManagement = 'team_management';
     case ClassroomTools = 'classroom_tools';
-    case ApiAccess = 'api_access';
-    case Sso = 'sso';
     case PrioritySupport = 'priority_support';
     case BetaAccess = 'beta_access';
 
@@ -56,8 +59,6 @@ enum Feature: string
             self::DownloadableProjects => 'Downloadable Projects',
             self::TeamManagement => 'Team Management',
             self::ClassroomTools => 'Classroom Tools',
-            self::ApiAccess => 'API Access',
-            self::Sso => 'Single Sign-On',
             self::PrioritySupport => 'Priority Support',
             self::BetaAccess => 'Beta Access',
         };
@@ -81,7 +82,6 @@ enum Feature: string
             self::PremiumCertificates,
             self::DownloadableProjects => false,
             self::TeamManagement, self::ClassroomTools => false,
-            self::ApiAccess, self::Sso => false,
         };
     }
 }

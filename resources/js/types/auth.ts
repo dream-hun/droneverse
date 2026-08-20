@@ -11,7 +11,7 @@ export type User = {
 };
 
 /** Mirrors App\Enums\Plan. */
-export type PlanValue = 'starter' | 'pro' | 'team' | 'enterprise';
+export type PlanValue = 'starter' | 'pro' | 'team';
 
 /** Mirrors App\Enums\Feature. */
 export type FeatureValue =
@@ -23,8 +23,6 @@ export type FeatureValue =
     | 'downloadable_projects'
     | 'team_management'
     | 'classroom_tools'
-    | 'api_access'
-    | 'sso'
     | 'priority_support'
     | 'beta_access';
 

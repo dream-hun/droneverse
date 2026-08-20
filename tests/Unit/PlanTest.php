@@ -34,8 +34,6 @@ test('pro grants every feature the comparison table sells', function (): void {
 
     expect(Plan::Pro->hasFeature(Feature::TeamManagement))->toBeFalse();
     expect(Plan::Pro->hasFeature(Feature::ClassroomTools))->toBeFalse();
-    expect(Plan::Pro->hasFeature(Feature::ApiAccess))->toBeFalse();
-    expect(Plan::Pro->hasFeature(Feature::Sso))->toBeFalse();
 });
 
 /**
@@ -56,13 +54,17 @@ test('team adds classroom features on top of pro', function (): void {
     expect(Plan::Team->hasFeature(Feature::TeamManagement))->toBeTrue();
     expect(Plan::Team->hasFeature(Feature::ClassroomTools))->toBeTrue();
     expect(Plan::Team->hasFeature(Feature::PythonRuntime))->toBeTrue();
-
-    expect(Plan::Team->hasFeature(Feature::ApiAccess))->toBeFalse();
-    expect(Plan::Team->hasFeature(Feature::Sso))->toBeFalse();
 });
 
-test('enterprise grants every feature', function (): void {
-    expect(Plan::Enterprise->features())->toEqualCanonicalizing(Feature::cases());
+/**
+ * Team is the top tier, so it grants the lot — and this is the assertion that
+ * says so for every case at once. A Feature nobody grants is a row in the
+ * pricing page's comparison grid that no plan can tick, which advertises a
+ * capability nobody is able to buy; adding a case without listing it on a plan
+ * fails here.
+ */
+test('the top tier grants every feature', function (): void {
+    expect(Plan::Team->features())->toEqualCanonicalizing(Feature::cases());
 });
 
 test('catalog coverage ranks the paid tiers above starter', function (): void {
@@ -71,29 +73,26 @@ test('catalog coverage ranks the paid tiers above starter', function (): void {
 
     expect(Plan::Pro->covers(Plan::Starter))->toBeTrue();
     expect(Plan::Team->covers(Plan::Pro))->toBeTrue();
-    expect(Plan::Enterprise->covers(Plan::Team))->toBeTrue();
     expect(Plan::Pro->covers(Plan::Team))->toBeFalse();
 });
 
 test('only starter is free', function (): void {
     expect(Plan::Starter->isPaid())->toBeFalse();
 
-    foreach ([Plan::Pro, Plan::Team, Plan::Enterprise] as $plan) {
+    foreach ([Plan::Pro, Plan::Team] as $plan) {
         expect($plan->isPaid())->toBeTrue($plan->value);
     }
 });
 
 /**
  * A classroom of ten is a card payment, so Team sells itself alongside Pro.
- * Enterprise is the only tier a button cannot buy, and not because of what
- * has shipped: a private deployment and an SLA are terms, and there is no
- * amount to charge until they are agreed.
+ * Starter is the only answer of no: it is an account rather than a purchase,
+ * and there is no price for a card form to charge.
  */
-test('every tier but enterprise and the free one sells itself', function (): void {
+test('every paid tier sells itself and the free one does not', function (): void {
     expect(Plan::Pro->isSelfServe())->toBeTrue();
     expect(Plan::Team->isSelfServe())->toBeTrue();
 
-    expect(Plan::Enterprise->isSelfServe())->toBeFalse();
     expect(Plan::Starter->isSelfServe())->toBeFalse();
 });
 
@@ -219,7 +218,6 @@ test('only the subscription tiers offer a billing period', function (): void {
     expect(Plan::Pro->variants())->toBe(['monthly', 'yearly']);
     expect(Plan::Team->variants())->toBe(['monthly', 'yearly']);
     expect(Plan::Starter->variants())->toBe([]);
-    expect(Plan::Enterprise->variants())->toBe([]);
 });
 
 test('display amounts are read from configuration', function (): void {

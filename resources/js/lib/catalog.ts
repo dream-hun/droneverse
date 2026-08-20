@@ -13,7 +13,6 @@ const PLAN_LABEL: Record<PlanValue, string> = {
     starter: 'Starter',
     pro: 'Pro',
     team: 'Team',
-    enterprise: 'Enterprise',
 };
 
 export function planLabel(plan: PlanValue): string {

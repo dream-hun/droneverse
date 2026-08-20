@@ -39,10 +39,10 @@ test('a plan override resolves to that plan', function (): void {
 });
 
 test('a plan override outranks an active subscription', function (): void {
-    $user = User::factory()->onPlan(Plan::Enterprise)->create();
+    $user = User::factory()->onPlan(Plan::Team)->create();
     entitlementSubscribe($user, 'var_pro_monthly');
 
-    expect(resolvePlanFor($user))->toBe(Plan::Enterprise);
+    expect(resolvePlanFor($user))->toBe(Plan::Team);
 });
 
 test('an override naming a retired plan falls through instead of throwing', function (): void {
@@ -214,11 +214,11 @@ test('a gated route rejects starter and admits pro', function (): void {
 });
 
 test('every feature is registered as a gate', function (): void {
-    $enterprise = User::factory()->onPlan(Plan::Enterprise)->create();
+    $team = User::factory()->onPlan(Plan::Team)->create();
     $starter = User::factory()->create();
 
     foreach (Feature::cases() as $feature) {
-        expect($enterprise->can($feature->value))->toBeTrue($feature->value);
+        expect($team->can($feature->value))->toBeTrue($feature->value);
         expect($starter->can($feature->value))->toBeFalse($feature->value);
     }
 });
@@ -244,7 +244,7 @@ test('guests are shared the starter plan', function (): void {
 });
 
 test('the plan override is never serialised to the client', function (): void {
-    $user = User::factory()->onPlan(Plan::Enterprise)->create();
+    $user = User::factory()->onPlan(Plan::Team)->create();
 
     expect($user->toArray())->not->toHaveKey('plan_override');
 });
@@ -260,13 +260,13 @@ test('the plan override is never serialised to the client', function (): void {
  */
 test('pre launch accounts are grandfathered to pro', function (): void {
     $preLaunch = User::factory()->create();
-    $comped = User::factory()->onPlan(Plan::Enterprise)->create();
+    $comped = User::factory()->onPlan(Plan::Team)->create();
 
     $migration = require database_path('migrations/2026_07_28_092306_backfill_pre_launch_users_to_pro.php');
     $migration->up();
 
     expect(resolvePlanFor($preLaunch))->toBe(Plan::Pro);
-    expect(resolvePlanFor($comped))->toBe(Plan::Enterprise);
+    expect(resolvePlanFor($comped))->toBe(Plan::Team);
 });
 
 function resolvePlanFor(User $user): Plan

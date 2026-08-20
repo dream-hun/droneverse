@@ -357,8 +357,8 @@ test('a subscriber is offered every plan and period they could move to', functio
             ->where('switchable.0.variants.1.isCurrent', false)
             ->where('switchable.1.value', 'team')
             ->where('switchable.1.variants.0.formatted', '$59')
-            // Enterprise is negotiated and Starter is free, so neither is
-            // somewhere a subscription can be moved to.
+            // Starter is free, so it is not somewhere a subscription can be
+            // moved to.
             ->count('switchable', 2));
 });
 
@@ -506,12 +506,11 @@ test('switching to the plan you are already on reaches nobody', function (): voi
     Http::assertNothingSent();
 });
 
-test('switching refuses a sales led tier and an unsold period', function (): void {
+test('switching refuses the free tier and an unsold period', function (): void {
     $user = User::factory()->create();
     $subscription = billingSubscribe($user, 'var_pro_monthly');
 
     foreach ([
-        ['plan' => 'enterprise', 'variant' => 'monthly'],
         ['plan' => 'starter', 'variant' => 'monthly'],
         ['plan' => 'pro', 'variant' => 'weekly'],
     ] as $attempt) {

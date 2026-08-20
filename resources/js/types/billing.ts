@@ -14,7 +14,6 @@ export type PlanCtaAction =
     | 'signup'
     | 'current'
     | 'included'
-    | 'contact'
     | 'checkout'
     /** Move the subscription this viewer already holds onto this plan. */
     | 'switch'

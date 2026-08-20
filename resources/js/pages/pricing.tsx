@@ -32,7 +32,6 @@ import type {
 type PricingProps = {
     plans: PricingPlan[];
     comparison: PlanComparisonRow[];
-    salesEmail: string | null;
     lemonSqueezy: LemonSqueezyConfig;
 };
 
@@ -133,8 +132,11 @@ function BillingPeriodToggle({
 /**
  * The price line, or the absence of one.
  *
- * Starter and Enterprise carry no amount at all and say so in words — a card
- * showing a blank where a number belongs reads as a page that failed to load.
+ * Starter carries no amount at all and says so in words — a card showing a
+ * blank where a number belongs reads as a page that failed to load. It is the
+ * only tier that should reach that branch: every paid plan is priced in
+ * config/plans.php and tests/Unit/PlanTest.php holds them to it, so a paid card
+ * arriving here is a misconfiguration, and it must not read as free.
  */
 function PlanPriceLine({
     plan,
@@ -148,7 +150,7 @@ function PlanPriceLine({
     if (!price) {
         return (
             <p className="text-4xl font-extrabold tracking-tighter">
-                {plan.value === 'starter' ? 'Free' : 'Custom'}
+                {plan.value === 'starter' ? 'Free' : 'Unavailable'}
             </p>
         );
     }
@@ -166,7 +168,6 @@ function PlanPriceLine({
 export default function Pricing({
     plans,
     comparison,
-    salesEmail,
     lemonSqueezy,
 }: PricingProps) {
     const { auth } = usePage().props;
@@ -300,20 +301,6 @@ export default function Pricing({
                     >
                         {plan.cta.label}
                     </Link>
-                );
-
-            case 'contact':
-                return salesEmail ? (
-                    <a
-                        href={`mailto:${salesEmail}?subject=${encodeURIComponent(`${plan.label} enquiry`)}`}
-                        className={ctaClass(emphasised)}
-                    >
-                        {plan.cta.label}
-                    </a>
-                ) : (
-                    <button className={ctaClass(false)} disabled>
-                        {plan.cta.label}
-                    </button>
                 );
 
             case 'checkout': {
@@ -478,7 +465,7 @@ export default function Pricing({
                             />
                         </div>
 
-                        <div className="grid gap-1 md:grid-cols-2 lg:grid-cols-4">
+                        <div className="grid gap-1 md:grid-cols-2 lg:grid-cols-3">
                             {plans.map(renderCard)}
                         </div>
                     </section>

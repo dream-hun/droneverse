@@ -13,7 +13,6 @@ describe('planLabel', () => {
         expect(planLabel('starter')).toBe('Starter');
         expect(planLabel('pro')).toBe('Pro');
         expect(planLabel('team')).toBe('Team');
-        expect(planLabel('enterprise')).toBe('Enterprise');
     });
 });
 
@@ -33,7 +32,6 @@ describe('isPaidTier', () => {
         expect(isPaidTier('starter')).toBe(false);
         expect(isPaidTier('pro')).toBe(true);
         expect(isPaidTier('team')).toBe(true);
-        expect(isPaidTier('enterprise')).toBe(true);
     });
 });
 

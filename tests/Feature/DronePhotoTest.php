@@ -29,7 +29,7 @@ test('a photo cannot be uploaded to a mission the plan does not cover', function
 
     $response->assertForbidden();
 
-    $this->assertSame(0, DronePhoto::query()->count());
+    expect(DronePhoto::query()->count())->toBe(0);
     Storage::disk('photos')->assertDirectoryEmpty('/');
 });
 
@@ -62,15 +62,12 @@ test('a simulator photo is stored on disk and in the log', function (): void {
 
     $photo = DronePhoto::query()->sole();
 
-    $this->assertSame($user->id, $photo->user_id);
-    $this->assertSame($challenge->id, $photo->challenge_id);
-    $this->assertSame('rooftop-drop', $photo->label);
-    $this->assertSame(
-        ['x' => 4.2, 'y' => 9.5, 'z' => -8.1, 'headingDeg' => 182.5],
-        $photo->position,
-    );
+    expect($photo->user_id)->toBe($user->id);
+    expect($photo->challenge_id)->toBe($challenge->id);
+    expect($photo->label)->toBe('rooftop-drop');
+    expect($photo->position)->toBe(['x' => 4.2, 'y' => 9.5, 'z' => -8.1, 'headingDeg' => 182.5]);
     Storage::disk('photos')->assertExists($photo->path);
-    $this->assertStringEndsWith('.png', $photo->path);
+    expect($photo->path)->toEndWith('.png');
 });
 
 test('a photo without telemetry stores a null position', function (): void {
@@ -86,7 +83,7 @@ test('a photo without telemetry stores a null position', function (): void {
     );
 
     $response->assertCreated();
-    $this->assertNull(DronePhoto::query()->sole()->position);
+    expect(DronePhoto::query()->sole()->position)->toBeNull();
 });
 
 test('payloads that are not data urls are rejected', function (): void {
@@ -123,7 +120,7 @@ test('base64 that is not a real image is rejected', function (): void {
     $response->assertUnprocessable();
     $response->assertJsonValidationErrors('image');
     $this->assertDatabaseCount('drone_photos', 0);
-    $this->assertEmpty(Storage::disk('photos')->allFiles());
+    expect(Storage::disk('photos')->allFiles())->toBeEmpty();
 });
 
 test('photos cannot be stored on unpublished content', function (): void {
@@ -196,12 +193,12 @@ test('a stored photo is identified to the client by its uuid', function (): void
 
     $photo = DronePhoto::query()->sole();
 
-    $this->assertTrue(Str::isUuid($photo->uuid));
+    expect(Str::isUuid($photo->uuid))->toBeTrue();
     $response->assertJsonPath('id', $photo->uuid);
 
     // The auto-increment key must not travel with it: the whole point of
     // the uuid is that the client never learns the row's position.
-    $this->assertNotSame($photo->id, $response->json('id'));
+    expect($response->json('id'))->not->toBe($photo->id);
 });
 
 test('a photo is addressed by uuid and not by id', function (): void {
@@ -211,7 +208,7 @@ test('a photo is addressed by uuid and not by id', function (): void {
     $photo = DronePhoto::factory()->for($user)->create();
     Storage::disk('photos')->put($photo->path, 'jpeg-bytes');
 
-    $this->assertStringContainsString($photo->uuid, route('photos.destroy', $photo));
+    expect(route('photos.destroy', $photo))->toContain($photo->uuid);
 
     // A malformed key is rejected as content that does not exist, which
     // is what stops the endpoint from confirming anything about the ids
@@ -277,11 +274,7 @@ test('the photo log has a storage cap', function (): void {
     $response->assertJsonValidationErrors('image');
     $this->assertDatabaseCount('drone_photos', 500);
 
-    $this->assertSame(
-        [],
-        Storage::disk('photos')->allFiles(),
-        'a photo the quota refused was still written to the disk',
-    );
+    expect(Storage::disk('photos')->allFiles())->toBe([], 'a photo the quota refused was still written to the disk');
 });
 
 test('the quota is counted in the same transaction that writes the photo', function (): void {
@@ -321,12 +314,8 @@ test('the quota is counted in the same transaction that writes the photo', funct
         payload(),
     )->assertCreated();
 
-    $this->assertNotNull($levelAtInsert, 'the photo was never inserted');
-    $this->assertGreaterThan(
-        0,
-        $levelAtInsert,
-        'the photo was written outside the transaction the quota was counted in',
-    );
+    expect($levelAtInsert)->not->toBeNull('the photo was never inserted');
+    expect($levelAtInsert)->toBeGreaterThan(0, 'the photo was written outside the transaction the quota was counted in');
 });
 
 test('a photo whose row never lands leaves no file behind', function (): void {
@@ -356,11 +345,8 @@ test('a photo whose row never lands leaves no file behind', function (): void {
     }
 
     $this->assertDatabaseCount('drone_photos', 0);
-    $this->assertSame(
-        [],
-        Storage::disk('photos')->allFiles(),
-        'a failed upload left its bytes on the disk with no row pointing at them',
-    );
+    expect(Storage::disk('photos')->allFiles())
+        ->toBe([], 'a failed upload left its bytes on the disk with no row pointing at them');
 });
 
 test('a photo url is a link that expires', function (): void {
@@ -376,11 +362,8 @@ test('a photo url is a link that expires', function (): void {
     // A photo is private to the pilot who took it, so the URL has to stop
     // working on its own. A permanent link would outlive both the pilot's
     // access to the mission and the photo's own deletion.
-    $this->assertArrayHasKey('expiration', $query);
-    $this->assertSame(
-        now()->addMinutes(30)->getTimestamp(),
-        (int) $query['expiration'],
-    );
+    expect($query)->toHaveKey('expiration');
+    expect((int) $query['expiration'])->toBe(now()->addMinutes(30)->getTimestamp());
 });
 
 test('the photo log serves expiring urls', function (): void {
@@ -412,7 +395,7 @@ test('a stored photo is returned with an expiring url', function (): void {
     );
 
     $response->assertCreated();
-    $this->assertStringContainsString('expiration=', (string) $response->json('url'));
+    expect((string) $response->json('url'))->toContain('expiration=');
 });
 
 test('photos are written to the configured disk', function (): void {

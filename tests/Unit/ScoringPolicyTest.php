@@ -64,11 +64,7 @@ test('the server grades a run the way the contract says', function (array $vecto
     /** @var array{waypointsHit: int, waypointsTotal: int, collisions: int, maxAltitude: float, landed: bool, elapsedSeconds: float, timedOut: bool, photosTaken: int, photoTargetsHit: int, photoTargetsTotal: int, photosMissing: int, washRequired: bool, washed: bool} $measured */
     $measured = $vector['measured'];
 
-    $this->assertSame(
-        $vector['expected'],
-        (new GradeSimulatorRun)->handle($measured, $challenge),
-        $vector['why'],
-    );
+    expect((new GradeSimulatorRun)->handle($measured, $challenge))->toBe($vector['expected'], $vector['why']);
 })->with('scoring vectors');
 
 /**
@@ -81,9 +77,9 @@ test('the server grades a run the way the contract says', function (array $vecto
 test('the contract covers the cases it claims to', function (): void {
     $vectors = scoringVectors();
 
-    $this->assertGreaterThanOrEqual(
-        15,
-        count($vectors),
-        'the shared scoring vectors have shrunk; a policy case has been dropped rather than changed',
-    );
+    expect(count($vectors))
+        ->toBeGreaterThanOrEqual(
+            15,
+            'the shared scoring vectors have shrunk; a policy case has been dropped rather than changed',
+        );
 });

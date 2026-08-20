@@ -29,10 +29,7 @@ test('every submitted run is recorded', function (): void {
         )->assertOk();
     }
 
-    $this->assertSame(3, ChallengeRun::query()
-        ->where('user_id', $user->id)
-        ->where('challenge_id', $challenge->id)
-        ->count());
+    expect(ChallengeRun::query()->where('user_id', $user->id)->where('challenge_id', $challenge->id)->count())->toBe(3);
 });
 
 test('a worse run is still recorded even though progress ignores it', function (): void {
@@ -57,11 +54,11 @@ test('a worse run is still recorded even though progress ignores it', function (
         ->orderBy('id')
         ->get();
 
-    $this->assertCount(2, $runs, 'the poorer run was dropped instead of logged');
-    $this->assertSame(100, $runs[0]->score);
-    $this->assertTrue($runs[0]->completed);
-    $this->assertLessThan(100, $runs[1]->score);
-    $this->assertFalse($runs[1]->completed);
+    expect($runs)->toHaveCount(2, 'the poorer run was dropped instead of logged');
+    expect($runs[0]->score)->toBe(100);
+    expect($runs[0]->completed)->toBeTrue();
+    expect($runs[1]->score)->toBeLessThan(100);
+    expect($runs[1]->completed)->toBeFalse();
 
     // And progress kept the better of the two, as it always has.
     $this->assertDatabaseHas('user_challenge_progress', [
@@ -92,9 +89,9 @@ test('a run records what the server graded not what the client sent', function (
 
     $run = ChallengeRun::query()->firstOrFail();
 
-    $this->assertLessThanOrEqual($challenge->max_score, $run->score);
-    $this->assertNotSame(999, $run->score);
-    $this->assertLessThanOrEqual(3, $run->stars);
+    expect($run->score)->toBeLessThanOrEqual($challenge->max_score);
+    expect($run->score)->not->toBe(999);
+    expect($run->stars)->toBeLessThanOrEqual(3);
 
     /*
      * The collision count is the one number the client does contribute,
@@ -103,8 +100,8 @@ test('a run records what the server graded not what the client sent', function (
      * Seven collisions on a collision-sensitive mission is seventy points
      * of penalty, and the stored score wears it.
      */
-    $this->assertSame(7, $run->collisions);
-    $this->assertSame(30, $run->score);
+    expect($run->collisions)->toBe(7);
+    expect($run->score)->toBe(30);
 });
 
 test('a run records the objectives its score was built from', function (): void {
@@ -131,8 +128,8 @@ test('a run records the objectives its score was built from', function (): void 
 
     $run = ChallengeRun::query()->firstOrFail();
 
-    $this->assertSame(2, $run->objectives_total);
-    $this->assertSame(1, $run->objectives_hit);
+    expect($run->objectives_total)->toBe(2);
+    expect($run->objectives_hit)->toBe(1);
 });
 
 test('a run is never recorded for a mission the pilot cannot reach', function (): void {
@@ -145,15 +142,15 @@ test('a run is never recorded for a mission the pilot cannot reach', function ()
         challengeRunFlight(),
     )->assertForbidden();
 
-    $this->assertSame(0, ChallengeRun::query()->count());
+    expect(ChallengeRun::query()->count())->toBe(0);
 });
 
 test('a run carries a uuid and is addressed by it', function (): void {
     $run = ChallengeRun::factory()->create();
 
-    $this->assertNotNull($run->uuid);
-    $this->assertSame('uuid', $run->getRouteKeyName());
-    $this->assertSame($run->uuid, $run->getRouteKey());
+    expect($run->uuid)->not->toBeNull();
+    expect($run->getRouteKeyName())->toBe('uuid');
+    expect($run->getRouteKey())->toBe($run->uuid);
 });
 
 /**

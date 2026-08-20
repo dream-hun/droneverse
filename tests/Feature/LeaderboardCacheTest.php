@@ -23,11 +23,7 @@ test('a repeat view of the board does not re run the ranking', function (): void
         fn (array $query): bool => str_contains($query['raw_query'], 'rank() over'),
     );
 
-    $this->assertSame(
-        [],
-        $ranking,
-        'the ranking aggregate ran again on a cached board',
-    );
+    expect($ranking)->toBe([], 'the ranking aggregate ran again on a cached board');
 });
 
 test('recording a run puts the pilot on the board immediately', function (): void {

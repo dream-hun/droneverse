@@ -18,8 +18,8 @@ test('guests can download the model withdrawal form', function (): void {
 test('the download is a pdf', function (): void {
     $pdf = $this->get(route('withdrawal-form'))->getContent();
 
-    $this->assertStringStartsWith('%PDF-1.4', $pdf);
-    $this->assertStringEndsWith("%%EOF\n", $pdf);
+    expect($pdf)->toStartWith('%PDF-1.4');
+    expect($pdf)->toEndWith("%%EOF\n");
 });
 
 /**
@@ -31,24 +31,21 @@ test('the download is a pdf', function (): void {
 test('every cross reference offset lands on its object', function (): void {
     $pdf = pdf();
 
-    $this->assertSame(1, preg_match('/startxref\n(\d+)\n%%EOF/', $pdf, $start));
+    expect(preg_match('/startxref\n(\d+)\n%%EOF/', $pdf, $start))->toBe(1);
 
     $table = mb_substr($pdf, (int) $start[1], null, '8bit');
 
-    $this->assertSame(1, preg_match('/^xref\n0 (\d+)\n/', $table, $header));
+    expect(preg_match('/^xref\n0 (\d+)\n/', $table, $header))->toBe(1);
 
     $size = (int) $header[1];
     $entries = preg_match_all('/^(\d{10}) \d{5} n $/m', $table, $offsets);
 
     // Every object but the mandatory free entry at index zero.
-    $this->assertSame($size - 1, $entries);
+    expect($entries)->toBe($size - 1);
 
     foreach ($offsets[1] as $index => $offset) {
-        $this->assertStringStartsWith(
-            sprintf('%d 0 obj', $index + 1),
-            mb_substr($pdf, (int) $offset, 32, '8bit'),
-            sprintf('Object %d is not where the xref says it is.', $index + 1),
-        );
+        expect(mb_substr($pdf, (int) $offset, 32, '8bit'))
+            ->toStartWith(sprintf('%d 0 obj', $index + 1), sprintf('Object %d is not where the xref says it is.', $index + 1));
     }
 });
 
@@ -62,18 +59,18 @@ test('the form names the configured trader', function (): void {
 
     $pdf = pdf();
 
-    $this->assertStringContainsString('DroneVerse Ltd', $pdf);
-    $this->assertStringContainsString('1 Runway Road, Kigali', $pdf);
-    $this->assertStringContainsString('Rwanda', $pdf);
-    $this->assertStringContainsString('support@droneverse.test', $pdf);
+    expect($pdf)->toContain('DroneVerse Ltd');
+    expect($pdf)->toContain('1 Runway Road, Kigali');
+    expect($pdf)->toContain('Rwanda');
+    expect($pdf)->toContain('support@droneverse.test');
 });
 
 test('the form carries the statutory wording', function (): void {
     $pdf = pdf();
 
-    $this->assertStringContainsString('Model withdrawal form', $pdf);
-    $this->assertStringContainsString('hereby give notice', $pdf);
-    $this->assertStringContainsString('Delete as appropriate', $pdf);
+    expect($pdf)->toContain('Model withdrawal form');
+    expect($pdf)->toContain('hereby give notice');
+    expect($pdf)->toContain('Delete as appropriate');
 });
 
 /**
@@ -82,10 +79,7 @@ test('the form carries the statutory wording', function (): void {
  * out would undo the point of offering it.
  */
 test('the form says it is optional', function (): void {
-    $this->assertStringContainsString(
-        'You do not have to use this form',
-        pdf(),
-    );
+    expect(pdf())->toContain('You do not have to use this form');
 });
 
 /**
@@ -99,10 +93,7 @@ test('an unconfigured contact address is marked not invented', function (): void
         'plans.sales_email' => null,
     ]);
 
-    $this->assertStringContainsString(
-        'contact address not configured',
-        pdf(),
-    );
+    expect(pdf())->toContain('contact address not configured');
 });
 
 /**
@@ -115,8 +106,8 @@ test('a trader name with pdf syntax in it is escaped', function (): void {
 
     $pdf = pdf();
 
-    $this->assertStringContainsString('DroneVerse \\(EU\\) \\\\ Partners', $pdf);
-    $this->assertStringNotContainsString('(DroneVerse (EU)', $pdf);
+    expect($pdf)->toContain('DroneVerse \\(EU\\) \\\\ Partners');
+    expect($pdf)->not->toContain('(DroneVerse (EU)');
 });
 
 function pdf(): string

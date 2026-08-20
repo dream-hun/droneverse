@@ -30,7 +30,7 @@ test('it grandfathers accounts that existed before enforcement', function (): vo
 
     runBackfill();
 
-    $this->assertNotNull($user->refresh()->email_verified_at);
+    expect($user->refresh()->email_verified_at)->not->toBeNull();
 });
 
 /**
@@ -45,7 +45,7 @@ test('it leaves accounts created after enforcement unverified', function (): voi
 
     runBackfill();
 
-    $this->assertNull($user->refresh()->email_verified_at);
+    expect($user->refresh()->email_verified_at)->toBeNull();
 });
 
 test('it grandfathers accounts with no created at', function (): void {
@@ -55,7 +55,7 @@ test('it grandfathers accounts with no created at', function (): void {
 
     runBackfill();
 
-    $this->assertNotNull($user->refresh()->email_verified_at);
+    expect($user->refresh()->email_verified_at)->not->toBeNull();
 });
 
 /**
@@ -72,7 +72,7 @@ test('it does not overwrite an existing verification timestamp', function (): vo
 
     runBackfill();
 
-    $this->assertTrue($verifiedAt->equalTo($user->refresh()->email_verified_at));
+    expect($verifiedAt->equalTo($user->refresh()->email_verified_at))->toBeTrue();
 });
 
 function runBackfill(): void
@@ -81,7 +81,7 @@ function runBackfill(): void
         'migrations/2026_08_03_230022_backfill_email_verified_at_for_pre_verification_users.php',
     );
 
-    test()->assertInstanceOf(Migration::class, $migration);
+    expect($migration)->toBeInstanceOf(Migration::class);
 
     $migration->up();
 }

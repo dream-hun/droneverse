@@ -62,8 +62,8 @@ test('the summary counts only playable content', function (): void {
 
     $summary = resolve(FlightLog::class)->summaryFor($user);
 
-    $this->assertSame(2, $summary['runs']);
-    $this->assertSame(1, $summary['missionsFlown']);
+    expect($summary['runs'])->toBe(2);
+    expect($summary['missionsFlown'])->toBe(1);
 });
 
 test('the curve is ordered oldest run first and carries a running best', function (): void {
@@ -80,17 +80,17 @@ test('the curve is ordered oldest run first and carries a running best', functio
 
     $curve = resolve(FlightLog::class)->missionCurve($user, $challenge);
 
-    $this->assertSame([20, 60, 40, 90], array_column($curve, 'score'));
-    $this->assertSame([1, 2, 3, 4], array_column($curve, 'attempt'));
+    expect(array_column($curve, 'score'))->toBe([20, 60, 40, 90]);
+    expect(array_column($curve, 'attempt'))->toBe([1, 2, 3, 4]);
     // The best never falls, and the third run does not undo the second.
-    $this->assertSame([20, 60, 60, 90], array_column($curve, 'best'));
+    expect(array_column($curve, 'best'))->toBe([20, 60, 60, 90]);
 });
 
 test('the curve is empty for a mission the pilot has not flown', function (): void {
     $user = User::factory()->onPlan(Plan::Pro)->create();
     $challenge = Challenge::factory()->create();
 
-    $this->assertSame([], resolve(FlightLog::class)->missionCurve($user, $challenge));
+    expect(resolve(FlightLog::class)->missionCurve($user, $challenge))->toBe([]);
 });
 
 test('another pilots runs never appear on your curve', function (): void {
@@ -111,7 +111,7 @@ test('another pilots runs never appear on your curve', function (): void {
 
     $curve = resolve(FlightLog::class)->missionCurve($user, $challenge);
 
-    $this->assertSame([10], array_column($curve, 'score'));
+    expect(array_column($curve, 'score'))->toBe([10]);
 });
 
 test('attempts to clear counts only the runs up to the first clear', function (): void {
@@ -135,8 +135,8 @@ test('attempts to clear counts only the runs up to the first clear', function ()
 
     $summary = resolve(FlightLog::class)->summaryFor($user);
 
-    $this->assertSame(3.0, $summary['meanAttemptsToClear']);
-    $this->assertSame(5, $summary['runs']);
+    expect($summary['meanAttemptsToClear'])->toBe(3.0);
+    expect($summary['runs'])->toBe(5);
 });
 
 test('weak spots list the uncleared missions first', function (): void {
@@ -169,13 +169,13 @@ test('weak spots list the uncleared missions first', function (): void {
 
     $weakSpots = resolve(FlightLog::class)->weakSpots($user);
 
-    $this->assertSame(
-        ['Stuck Here', 'Hard Won'],
-        array_column($weakSpots, 'challengeTitle'),
-        'a mission flown once is not a weak spot, and an uncleared one outranks a cleared one',
-    );
-    $this->assertFalse($weakSpots[0]['cleared']);
-    $this->assertTrue($weakSpots[1]['cleared']);
+    expect(array_column($weakSpots, 'challengeTitle'))
+        ->toBe(
+            ['Stuck Here', 'Hard Won'],
+            'a mission flown once is not a weak spot, and an uncleared one outranks a cleared one',
+        );
+    expect($weakSpots[0]['cleared'])->toBeFalse();
+    expect($weakSpots[1]['cleared'])->toBeTrue();
 });
 
 test('the cohort measures a pilot against every pilots best', function (): void {
@@ -204,12 +204,12 @@ test('the cohort measures a pilot against every pilots best', function (): void 
 
     $cohort = resolve(FlightLog::class)->cohortFor($viewer, $challenge);
 
-    $this->assertNotNull($cohort);
-    $this->assertSame(50, $cohort['yourBest']);
-    $this->assertSame(90, $cohort['topBest']);
-    $this->assertSame(5, $cohort['pilots']);
+    expect($cohort)->not->toBeNull();
+    expect($cohort['yourBest'])->toBe(50);
+    expect($cohort['topBest'])->toBe(90);
+    expect($cohort['pilots'])->toBe(5);
     // Three of five pilots sit below 50, and the viewer is not one of them.
-    $this->assertSame(60, $cohort['percentile']);
+    expect($cohort['percentile'])->toBe(60);
 });
 
 test('the cohort is null until the pilot has flown the mission', function (): void {
@@ -221,7 +221,7 @@ test('the cohort is null until the pilot has flown the mission', function (): vo
         'challenge_id' => $challenge->id,
     ]);
 
-    $this->assertNull(resolve(FlightLog::class)->cohortFor($viewer, $challenge));
+    expect(resolve(FlightLog::class)->cohortFor($viewer, $challenge))->toBeNull();
 });
 
 test('an unknown mission slug falls back to the most recently flown', function (): void {

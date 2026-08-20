@@ -47,11 +47,7 @@ test('counting runs as they land agrees with rebuilding from them', function ():
 
     resolve(RebuildRollups::class)->missionStats();
 
-    $this->assertSame(
-        $incremental,
-        missionStatsSnapshot(),
-        'the totals kept as runs landed are not the totals the runs add up to',
-    );
+    expect(missionStatsSnapshot())->toBe($incremental, 'the totals kept as runs landed are not the totals the runs add up to');
 });
 
 test('recomputing course totals agrees with rebuilding them', function (): void {
@@ -61,11 +57,8 @@ test('recomputing course totals agrees with rebuilding them', function (): void 
 
     resolve(RebuildRollups::class)->courseTotals();
 
-    $this->assertSame(
-        $incremental,
-        courseTotalsSnapshot(),
-        'the totals kept as progress moved are not the totals the progress adds up to',
-    );
+    expect(courseTotalsSnapshot())
+        ->toBe($incremental, 'the totals kept as progress moved are not the totals the progress adds up to');
 });
 
 /**
@@ -102,16 +95,11 @@ test('a rebuild keeps finish times a pilot has and nulls the ones they do not', 
 
     resolve(RebuildRollups::class)->courseTotals();
 
-    $this->assertNull(
-        finishedAtFor($pilot, $unfinishedCourse),
-        'a course the pilot has finished nothing in was given a finish time',
-    );
+    expect(finishedAtFor($pilot, $unfinishedCourse))
+        ->toBeNull('a course the pilot has finished nothing in was given a finish time');
 
-    $this->assertSame(
-        $completedAt->toIso8601String(),
-        finishedAtFor($pilot, $finishedCourse)?->toIso8601String(),
-        'the rebuild did not carry the completion time through intact',
-    );
+    expect(finishedAtFor($pilot, $finishedCourse)?->toIso8601String())
+        ->toBe($completedAt->toIso8601String(), 'the rebuild did not carry the completion time through intact');
 });
 
 test('attempts to clear freezes at the run that cleared the mission', function (): void {
@@ -138,9 +126,9 @@ test('attempts to clear freezes at the run that cleared the mission', function (
         ->where('challenge_id', $challenge->id)
         ->sole();
 
-    $this->assertSame(3, $stats->attempts_to_clear);
-    $this->assertSame(7, $stats->runs);
-    $this->assertTrue($stats->cleared);
+    expect($stats->attempts_to_clear)->toBe(3);
+    expect($stats->runs)->toBe(7);
+    expect($stats->cleared)->toBeTrue();
 });
 
 test('a mission never cleared records no attempts to clear', function (): void {
@@ -154,12 +142,8 @@ test('a mission never cleared records no attempts to clear', function (): void {
         'challenge_id' => $challenge->id,
     ]);
 
-    $this->assertNull(
-        PilotMissionStats::query()
-            ->where('user_id', $user->id)
-            ->where('challenge_id', $challenge->id)
-            ->value('attempts_to_clear'),
-    );
+    expect(PilotMissionStats::query()->where('user_id', $user->id)->where('challenge_id', $challenge->id)->value('attempts_to_clear'))
+        ->toBeNull();
 });
 
 test('a rebuild corrects a rollup that has gone wrong', function (): void {
@@ -185,8 +169,8 @@ test('a rebuild corrects a rollup that has gone wrong', function (): void {
 
     $stats = PilotMissionStats::query()->where('user_id', $user->id)->sole();
 
-    $this->assertSame(3, $stats->runs);
-    $this->assertNotSame(999, $stats->best_score);
+    expect($stats->runs)->toBe(3);
+    expect($stats->best_score)->not->toBe(999);
 });
 
 test('a rebuild drops a rollup row whose runs are gone', function (): void {
@@ -215,15 +199,11 @@ test('retiring a mission takes its points off the board', function (): void {
     rollupProgress($pilot, $kept, points: 30);
     rollupProgress($pilot, $retired, points: 70);
 
-    $this->assertSame(100, pointsFor($pilot, $course));
+    expect(pointsFor($pilot, $course))->toBe(100);
 
     $retired->update(['is_published' => false]);
 
-    $this->assertSame(
-        30,
-        pointsFor($pilot, $course),
-        'a retired mission kept its points on the board',
-    );
+    expect(pointsFor($pilot, $course))->toBe(30, 'a retired mission kept its points on the board');
 });
 
 test('publishing a mission puts its points back', function (): void {
@@ -233,11 +213,11 @@ test('publishing a mission puts its points back', function (): void {
 
     rollupProgress($pilot, $challenge, points: 55);
 
-    $this->assertNull(pointsFor($pilot, $course));
+    expect(pointsFor($pilot, $course))->toBeNull();
 
     $challenge->update(['is_published' => true]);
 
-    $this->assertSame(55, pointsFor($pilot, $course));
+    expect(pointsFor($pilot, $course))->toBe(55);
 });
 
 test('a pilot with nothing playable left has no row at all', function (): void {
@@ -253,7 +233,7 @@ test('a pilot with nothing playable left has no row at all', function (): void {
 
     rollupProgress($pilot, $challenge, points: 40);
 
-    $this->assertSame(1, resolve(Leaderboard::class)->rankedPilotCount());
+    expect(resolve(Leaderboard::class)->rankedPilotCount())->toBe(1);
 
     $challenge->update(['is_published' => false]);
 
@@ -261,7 +241,7 @@ test('a pilot with nothing playable left has no row at all', function (): void {
         'user_id' => $pilot->id,
         'course_id' => $course->id,
     ]);
-    $this->assertSame(0, resolve(Leaderboard::class)->rankedPilotCount());
+    expect(resolve(Leaderboard::class)->rankedPilotCount())->toBe(0);
 });
 
 test('moving a mission between courses rebuilds both of them', function (): void {
@@ -272,12 +252,12 @@ test('moving a mission between courses rebuilds both of them', function (): void
 
     rollupProgress($pilot, $challenge, points: 60);
 
-    $this->assertSame(60, pointsFor($pilot, $from));
+    expect(pointsFor($pilot, $from))->toBe(60);
 
     $challenge->update(['course_id' => $to->id]);
 
-    $this->assertNull(pointsFor($pilot, $from), 'the old course kept points it no longer holds');
-    $this->assertSame(60, pointsFor($pilot, $to));
+    expect(pointsFor($pilot, $from))->toBeNull('the old course kept points it no longer holds');
+    expect(pointsFor($pilot, $to))->toBe(60);
 });
 
 test('the read models never touch the raw tables for a total', function (): void {
@@ -303,7 +283,7 @@ test('the read models never touch the raw tables for a total', function (): void
         fn (string $sql): bool => str_contains($sql, 'challenge_runs'),
     ));
 
-    $this->assertSame([], $overRuns, 'a total was still aggregated over the run table');
+    expect($overRuns)->toBe([], 'a total was still aggregated over the run table');
 });
 
 /**

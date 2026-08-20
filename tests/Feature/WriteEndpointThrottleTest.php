@@ -42,7 +42,7 @@ test('the photo endpoint carries its own limit', function (): void {
         ->firstWhere(fn ($route): bool => $route->getName() === 'challenges.photos.store')
         ->gatherMiddleware();
 
-    $this->assertContains('throttle:120,1', $middleware);
+    expect('throttle:120,1')->toBeIn($middleware);
 });
 
 test('a pilot flying a normal mission is never throttled', function (): void {

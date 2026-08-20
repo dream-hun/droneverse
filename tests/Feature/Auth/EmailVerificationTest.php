@@ -38,7 +38,7 @@ test('email can be verified', function (): void {
 
     Event::assertDispatched(Verified::class);
 
-    $this->assertTrue($user->fresh()->hasVerifiedEmail());
+    expect($user->fresh()->hasVerifiedEmail())->toBeTrue();
     $response->assertRedirect(route('dashboard', absolute: false).'?verified=1');
 });
 
@@ -56,7 +56,7 @@ test('email is not verified with invalid hash', function (): void {
     $this->actingAs($user)->get($verificationUrl);
 
     Event::assertNotDispatched(Verified::class);
-    $this->assertFalse($user->fresh()->hasVerifiedEmail());
+    expect($user->fresh()->hasVerifiedEmail())->toBeFalse();
 });
 
 test('email is not verified with invalid user id', function (): void {
@@ -73,7 +73,7 @@ test('email is not verified with invalid user id', function (): void {
     $this->actingAs($user)->get($verificationUrl);
 
     Event::assertNotDispatched(Verified::class);
-    $this->assertFalse($user->fresh()->hasVerifiedEmail());
+    expect($user->fresh()->hasVerifiedEmail())->toBeFalse();
 });
 
 test('verified user is redirected to dashboard from verification prompt', function (): void {
@@ -102,7 +102,7 @@ test('already verified user visiting verification link is redirected without fir
         ->assertRedirect(route('dashboard', absolute: false).'?verified=1');
 
     Event::assertNotDispatched(Verified::class);
-    $this->assertTrue($user->fresh()->hasVerifiedEmail());
+    expect($user->fresh()->hasVerifiedEmail())->toBeTrue();
 });
 
 /**
@@ -117,7 +117,7 @@ test('already verified user visiting verification link is redirected without fir
  * feature and every screen in this file were all present and passing.
  */
 test('user model implements the must verify email contract', function (): void {
-    $this->assertInstanceOf(MustVerifyEmail::class, User::factory()->create());
+    expect(User::factory()->create())->toBeInstanceOf(MustVerifyEmail::class);
 });
 
 test('unverified user cannot reach a verified route', function (): void {
@@ -154,7 +154,7 @@ test('registration sends a verification notification', function (): void {
 
     $user = User::query()->where('email', 'pilot@example.com')->firstOrFail();
 
-    $this->assertNull($user->email_verified_at);
+    expect($user->email_verified_at)->toBeNull();
     Notification::assertSentTo($user, VerifyEmail::class);
 });
 
@@ -173,7 +173,7 @@ test('changing email address revokes access until reverified', function (): void
             'email' => 'moved@example.com',
         ]);
 
-    $this->assertNull($user->refresh()->email_verified_at);
+    expect($user->refresh()->email_verified_at)->toBeNull();
 
     $this->actingAs($user)
         ->get(route('dashboard'))

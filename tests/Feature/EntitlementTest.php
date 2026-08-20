@@ -25,30 +25,30 @@ beforeEach(function (): void {
 test('a user with nothing resolves to starter', function (): void {
     $user = User::factory()->create();
 
-    $this->assertSame(Plan::Starter, resolvePlanFor($user));
+    expect(resolvePlanFor($user))->toBe(Plan::Starter);
 });
 
 test('a guest resolves to starter', function (): void {
-    $this->assertSame(Plan::Starter, resolve(ResolvePlanForUser::class)->handle(null));
+    expect(resolve(ResolvePlanForUser::class)->handle(null))->toBe(Plan::Starter);
 });
 
 test('a plan override resolves to that plan', function (): void {
     $user = User::factory()->onPlan(Plan::Pro)->create();
 
-    $this->assertSame(Plan::Pro, resolvePlanFor($user));
+    expect(resolvePlanFor($user))->toBe(Plan::Pro);
 });
 
 test('a plan override outranks an active subscription', function (): void {
     $user = User::factory()->onPlan(Plan::Enterprise)->create();
     entitlementSubscribe($user, 'var_pro_monthly');
 
-    $this->assertSame(Plan::Enterprise, resolvePlanFor($user));
+    expect(resolvePlanFor($user))->toBe(Plan::Enterprise);
 });
 
 test('an override naming a retired plan falls through instead of throwing', function (): void {
     $user = User::factory()->create(['plan_override' => 'platinum']);
 
-    $this->assertSame(Plan::Starter, resolvePlanFor($user));
+    expect(resolvePlanFor($user))->toBe(Plan::Starter);
 });
 
 /**
@@ -60,15 +60,15 @@ test('an active subscription resolves through the variant on its own row', funct
     $user = User::factory()->create();
     $subscription = entitlementSubscribe($user, 'var_pro_monthly');
 
-    $this->assertSame('var_pro_monthly', $subscription->variant_id);
-    $this->assertSame(Plan::Pro, resolvePlanFor($user));
+    expect($subscription->variant_id)->toBe('var_pro_monthly');
+    expect(resolvePlanFor($user))->toBe(Plan::Pro);
 });
 
 test('a trialing subscription still grants its plan', function (): void {
     $user = User::factory()->create();
     entitlementSubscribe($user, 'var_pro_yearly', Subscription::STATUS_ON_TRIAL);
 
-    $this->assertSame(Plan::Pro, resolvePlanFor($user));
+    expect(resolvePlanFor($user))->toBe(Plan::Pro);
 });
 
 /**
@@ -80,7 +80,7 @@ test('a past due subscription still grants its plan', function (): void {
     $user = User::factory()->create();
     entitlementSubscribe($user, 'var_pro_monthly', Subscription::STATUS_PAST_DUE);
 
-    $this->assertSame(Plan::Pro, resolvePlanFor($user));
+    expect(resolvePlanFor($user))->toBe(Plan::Pro);
 });
 
 /**
@@ -92,21 +92,21 @@ test('a cancelled subscription grants its plan until the paid period runs out', 
     $user = User::factory()->create();
     entitlementSubscribe($user, 'var_pro_monthly', Subscription::STATUS_CANCELLED, endsAt: now()->addWeek());
 
-    $this->assertSame(Plan::Pro, resolvePlanFor($user));
+    expect(resolvePlanFor($user))->toBe(Plan::Pro);
 });
 
 test('a cancelled subscription grants nothing once the period has run out', function (): void {
     $user = User::factory()->create();
     entitlementSubscribe($user, 'var_pro_monthly', Subscription::STATUS_CANCELLED, endsAt: now()->subDay());
 
-    $this->assertSame(Plan::Starter, resolvePlanFor($user));
+    expect(resolvePlanFor($user))->toBe(Plan::Starter);
 });
 
 test('an expired subscription grants nothing', function (): void {
     $user = User::factory()->create();
     entitlementSubscribe($user, 'var_pro_monthly', Subscription::STATUS_EXPIRED);
 
-    $this->assertSame(Plan::Starter, resolvePlanFor($user));
+    expect(resolvePlanFor($user))->toBe(Plan::Starter);
 });
 
 /**
@@ -122,8 +122,8 @@ test('a free pause keeps the plan and a void pause does not', function (): void 
     $void = User::factory()->create();
     entitlementSubscribe($void, 'var_pro_monthly', Subscription::STATUS_PAUSED, pauseMode: 'void');
 
-    $this->assertSame(Plan::Pro, resolvePlanFor($free));
-    $this->assertSame(Plan::Starter, resolvePlanFor($void));
+    expect(resolvePlanFor($free))->toBe(Plan::Pro);
+    expect(resolvePlanFor($void))->toBe(Plan::Starter);
 });
 
 test('the most generous of several subscriptions wins', function (): void {
@@ -131,7 +131,7 @@ test('the most generous of several subscriptions wins', function (): void {
     entitlementSubscribe($user, 'var_pro_monthly');
     entitlementSubscribe($user, 'var_team_monthly', type: 'classroom');
 
-    $this->assertSame(Plan::Team, resolvePlanFor($user));
+    expect(resolvePlanFor($user))->toBe(Plan::Team);
 });
 
 /**
@@ -144,7 +144,7 @@ test('the most generous subscription wins whichever was bought first', function 
     entitlementSubscribe($user, 'var_team_monthly', type: 'classroom');
     entitlementSubscribe($user, 'var_pro_monthly');
 
-    $this->assertSame(Plan::Team, resolvePlanFor($user));
+    expect(resolvePlanFor($user))->toBe(Plan::Team);
 });
 
 /**
@@ -157,14 +157,14 @@ test('a lapsed subscription does not outrank a live one', function (): void {
     entitlementSubscribe($user, 'var_team_monthly', Subscription::STATUS_EXPIRED, type: 'classroom');
     entitlementSubscribe($user, 'var_pro_monthly');
 
-    $this->assertSame(Plan::Pro, resolvePlanFor($user));
+    expect(resolvePlanFor($user))->toBe(Plan::Pro);
 });
 
 test('a subscription to an unrecognised variant grants nothing', function (): void {
     $user = User::factory()->create();
     entitlementSubscribe($user, 'var_some_retired_experiment');
 
-    $this->assertSame(Plan::Starter, resolvePlanFor($user));
+    expect(resolvePlanFor($user))->toBe(Plan::Starter);
 });
 
 test('one users subscription does not leak to another', function (): void {
@@ -173,33 +173,33 @@ test('one users subscription does not leak to another', function (): void {
 
     $bystander = User::factory()->create();
 
-    $this->assertSame(Plan::Pro, resolvePlanFor($subscriber));
-    $this->assertSame(Plan::Starter, resolvePlanFor($bystander));
+    expect(resolvePlanFor($subscriber))->toBe(Plan::Pro);
+    expect(resolvePlanFor($bystander))->toBe(Plan::Starter);
 });
 
 test('the model answers feature questions from its plan', function (): void {
     $starter = User::factory()->create();
     $pro = User::factory()->onPlan(Plan::Pro)->create();
 
-    $this->assertFalse($starter->hasFeature(Feature::PythonRuntime));
-    $this->assertFalse($starter->onPaidPlan());
-    $this->assertSame([], $starter->features());
+    expect($starter->hasFeature(Feature::PythonRuntime))->toBeFalse();
+    expect($starter->onPaidPlan())->toBeFalse();
+    expect($starter->features())->toBe([]);
 
-    $this->assertTrue($pro->hasFeature(Feature::PythonRuntime));
-    $this->assertTrue($pro->onPaidPlan());
-    $this->assertTrue($pro->planCovers(Plan::Starter));
+    expect($pro->hasFeature(Feature::PythonRuntime))->toBeTrue();
+    expect($pro->onPaidPlan())->toBeTrue();
+    expect($pro->planCovers(Plan::Starter))->toBeTrue();
 });
 
 test('the resolved plan is memoised until forgotten', function (): void {
     $user = User::factory()->create();
 
-    $this->assertSame(Plan::Starter, $user->plan());
+    expect($user->plan())->toBe(Plan::Starter);
 
     $user->plan_override = Plan::Pro->value;
     $user->save();
 
-    $this->assertSame(Plan::Starter, $user->plan(), 'The memo should survive a change made after resolution.');
-    $this->assertSame(Plan::Pro, $user->forgetPlan()->plan());
+    expect($user->plan())->toBe(Plan::Starter, 'The memo should survive a change made after resolution.');
+    expect($user->forgetPlan()->plan())->toBe(Plan::Pro);
 });
 
 test('a gated route rejects starter and admits pro', function (): void {
@@ -218,8 +218,8 @@ test('every feature is registered as a gate', function (): void {
     $starter = User::factory()->create();
 
     foreach (Feature::cases() as $feature) {
-        $this->assertTrue($enterprise->can($feature->value), $feature->value);
-        $this->assertFalse($starter->can($feature->value), $feature->value);
+        expect($enterprise->can($feature->value))->toBeTrue($feature->value);
+        expect($starter->can($feature->value))->toBeFalse($feature->value);
     }
 });
 
@@ -246,7 +246,7 @@ test('guests are shared the starter plan', function (): void {
 test('the plan override is never serialised to the client', function (): void {
     $user = User::factory()->onPlan(Plan::Enterprise)->create();
 
-    $this->assertArrayNotHasKey('plan_override', $user->toArray());
+    expect($user->toArray())->not->toHaveKey('plan_override');
 });
 
 /**
@@ -265,8 +265,8 @@ test('pre launch accounts are grandfathered to pro', function (): void {
     $migration = require database_path('migrations/2026_07_28_092306_backfill_pre_launch_users_to_pro.php');
     $migration->up();
 
-    $this->assertSame(Plan::Pro, resolvePlanFor($preLaunch));
-    $this->assertSame(Plan::Enterprise, resolvePlanFor($comped));
+    expect(resolvePlanFor($preLaunch))->toBe(Plan::Pro);
+    expect(resolvePlanFor($comped))->toBe(Plan::Enterprise);
 });
 
 function resolvePlanFor(User $user): Plan

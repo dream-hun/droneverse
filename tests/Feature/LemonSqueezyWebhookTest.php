@@ -37,8 +37,8 @@ beforeEach(function (): void {
 });
 
 test('the webhook route is registered', function (): void {
-    $this->assertTrue(Route::has('lemon-squeezy.webhook'));
-    $this->assertSame('/lemon-squeezy/webhook', route('lemon-squeezy.webhook', absolute: false));
+    expect(Route::has('lemon-squeezy.webhook'))->toBeTrue();
+    expect(route('lemon-squeezy.webhook', absolute: false))->toBe('/lemon-squeezy/webhook');
 });
 
 /**
@@ -68,17 +68,12 @@ test('the webhook route is registered', function (): void {
 test('the webhook route is exempt from csrf', function (): void {
     $middleware = gatheredMiddlewareFor('lemon-squeezy.webhook');
 
-    $this->assertContains(VerifyLemonSqueezyWebhookSignature::class, $middleware);
+    expect(VerifyLemonSqueezyWebhookSignature::class)->toBeIn($middleware);
 
-    $this->assertEmpty(
-        csrfMiddlewareIn($middleware),
-        'The Lemon Squeezy webhook must not run behind CSRF verification.',
-    );
+    expect(csrfMiddlewareIn($middleware))->toBeEmpty('The Lemon Squeezy webhook must not run behind CSRF verification.');
 
-    $this->assertNotEmpty(
-        csrfMiddlewareIn(gatheredMiddlewareFor('home')),
-        'An ordinary web route should still be behind CSRF; if it is not, the assertion above proves nothing.',
-    );
+    expect(csrfMiddlewareIn(gatheredMiddlewareFor('home')))
+        ->not->toBeEmpty('An ordinary web route should still be behind CSRF; if it is not, the assertion above proves nothing.');
 });
 
 test('an unsigned payload is rejected', function (): void {
@@ -127,7 +122,7 @@ test('a missing signing secret rejects every call rather than accepting them', f
     )->assertForbidden();
 
     $this->assertDatabaseCount('lemon_squeezy_subscriptions', 0);
-    $this->assertSame(Plan::Starter, $user->fresh()?->plan());
+    expect($user->fresh()?->plan())->toBe(Plan::Starter);
 });
 
 /**
@@ -239,7 +234,7 @@ test('a signed payload is accepted and grants the plan it sells', function (): v
      * subscription table on the next request, so there is no cache to
      * invalidate and nothing to log out and back in for.
      */
-    $this->assertSame(Plan::Pro, $user->fresh()?->plan());
+    expect($user->fresh()?->plan())->toBe(Plan::Pro);
 });
 
 /**
@@ -261,7 +256,7 @@ test('a signed payload for an unknown variant grants nothing', function (): void
     )->assertOk();
 
     $this->assertDatabaseCount('lemon_squeezy_subscriptions', 1);
-    $this->assertSame(Plan::Starter, $user->fresh()?->plan());
+    expect($user->fresh()?->plan())->toBe(Plan::Starter);
 });
 
 /**
@@ -338,7 +333,7 @@ test('a redelivered subscription is acknowledged rather than recorded twice', fu
 
     $this->assertDatabaseCount('lemon_squeezy_subscriptions', 1);
     $this->assertDatabaseCount('lemon_squeezy_customers', 1);
-    $this->assertSame(Plan::Pro, $user->fresh()?->plan());
+    expect($user->fresh()?->plan())->toBe(Plan::Pro);
 });
 
 /**
@@ -459,7 +454,7 @@ function gatheredMiddlewareFor(string $routeName): array
 {
     $route = Route::getRoutes()->getByName($routeName);
 
-    test()->assertNotNull($route, sprintf('There is no route named [%s].', $routeName));
+    expect($route)->not->toBeNull(sprintf('There is no route named [%s].', $routeName));
 
     return resolve(Router::class)->gatherRouteMiddleware($route);
 }

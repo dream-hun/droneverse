@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Queries\FlightLog;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Pest\Matchers\Any;
 
 /*
  * What the flight log's cache is required to do.
@@ -27,7 +28,7 @@ test('a repeat read does not re run the aggregate', function (): void {
 
     $queries = queriesDuring(fn () => $flightLog->summaryFor($user));
 
-    $this->assertSame([], $queries, 'the summary aggregate ran again on a cached read');
+    expect($queries)->toBe([], 'the summary aggregate ran again on a cached read');
 });
 
 test('recording a run retires every cached slice', function (): void {
@@ -36,7 +37,7 @@ test('recording a run retires every cached slice', function (): void {
     $challenge = Challenge::query()->first();
     $flightLog = resolve(FlightLog::class);
 
-    $this->assertSame(2, $flightLog->summaryFor($user)['runs']);
+    expect($flightLog->summaryFor($user)['runs'])->toBe(2);
 
     $this->actingAs($user)->postJson(
         route('challenges.attempts.store', [$course, $challenge]),
@@ -52,11 +53,7 @@ test('recording a run retires every cached slice', function (): void {
         ],
     )->assertOk();
 
-    $this->assertSame(
-        3,
-        $flightLog->summaryFor($user)['runs'],
-        'the summary was served from a cache the new run should have retired',
-    );
+    expect($flightLog->summaryFor($user)['runs'])->toBe(3, 'the summary was served from a cache the new run should have retired');
 });
 
 test('a pilot with no standing on a mission does not re run the cohort', function (): void {
@@ -68,11 +65,11 @@ test('a pilot with no standing on a mission does not re run the cohort', functio
     $challenge = Challenge::factory()->create();
     $flightLog = resolve(FlightLog::class);
 
-    $this->assertNull($flightLog->cohortFor($user, $challenge));
+    expect($flightLog->cohortFor($user, $challenge))->toBeNull();
 
     $queries = queriesDuring(fn (): null => $flightLog->cohortFor($user, $challenge));
 
-    $this->assertSame([], $queries, 'a null cohort was treated as a cache miss');
+    expect($queries)->toBe([], 'a null cohort was treated as a cache miss');
 });
 
 test('nothing with a class crosses the cache boundary', function (): void {
@@ -116,8 +113,8 @@ test('nothing with a class crosses the cache boundary', function (): void {
     foreach ($keys as $key) {
         $cached = Cache::get($key);
 
-        $this->assertIsArray($cached, "nothing was cached under {$key}");
-        $this->assertArrayHasKey('value', $cached, "the slice at {$key} was stored bare");
+        expect($cached)->toBeArray("nothing was cached under {$key}");
+        expect($cached)->toHaveKey('value', new Any, "the slice at {$key} was stored bare");
         $this->assertStringNotContainsString(
             'O:',
             serialize($cached),
@@ -138,13 +135,13 @@ test('the generation counter is seeded before it is bumped', function (): void {
     $challenge = Challenge::factory()->create();
     $flightLog = resolve(FlightLog::class);
 
-    $this->assertNull(Cache::get("flight-log:generation:pilot:{$user->id}"));
+    expect(Cache::get("flight-log:generation:pilot:{$user->id}"))->toBeNull();
 
     $flightLog->forget($user, $challenge);
-    $this->assertSame(1, generation("pilot:{$user->id}"));
+    expect(generation("pilot:{$user->id}"))->toBe(1);
 
     $flightLog->forget($user, $challenge);
-    $this->assertSame(2, generation("pilot:{$user->id}"));
+    expect(generation("pilot:{$user->id}"))->toBe(2);
 });
 
 test('seeding a generation asks the store for an atomic add', function (): void {
@@ -194,11 +191,7 @@ test('a run leaves another pilots cached slices alone', function (): void {
 
     $queries = queriesDuring(fn () => $flightLog->summaryFor($bystander));
 
-    $this->assertSame(
-        [],
-        $queries,
-        "another pilot's run retired this pilot's summary",
-    );
+    expect($queries)->toBe([], "another pilot's run retired this pilot's summary");
 });
 
 test('a run leaves the pilots curve on other missions alone', function (): void {
@@ -213,11 +206,7 @@ test('a run leaves the pilots curve on other missions alone', function (): void 
 
     $queries = queriesDuring(fn () => $flightLog->missionCurve($user, $elsewhere));
 
-    $this->assertSame(
-        [],
-        $queries,
-        'a run on one mission retired the curve on another',
-    );
+    expect($queries)->toBe([], 'a run on one mission retired the curve on another');
 });
 
 test('a run retires every slice it could have moved', function (): void {
@@ -247,11 +236,7 @@ test('a run retires every slice it could have moved', function (): void {
             'cohort' => fn () => $flightLog->cohortFor($rival, $challenge),
         ] as $slice => $read
     ) {
-        $this->assertNotSame(
-            [],
-            queriesDuring($read),
-            "the {$slice} was served from a cache the run should have retired",
-        );
+        expect(queriesDuring($read))->not->toBe([], "the {$slice} was served from a cache the run should have retired");
     }
 });
 
@@ -263,8 +248,8 @@ test('the flight log and the leaderboard do not share a generation', function ()
 
     resolve(FlightLog::class)->forget($user, $challenge);
 
-    $this->assertSame(1, generation("pilot:{$user->id}"));
-    $this->assertNull(Cache::get('leaderboard:generation:all'));
+    expect(generation("pilot:{$user->id}"))->toBe(1);
+    expect(Cache::get('leaderboard:generation:all'))->toBeNull();
 });
 
 /**

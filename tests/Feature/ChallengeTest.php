@@ -298,7 +298,7 @@ test('a client supplied score is ignored', function (): void {
     $response->assertOk();
     $response->assertJsonPath('result.completed', false);
     $response->assertJsonPath('result.stars', 0);
-    $this->assertLessThan(100, $response->json('result.score'));
+    expect($response->json('result.score'))->toBeLessThan(100);
 });
 
 test('a run is graded against the waypoints it actually flew', function (): void {
@@ -597,7 +597,7 @@ test('a run is charged the time the flight would have taken', function (): void 
     );
 
     $response->assertOk();
-    $this->assertGreaterThan(2, $response->json('result.elapsedSeconds'));
+    expect($response->json('result.elapsedSeconds'))->toBeGreaterThan(2);
     $response->assertJsonPath('result.timedOut', true);
     $response->assertJsonPath('result.completed', false);
 });

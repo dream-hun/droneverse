@@ -29,14 +29,14 @@ use Illuminate\Support\Facades\Exceptions;
  */
 
 test('the drone configuration editor is a shipped pro capability', function (): void {
-    $this->assertTrue(Feature::DroneConfigEditor->isAvailable());
-    $this->assertTrue(Plan::Pro->hasFeature(Feature::DroneConfigEditor));
-    $this->assertFalse(Plan::Starter->hasFeature(Feature::DroneConfigEditor));
+    expect(Feature::DroneConfigEditor->isAvailable())->toBeTrue();
+    expect(Plan::Pro->hasFeature(Feature::DroneConfigEditor))->toBeTrue();
+    expect(Plan::Starter->hasFeature(Feature::DroneConfigEditor))->toBeFalse();
 });
 
 test('the seeded fleet names exactly one default airframe', function (): void {
-    $this->assertSame(1, DroneModel::query()->fleetDefault()->count());
-    $this->assertGreaterThan(1, DroneModel::query()->count());
+    expect(DroneModel::query()->fleetDefault()->count())->toBe(1);
+    expect(DroneModel::query()->count())->toBeGreaterThan(1);
 });
 
 test('a fleet naming no default airframe refuses to resolve one', function (): void {
@@ -131,9 +131,9 @@ test('choosing an airframe before flying does not count as having started', func
         ->where('challenge_id', $challenge->id)
         ->sole();
 
-    $this->assertSame(0, $progress->attempts);
-    $this->assertSame(0, $progress->best_score);
-    $this->assertNull($progress->completed_at);
+    expect($progress->attempts)->toBe(0);
+    expect($progress->best_score)->toBe(0);
+    expect($progress->completed_at)->toBeNull();
 });
 
 test('the choice is remembered per mission not across them', function (): void {
@@ -257,10 +257,7 @@ test('a graded run records the airframe that flew it', function (): void {
         droneConfigFlight(),
     )->assertOk();
 
-    $this->assertSame(
-        $cadet->id,
-        ChallengeRun::query()->where('user_id', $user->id)->sole()->drone_model_id,
-    );
+    expect(ChallengeRun::query()->where('user_id', $user->id)->sole()->drone_model_id)->toBe($cadet->id);
 });
 
 test('a run flown without choosing is attributed to the default', function (): void {
@@ -272,10 +269,7 @@ test('a run flown without choosing is attributed to the default', function (): v
         droneConfigFlight(),
     )->assertOk();
 
-    $this->assertSame(
-        defaultDrone()->id,
-        ChallengeRun::query()->where('user_id', $user->id)->sole()->drone_model_id,
-    );
+    expect(ChallengeRun::query()->where('user_id', $user->id)->sole()->drone_model_id)->toBe(defaultDrone()->id);
 });
 
 test('a submission cannot name the airframe it was flown in', function (): void {
@@ -291,10 +285,7 @@ test('a submission cannot name the airframe it was flown in', function (): void 
         droneConfigFlight(['drone' => droneNamed('vx-4-vector')->uuid]),
     )->assertOk();
 
-    $this->assertSame(
-        defaultDrone()->id,
-        ChallengeRun::query()->where('user_id', $user->id)->sole()->drone_model_id,
-    );
+    expect(ChallengeRun::query()->where('user_id', $user->id)->sole()->drone_model_id)->toBe(defaultDrone()->id);
 });
 
 test('retiring an airframe keeps the runs it flew', function (): void {
@@ -316,8 +307,8 @@ test('retiring an airframe keeps the runs it flew', function (): void {
     // The run is a fact about a flight that happened; the analytics record
     // must not lose it because the fleet changed. Same for the pilot's
     // progress, which falls back to the default airframe.
-    $this->assertSame(1, ChallengeRun::query()->where('user_id', $user->id)->count());
-    $this->assertNull(ChallengeRun::query()->where('user_id', $user->id)->sole()->drone_model_id);
+    expect(ChallengeRun::query()->where('user_id', $user->id)->count())->toBe(1);
+    expect(ChallengeRun::query()->where('user_id', $user->id)->sole()->drone_model_id)->toBeNull();
 
     $this->actingAs($user)
         ->get(route('challenges.show', [$course, $challenge]))

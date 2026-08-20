@@ -104,8 +104,8 @@ test('the billing page reaches nobody', function (): void {
     billingSubscribe($user, 'var_pro_monthly', renewsAt: now()->addMonth());
     order($user, '900001');
 
-    $this->assertEmpty(config('lemon-squeezy.api_key'));
-    $this->assertEmpty(config('lemon-squeezy.store'));
+    expect(config('lemon-squeezy.api_key'))->toBeEmpty();
+    expect(config('lemon-squeezy.store'))->toBeEmpty();
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
@@ -243,13 +243,13 @@ test('cancelling schedules the end of the paid period', function (): void {
 
     $subscription->refresh();
 
-    $this->assertTrue($subscription->cancelled());
-    $this->assertTrue($subscription->onGracePeriod());
+    expect($subscription->cancelled())->toBeTrue();
+    expect($subscription->onGracePeriod())->toBeTrue();
     /*
      * The whole point of cancelling at period end: they bought the month,
      * so they keep the catalogue until it runs out.
      */
-    $this->assertSame(Plan::Pro, $user->fresh()?->plan());
+    expect($user->fresh()?->plan())->toBe(Plan::Pro);
 });
 
 /**
@@ -273,8 +273,8 @@ test('a failed cancellation is reported rather than thrown', function (): void {
         ->delete(route('subscription.destroy'))
         ->assertRedirect(route('billing.edit'));
 
-    $this->assertFalse($subscription->refresh()->cancelled());
-    $this->assertSame(Plan::Pro, $user->fresh()?->plan());
+    expect($subscription->refresh()->cancelled())->toBeFalse();
+    expect($user->fresh()?->plan())->toBe(Plan::Pro);
 });
 
 test('resuming calls off a pending cancellation', function (): void {
@@ -297,9 +297,9 @@ test('resuming calls off a pending cancellation', function (): void {
 
     $subscription->refresh();
 
-    $this->assertNull($subscription->ends_at);
-    $this->assertFalse($subscription->onGracePeriod());
-    $this->assertTrue($subscription->active());
+    expect($subscription->ends_at)->toBeNull();
+    expect($subscription->onGracePeriod())->toBeFalse();
+    expect($subscription->active())->toBeTrue();
 });
 
 /**
@@ -338,7 +338,7 @@ test('cancelling only ever reaches your own subscription', function (): void {
     $this->actingAs(User::factory()->create())
         ->delete(route('subscription.destroy'));
 
-    $this->assertFalse($theirs->refresh()->cancelled());
+    expect($theirs->refresh()->cancelled())->toBeFalse();
     Http::assertNothingSent();
 });
 
@@ -428,21 +428,21 @@ test('switching tier reprices the one subscription', function (): void {
 
     $attributes = lastSubscriptionRequest()['data']['attributes'];
 
-    $this->assertSame('prod_team', $attributes['product_id']);
-    $this->assertSame('var_team_yearly', $attributes['variant_id']);
+    expect($attributes['product_id'])->toBe('prod_team');
+    expect($attributes['variant_id'])->toBe('var_team_yearly');
     /*
      * Prorated, so the unused remainder of the month already paid for is
      * credited against the year being moved to.
      */
-    $this->assertFalse($attributes['disable_prorations']);
+    expect($attributes['disable_prorations'])->toBeFalse();
     /*
      * And not invoiced on the spot. The difference lands on the next
      * renewal, which is what the button promised.
      */
-    $this->assertArrayNotHasKey('invoice_immediately', $attributes);
+    expect($attributes)->not->toHaveKey('invoice_immediately');
 
-    $this->assertSame('var_team_yearly', $subscription->refresh()->variant_id);
-    $this->assertSame(Plan::Team, $user->fresh()?->plan());
+    expect($subscription->refresh()->variant_id)->toBe('var_team_yearly');
+    expect($user->fresh()?->plan())->toBe(Plan::Team);
 });
 
 test('switching billing period keeps the plan', function (): void {
@@ -455,8 +455,8 @@ test('switching billing period keeps the plan', function (): void {
         ->put(route('subscription.swap'), ['plan' => 'pro', 'variant' => 'yearly'])
         ->assertRedirect(route('billing.edit'));
 
-    $this->assertSame('var_pro_yearly', $subscription->refresh()->variant_id);
-    $this->assertSame(Plan::Pro, $user->fresh()?->plan());
+    expect($subscription->refresh()->variant_id)->toBe('var_pro_yearly');
+    expect($user->fresh()?->plan())->toBe(Plan::Pro);
 });
 
 /**
@@ -478,8 +478,8 @@ test('a period switch needs no configured product but a tier switch does', funct
         ->put(route('subscription.swap'), ['plan' => 'pro', 'variant' => 'yearly'])
         ->assertRedirect(route('billing.edit'));
 
-    $this->assertSame('prod_pro', lastSubscriptionRequest()['data']['attributes']['product_id']);
-    $this->assertSame('var_pro_yearly', $subscription->refresh()->variant_id);
+    expect(lastSubscriptionRequest()['data']['attributes']['product_id'])->toBe('prod_pro');
+    expect($subscription->refresh()->variant_id)->toBe('var_pro_yearly');
 
     Http::fake();
 
@@ -488,7 +488,7 @@ test('a period switch needs no configured product but a tier switch does', funct
         ->assertRedirect(route('billing.edit'));
 
     Http::assertNothingSent();
-    $this->assertSame('var_pro_yearly', $subscription->refresh()->variant_id);
+    expect($subscription->refresh()->variant_id)->toBe('var_pro_yearly');
 });
 
 /**
@@ -521,7 +521,7 @@ test('switching refuses a sales led tier and an unsold period', function (): voi
     }
 
     Http::assertNothingSent();
-    $this->assertSame('var_pro_monthly', $subscription->refresh()->variant_id);
+    expect($subscription->refresh()->variant_id)->toBe('var_pro_monthly');
 });
 
 test('switching refuses a plan that does not exist', function (): void {
@@ -554,7 +554,7 @@ test('a subscription winding down is resumed before it is repriced', function ()
         ->assertRedirect(route('billing.edit'));
 
     Http::assertNothingSent();
-    $this->assertSame('var_pro_monthly', $subscription->refresh()->variant_id);
+    expect($subscription->refresh()->variant_id)->toBe('var_pro_monthly');
 });
 
 /**
@@ -578,8 +578,8 @@ test('a failed switch is reported rather than thrown', function (): void {
         ->put(route('subscription.swap'), ['plan' => 'team', 'variant' => 'monthly'])
         ->assertRedirect(route('billing.edit'));
 
-    $this->assertSame('var_pro_monthly', $subscription->refresh()->variant_id);
-    $this->assertSame(Plan::Pro, $user->fresh()?->plan());
+    expect($subscription->refresh()->variant_id)->toBe('var_pro_monthly');
+    expect($user->fresh()?->plan())->toBe(Plan::Pro);
 });
 
 test('a starter pilot has no subscription to switch', function (): void {
@@ -601,7 +601,7 @@ test('switching only ever reaches your own subscription', function (): void {
     $this->actingAs(User::factory()->create())
         ->put(route('subscription.swap'), ['plan' => 'team', 'variant' => 'monthly']);
 
-    $this->assertSame('var_pro_monthly', $theirs->refresh()->variant_id);
+    expect($theirs->refresh()->variant_id)->toBe('var_pro_monthly');
     Http::assertNothingSent();
 });
 
@@ -670,7 +670,7 @@ function lastSubscriptionRequest(): array
 {
     $recorded = Http::recorded();
 
-    test()->assertNotEmpty($recorded, 'Expected a call to Lemon Squeezy.');
+    expect($recorded)->not->toBeEmpty('Expected a call to Lemon Squeezy.');
 
     /** @var array<string, mixed> $data */
     $data = $recorded->last()[0]->data();

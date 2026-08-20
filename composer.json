@@ -65,9 +65,16 @@
         "lint:check": [
             "pint --parallel --test"
         ],
+        "rector": [
+            "rector process"
+        ],
+        "rector:check": [
+            "rector process --dry-run"
+        ],
         "ci:check": [
             "Composer\\Config::disableProcessTimeout",
             "@audit:check",
+            "@rector:check",
             "npm run lint:check",
             "npm run format:check",
             "npm run types:check",

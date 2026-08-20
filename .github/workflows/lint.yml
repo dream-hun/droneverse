@@ -44,6 +44,20 @@ jobs:
       - name: Run Pint
         run: composer lint:check
 
+      # rector.php has been in the repo all along, configured against ten
+      # Laravel sets and six prepared ones, and nothing ever ran it but a
+      # developer who thought to. Three violations reached main that way.
+      #
+      # `--dry-run` exits non-zero on a pending change, so this reports
+      # rather than rewrites, like everything else here.
+      #
+      # Fixing locally is `composer rector` then `composer lint`, in that
+      # order: the two disagree about arrow functions — Rector emits `fn(`
+      # and Pint wants `fn (` — so Rector last leaves the checkout failing
+      # the step above.
+      - name: Run Rector
+        run: composer rector:check
+
       - name: Check Frontend Formatting
         run: npm run format:check
 

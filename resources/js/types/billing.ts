@@ -64,12 +64,12 @@ export type PlanComparisonRow = {
 /**
  * Whether a checkout can open at all in this environment.
  *
- * Lemon.js needs no public token: everything a checkout needs is baked into
- * the URL the server mints, so the only thing the page has to know is whether
- * a store and an API key are configured behind it. False means no checkout can
+ * Creem's embed script needs no public token: everything a checkout needs is
+ * baked into the URL the server mints, so the only thing the page has to know
+ * is whether an API key is configured behind it. False means no checkout can
  * open, whatever the cards say.
  */
-export type LemonSqueezyConfig = {
+export type CreemConfig = {
     configured: boolean;
 };
 
@@ -98,13 +98,10 @@ export type BillingSubscription = {
     /**
      * When the subscription bills again, mirrored locally from the webhook.
      *
-     * A date and nothing else: Lemon Squeezy publishes no forthcoming amount,
-     * so the page can say when the next charge lands but never how much it is.
+     * A date and nothing else: Creem publishes no forthcoming amount, so the
+     * page can say when the next charge lands but never how much it is.
      */
     renewsAt: string | null;
-    /** The card on file, as last reported by a webhook. Null before one lands. */
-    cardBrand: string | null;
-    cardLastFour: string | null;
 };
 
 /** One billing period a subscription could be moved onto. */
@@ -134,14 +131,21 @@ export type SwitchablePlan = {
 
 /** One paid order, i.e. one receipt. */
 export type BillingOrder = {
+    /** Creem's own ID for the order, which is what support asks for. */
     id: string;
-    orderNumber: number;
     status: string;
     /** Pre-formatted by the server, currency and all. */
     total: string;
-    /** Lemon Squeezy hosts the receipt; there is nothing to render in-app. */
-    receiptUrl: string | null;
     refunded: boolean;
+    /**
+     * How much came back, pre-formatted, when some of it did.
+     *
+     * Beside the flag rather than instead of it because Creem allows partial
+     * refunds: "refunded" alone would tell a pilot their whole year came back
+     * when a month did. Null on an order nothing was refunded from, and on one
+     * refunded before this column existed.
+     */
+    refundedTotal: string | null;
     orderedAt: string | null;
 };
 
@@ -158,9 +162,6 @@ export type SubscriptionConfirmation = {
     variant: string | null;
     onTrial: boolean;
     trialEndsAt: string | null;
-    /** The date the next charge lands. Lemon Squeezy publishes no amount. */
+    /** The date the next charge lands. Creem publishes no amount. */
     renewsAt: string | null;
-    /** Both null until a payment has actually been taken. */
-    cardBrand: string | null;
-    cardLastFour: string | null;
 };

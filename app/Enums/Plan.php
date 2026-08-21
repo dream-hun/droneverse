@@ -23,9 +23,11 @@ enum Plan: string
      * The plan a subscribed price ID grants.
      *
      * "Price ID" is the provider-neutral name for whatever identifies the thing
-     * being sold, and under Lemon Squeezy that is a variant ID — the value read
-     * off a subscription's `variant_id` column. It is not this application's
-     * sense of "variant", which is a billing period; see variantFor().
+     * being sold, and under Creem that is a product ID — the value read off a
+     * subscription's `product_id` column. Creem has no separate price object: a
+     * product carries its own amount and billing period, so one product is one
+     * purchasable price. It is not this application's sense of "variant", which
+     * is a billing period; see variantFor().
      *
      * The reverse of priceIds(), and the branch ResolvePlanForUser leans on
      * most. An unrecognized price ID resolves to null rather than to a default
@@ -34,13 +36,13 @@ enum Plan: string
      *
      * An ID claimed by more than one plan is the same kind of error and gets the
      * same answer. config/plans.php requires these to be unique across plans and
-     * nothing enforces it, so the same variant ID pasted under two tiers is one
+     * nothing enforces it, so the same product ID pasted under two tiers is one
      * slip in one `.env` file. Returning the first match would answer it out of
      * the order the cases happen to be declared in — which nobody reading this
      * file thinks of as billing logic, and which would quietly grant Pro to
      * every Team subscriber if the declarations were ever reordered. There is no
      * honest answer to "which plan did they buy" when one ID sells two, and the
-     * ID sells exactly one thing in the Lemon Squeezy store whatever this
+     * ID sells exactly one thing in the Creem account whatever this
      * configuration claims, so nobody is entitled by it until it is fixed.
      */
     public static function fromPriceId(?string $priceId): ?self
@@ -233,7 +235,7 @@ enum Plan: string
     }
 
     /**
-     * The Lemon Squeezy variant ID selling a given billing period of this plan.
+     * The Creem product ID selling a given billing period of this plan.
      *
      * Returns null when the variant is unconfigured, which is the normal state
      * in tests and on a fresh checkout. Callers that are about to charge must
@@ -261,24 +263,6 @@ enum Plan: string
         $variant = array_search($priceId, $this->priceIds(), true);
 
         return is_string($variant) ? $variant : null;
-    }
-
-    /**
-     * The Lemon Squeezy product every variant of this plan belongs to.
-     *
-     * Nothing that sells a first subscription needs this — a variant ID is the
-     * whole of what a checkout takes. Only App\Actions\SwapSubscription does,
-     * because Lemon Squeezy's update endpoint takes a product and a variant
-     * together and refuses a pairing that does not match.
-     *
-     * Null when unconfigured, which is the normal state in tests and in any
-     * environment set up before plan switching existed.
-     */
-    public function productId(): ?string
-    {
-        $productId = config('plans.products.'.$this->value);
-
-        return is_string($productId) && $productId !== '' ? $productId : null;
     }
 
     /**

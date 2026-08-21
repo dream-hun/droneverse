@@ -4,17 +4,16 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
+use App\Models\Subscription;
 use App\Models\User;
-use LemonSqueezy\Laravel\Subscription;
 
 /**
  * The one subscription a pilot's billing is about.
  *
- * A billable may hold several rows — an expired one beside the live one, and
- * from Phase 7 a seat subscription alongside a base one — so "their
- * subscription" is a question with an answer worth writing down once. It is the
- * newest of the default type, and every screen that acts on a subscription acts
- * on this one.
+ * A billable may hold several rows — an expired one beside the live one, and a
+ * second one bought after the first lapsed — so "their subscription" is a
+ * question with an answer worth writing down once. It is the newest of the
+ * default type, and every screen that acts on a subscription acts on this one.
  *
  * Queried rather than read off `$user->subscriptions`, which is what makes this
  * a query object rather than a method on the model: the relation is unloaded on

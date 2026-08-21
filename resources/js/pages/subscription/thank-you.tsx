@@ -75,8 +75,7 @@ const SECONDARY_ACTION =
  * Watch for the entitlement the buyer has already paid for.
  *
  * Polling rather than pushing, because the event this page is waiting for
- * arrives at the server from Lemon Squeezy and there is no channel between the
- * two. It stops the moment the plan lands and gives up after POLL_LIMIT ticks:
+ * arrives at the server from Creem and there is no channel between the two. It stops the moment the plan lands and gives up after POLL_LIMIT ticks:
  * a webhook that has not arrived in a minute is not going to be waited out by
  * a browser, and a spinner that never resolves is a worse answer than a page
  * that admits it is still waiting and says where to look.
@@ -135,8 +134,7 @@ function Detail({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * The confirmation a buyer lands on the moment Lemon Squeezy reports the
- * checkout done.
+ * The confirmation a buyer lands on the moment Creem reports the checkout done.
  *
  * It wears neither the app shell nor the auth layout, and that is the point:
  * this is the end of a purchase rather than a screen in the product, so it
@@ -174,10 +172,6 @@ export default function ThankYou({
     const renewsAt = formatDate(subscription?.renewsAt ?? null);
     const trialEndsAt = formatDate(subscription?.trialEndsAt ?? null);
     const billing = variantLabel(subscription?.variant);
-    const card =
-        subscription?.cardBrand && subscription.cardLastFour
-            ? `${subscription.cardBrand.toUpperCase()} ending ${subscription.cardLastFour}`
-            : null;
 
     return (
         <div className="theme-droneverse dark flex min-h-screen flex-col bg-background font-sans text-foreground selection:bg-primary selection:text-primary-foreground">
@@ -286,12 +280,14 @@ export default function ThankYou({
                                 />
                             )}
 
+                            {/*
+                             * No "paid with" line: Creem publishes no card
+                             * brand or last four on any payload, so the card
+                             * a buyer just used is something only the billing
+                             * portal can show them.
+                             */}
                             {renewsAt !== null && (
                                 <Detail label="Renews" value={renewsAt} />
-                            )}
-
-                            {card !== null && (
-                                <Detail label="Paid with" value={card} />
                             )}
                         </dl>
                     )}

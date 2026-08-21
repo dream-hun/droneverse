@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Actions\BuildLemonSqueezyClientConfig;
+use App\Actions\BuildCreemClientConfig;
 use App\Actions\BuildPricingCatalog;
 use App\Enums\Plan;
 use App\Queries\DefaultSubscription;
@@ -24,7 +24,7 @@ final class PricingController extends Controller
     public function __invoke(
         Request $request,
         BuildPricingCatalog $catalog,
-        BuildLemonSqueezyClientConfig $lemonSqueezy,
+        BuildCreemClientConfig $creem,
         DefaultSubscription $subscriptions,
     ): Response {
         $user = $request->user();
@@ -46,7 +46,7 @@ final class PricingController extends Controller
                 $subscription?->valid() === true,
                 $subscriptions->isSwitchable($subscription),
             ),
-            'lemonSqueezy' => $lemonSqueezy->handle(),
+            'creem' => $creem->handle(),
         ]);
     }
 }

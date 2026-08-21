@@ -5,20 +5,21 @@ declare(strict_types=1);
 use App\Actions\ResolvePlanForUser;
 use App\Enums\Feature;
 use App\Enums\Plan;
+use App\Enums\SubscriptionStatus;
+use App\Models\Customer;
+use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
-use LemonSqueezy\Laravel\Customer;
-use LemonSqueezy\Laravel\Subscription;
 
 beforeEach(function (): void {
     config(['plans.prices' => [
         'pro' => [
-            'monthly' => 'var_pro_monthly',
-            'yearly' => 'var_pro_yearly',
-            'monthly_launch' => 'var_pro_monthly_launch',
+            'monthly' => 'prod_pro_monthly',
+            'yearly' => 'prod_pro_yearly',
+            'monthly_launch' => 'prod_pro_monthly_launch',
         ],
-        'team' => ['monthly' => 'var_team_monthly'],
+        'team' => ['monthly' => 'prod_team_monthly'],
     ]]);
 });
 
@@ -40,7 +41,7 @@ test('a plan override resolves to that plan', function (): void {
 
 test('a plan override outranks an active subscription', function (): void {
     $user = User::factory()->onPlan(Plan::Team)->create();
-    entitlementSubscribe($user, 'var_pro_monthly');
+    entitlementSubscribe($user, 'prod_pro_monthly');
 
     expect(resolvePlanFor($user))->toBe(Plan::Team);
 });
@@ -52,84 +53,116 @@ test('an override naming a retired plan falls through instead of throwing', func
 });
 
 /**
- * A Lemon Squeezy subscription names the variant it sells on the row itself,
- * so the plan is read straight off `variant_id`. Paddle's subscription_items
- * join has no counterpart in this schema, and nothing looks for one.
+ * A Creem subscription names the product it sells on the row itself, so the
+ * plan is read straight off `product_id` — a Creem product carries its own
+ * price and billing period, so there is no separate price object and no join.
+ * Paddle's subscription_items table has no counterpart in this schema, and
+ * nothing looks for one.
  */
-test('an active subscription resolves through the variant on its own row', function (): void {
+test('an active subscription resolves through the product on its own row', function (): void {
     $user = User::factory()->create();
-    $subscription = entitlementSubscribe($user, 'var_pro_monthly');
+    $subscription = entitlementSubscribe($user, 'prod_pro_monthly');
 
-    expect($subscription->variant_id)->toBe('var_pro_monthly');
+    expect($subscription->product_id)->toBe('prod_pro_monthly');
     expect(resolvePlanFor($user))->toBe(Plan::Pro);
 });
 
 test('a trialing subscription still grants its plan', function (): void {
     $user = User::factory()->create();
-    entitlementSubscribe($user, 'var_pro_yearly', Subscription::STATUS_ON_TRIAL);
+    entitlementSubscribe($user, 'prod_pro_yearly', SubscriptionStatus::Trialing);
 
     expect(resolvePlanFor($user))->toBe(Plan::Pro);
 });
 
 /**
- * A card that bounced is a payment problem, not a decision to leave. Lemon
- * Squeezy retries for days before it gives up, and locking the catalogue on
- * the first failure would punish an expired card harder than a cancellation.
+ * A card that bounced is a payment problem, not a decision to leave. Creem
+ * retries on a schedule before it gives up, and locking the catalogue on the
+ * first failure would punish an expired card harder than a cancellation.
+ *
+ * `unpaid` is where that generosity stops: collection has been abandoned by
+ * then, and it is Creem's own signal to suspend.
  */
-test('a past due subscription still grants its plan', function (): void {
-    $user = User::factory()->create();
-    entitlementSubscribe($user, 'var_pro_monthly', Subscription::STATUS_PAST_DUE);
+test('a past due subscription still grants its plan and an unpaid one does not', function (): void {
+    $pastDue = User::factory()->create();
+    entitlementSubscribe($pastDue, 'prod_pro_monthly', SubscriptionStatus::PastDue);
 
-    expect(resolvePlanFor($user))->toBe(Plan::Pro);
+    $unpaid = User::factory()->create();
+    entitlementSubscribe($unpaid, 'prod_pro_monthly', SubscriptionStatus::Unpaid);
+
+    expect(resolvePlanFor($pastDue))->toBe(Plan::Pro);
+    expect(resolvePlanFor($unpaid))->toBe(Plan::Starter);
 });
 
 /**
- * They bought the month, so they keep it. `valid()` stays true through the
- * grace period after a cancellation, which is what makes CancelSubscription's
- * end-of-period promise hold without a special case anywhere.
+ * They bought the month, so they keep it. A scheduled cancellation stays valid
+ * through the period that was paid for, which is what makes
+ * CancelSubscription's end-of-period promise hold without a special case
+ * anywhere.
  */
 test('a cancelled subscription grants its plan until the paid period runs out', function (): void {
     $user = User::factory()->create();
-    entitlementSubscribe($user, 'var_pro_monthly', Subscription::STATUS_CANCELLED, endsAt: now()->addWeek());
+    entitlementSubscribe($user, 'prod_pro_monthly', SubscriptionStatus::ScheduledCancel, endsAt: now()->addWeek());
 
     expect(resolvePlanFor($user))->toBe(Plan::Pro);
 });
 
+/**
+ * Creem moves a scheduled cancellation to `canceled` when the period runs out,
+ * but that is a webhook — and a webhook that never lands must not leave
+ * somebody entitled forever. The date on the row is what closes that door.
+ */
 test('a cancelled subscription grants nothing once the period has run out', function (): void {
     $user = User::factory()->create();
-    entitlementSubscribe($user, 'var_pro_monthly', Subscription::STATUS_CANCELLED, endsAt: now()->subDay());
+    entitlementSubscribe($user, 'prod_pro_monthly', SubscriptionStatus::ScheduledCancel, endsAt: now()->subDay());
+
+    expect(resolvePlanFor($user))->toBe(Plan::Starter);
+});
+
+test('an outright cancellation grants nothing whatever its dates say', function (): void {
+    $user = User::factory()->create();
+    entitlementSubscribe($user, 'prod_pro_monthly', SubscriptionStatus::Canceled, endsAt: now()->addWeek());
 
     expect(resolvePlanFor($user))->toBe(Plan::Starter);
 });
 
 test('an expired subscription grants nothing', function (): void {
     $user = User::factory()->create();
-    entitlementSubscribe($user, 'var_pro_monthly', Subscription::STATUS_EXPIRED);
+    entitlementSubscribe($user, 'prod_pro_monthly', SubscriptionStatus::Expired);
 
     expect(resolvePlanFor($user))->toBe(Plan::Starter);
 });
 
 /**
- * Lemon Squeezy pauses in two modes and they mean opposite things. A free
- * pause keeps the pilot on the plan while it stops charging them, so the
- * catalogue stays open; a void pause stops the service as well as the
- * billing. `valid()` distinguishes them and this is where that shows.
+ * Creem pauses billing and expects access to stop with it, which is the one
+ * place this differs from the Lemon Squeezy integration before it: its free
+ * pause left a subscription valid. Nothing in this application pauses a
+ * subscription, so the case only arises from the Creem dashboard — and
+ * somebody pausing billing there means to stop the service, not to give it
+ * away.
  */
-test('a free pause keeps the plan and a void pause does not', function (): void {
-    $free = User::factory()->create();
-    entitlementSubscribe($free, 'var_pro_monthly', Subscription::STATUS_PAUSED, pauseMode: 'free');
+test('a paused subscription grants nothing', function (): void {
+    $user = User::factory()->create();
+    entitlementSubscribe($user, 'prod_pro_monthly', SubscriptionStatus::Paused);
 
-    $void = User::factory()->create();
-    entitlementSubscribe($void, 'var_pro_monthly', Subscription::STATUS_PAUSED, pauseMode: 'void');
+    expect(resolvePlanFor($user))->toBe(Plan::Starter);
+});
 
-    expect(resolvePlanFor($free))->toBe(Plan::Pro);
-    expect(resolvePlanFor($void))->toBe(Plan::Starter);
+/**
+ * A status Creem adds after this code was written resolves to no case at all,
+ * and grants nothing. Failing open here would mean any new lifecycle state —
+ * whatever it turns out to mean — handing out a paid plan.
+ */
+test('a status this application does not recognise grants nothing', function (): void {
+    $user = User::factory()->create();
+    entitlementSubscribe($user, 'prod_pro_monthly', status: 'something_creem_invented_later');
+
+    expect(resolvePlanFor($user))->toBe(Plan::Starter);
 });
 
 test('the most generous of several subscriptions wins', function (): void {
     $user = User::factory()->create();
-    entitlementSubscribe($user, 'var_pro_monthly');
-    entitlementSubscribe($user, 'var_team_monthly', type: 'classroom');
+    entitlementSubscribe($user, 'prod_pro_monthly');
+    entitlementSubscribe($user, 'prod_team_monthly', type: 'classroom');
 
     expect(resolvePlanFor($user))->toBe(Plan::Team);
 });
@@ -141,8 +174,8 @@ test('the most generous of several subscriptions wins', function (): void {
  */
 test('the most generous subscription wins whichever was bought first', function (): void {
     $user = User::factory()->create();
-    entitlementSubscribe($user, 'var_team_monthly', type: 'classroom');
-    entitlementSubscribe($user, 'var_pro_monthly');
+    entitlementSubscribe($user, 'prod_team_monthly', type: 'classroom');
+    entitlementSubscribe($user, 'prod_pro_monthly');
 
     expect(resolvePlanFor($user))->toBe(Plan::Team);
 });
@@ -154,22 +187,22 @@ test('the most generous subscription wins whichever was bought first', function 
  */
 test('a lapsed subscription does not outrank a live one', function (): void {
     $user = User::factory()->create();
-    entitlementSubscribe($user, 'var_team_monthly', Subscription::STATUS_EXPIRED, type: 'classroom');
-    entitlementSubscribe($user, 'var_pro_monthly');
+    entitlementSubscribe($user, 'prod_team_monthly', SubscriptionStatus::Expired, type: 'classroom');
+    entitlementSubscribe($user, 'prod_pro_monthly');
 
     expect(resolvePlanFor($user))->toBe(Plan::Pro);
 });
 
-test('a subscription to an unrecognised variant grants nothing', function (): void {
+test('a subscription to an unrecognised product grants nothing', function (): void {
     $user = User::factory()->create();
-    entitlementSubscribe($user, 'var_some_retired_experiment');
+    entitlementSubscribe($user, 'prod_some_retired_experiment');
 
     expect(resolvePlanFor($user))->toBe(Plan::Starter);
 });
 
 test('one users subscription does not leak to another', function (): void {
     $subscriber = User::factory()->create();
-    entitlementSubscribe($subscriber, 'var_pro_monthly');
+    entitlementSubscribe($subscriber, 'prod_pro_monthly');
 
     $bystander = User::factory()->create();
 
@@ -275,42 +308,32 @@ function resolvePlanFor(User $user): Plan
 }
 
 /**
- * Give the user a Lemon Squeezy subscription to a single variant, alongside
- * the one customer row a real account has.
+ * Give the user a Creem subscription to a single product, alongside the one
+ * customer row a real account has.
  *
- * Built with the package's factory but saved by hand, because its
- * afterCreating hook creates a customer per subscription and
- * lemon_squeezy_customers is unique on (billable_id, billable_type) — a
- * second subscription for the same pilot, which several tests below need,
- * would collide on it.
+ * The customer is `firstOrCreate`d rather than made per subscription, because
+ * creem_customers is unique on (billable_id, billable_type) — a second
+ * subscription for the same pilot, which several tests above need, would
+ * otherwise collide on it.
  */
 function entitlementSubscribe(
     User $user,
-    string $variantId,
-    string $status = Subscription::STATUS_ACTIVE,
+    string $productId,
+    SubscriptionStatus|string $status = SubscriptionStatus::Active,
     string $type = Subscription::DEFAULT_TYPE,
     ?DateTimeInterface $endsAt = null,
-    ?string $pauseMode = null,
 ): Subscription {
-    Customer::query()->firstOrCreate([
-        'billable_id' => $user->id,
-        'billable_type' => $user->getMorphClass(),
-    ], [
-        'lemon_squeezy_id' => (string) fake()->unique()->randomNumber(8),
-    ]);
+    Customer::query()->firstOrCreate(
+        ['billable_id' => $user->id, 'billable_type' => $user->getMorphClass()],
+        ['creem_id' => 'cust_'.fake()->unique()->bothify('??##??##')],
+    );
 
-    $subscription = Subscription::factory()->make([
-        'billable_id' => $user->id,
-        'billable_type' => $user->getMorphClass(),
-        'type' => $type,
-        'lemon_squeezy_id' => (string) fake()->unique()->randomNumber(8),
-        'status' => $status,
-        'variant_id' => $variantId,
-        'pause_mode' => $pauseMode,
-        'ends_at' => $endsAt,
-    ]);
-
-    $subscription->save();
-
-    return $subscription;
+    return Subscription::factory()
+        ->billable($user)
+        ->selling($productId)
+        ->create([
+            'type' => $type,
+            'status' => $status instanceof SubscriptionStatus ? $status->value : $status,
+            ...($endsAt instanceof DateTimeInterface ? ['current_period_end_at' => $endsAt] : []),
+        ]);
 }

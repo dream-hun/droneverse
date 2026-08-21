@@ -3,42 +3,34 @@
 declare(strict_types=1);
 
 use App\Enums\Plan;
+use App\Enums\SubscriptionStatus;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Models\Customer;
+use App\Models\Order;
+use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
-use LemonSqueezy\Laravel\Customer;
-use LemonSqueezy\Laravel\LemonSqueezy;
-use LemonSqueezy\Laravel\Order;
-use LemonSqueezy\Laravel\Subscription;
+
+const CREEM_API = 'https://test-api.creem.io/v1';
 
 beforeEach(function (): void {
     config([
         'plans.prices' => [
             'pro' => [
-                'monthly' => 'var_pro_monthly',
-                'yearly' => 'var_pro_yearly',
+                'monthly' => 'prod_pro_monthly',
+                'yearly' => 'prod_pro_yearly',
             ],
             'team' => [
-                'monthly' => 'var_team_monthly',
-                'yearly' => 'var_team_yearly',
+                'monthly' => 'prod_team_monthly',
+                'yearly' => 'prod_team_yearly',
             ],
-        ],
-        /*
-         * Only changing an existing subscription needs these, and only when
-         * the change crosses tiers: Lemon Squeezy's update endpoint takes a
-         * product and a variant together and refuses a pairing that does not
-         * match.
-         */
-        'plans.products' => [
-            'pro' => 'prod_pro',
-            'team' => 'prod_team',
         ],
     ]);
 
     /*
-     * Nothing in these tests may reach Lemon Squeezy for real. The three
-     * routes that act on a subscription — cancel, resume, change card — fake
-     * the answer they need explicitly; anything else is a bug worth a
+     * Nothing in these tests may reach Creem for real. The four routes that
+     * act on a subscription — cancel, resume, change plan, open the portal —
+     * fake the answer they need explicitly; anything else is a bug worth a
      * failure rather than a network round trip.
      */
     Http::preventStrayRequests();
@@ -76,7 +68,7 @@ test('a comped account is reported as an override', function (): void {
 
 test('a subscriber sees their plan and billing period', function (): void {
     $user = User::factory()->create();
-    billingSubscribe($user, 'var_pro_yearly');
+    billingSubscribe($user, 'prod_pro_yearly');
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
@@ -94,32 +86,31 @@ test('a subscriber sees their plan and billing period', function (): void {
  *
  * The old page had to ask Paddle for the next bill date, which meant it
  * rendered differently — and could fail — depending on whether the
- * environment had credentials and whether the provider was up. Lemon Squeezy
- * mirrors `renews_at` onto the subscription row, so the whole page is local
- * reads. With stray requests forbidden and no credentials configured, a page
- * that still reached out would fail here rather than in production.
+ * environment had credentials and whether the provider was up. Creem sends the
+ * next transaction date on every subscription event, so the whole page is
+ * local reads. With stray requests forbidden and no credentials configured, a
+ * page that still reached out would fail here rather than in production.
  */
 test('the billing page reaches nobody', function (): void {
     $user = User::factory()->create();
-    billingSubscribe($user, 'var_pro_monthly', renewsAt: now()->addMonth());
-    order($user, '900001');
+    billingSubscribe($user, 'prod_pro_monthly', renewsAt: now()->addMonth());
+    order($user, 'ord_900001');
 
-    expect(config('lemon-squeezy.api_key'))->toBeEmpty();
-    expect(config('lemon-squeezy.store'))->toBeEmpty();
+    expect(config('creem.api_key'))->toBeEmpty();
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('subscription.valid', true)
-            ->where('orders.0.id', '900001'));
+            ->where('orders.0.id', 'ord_900001'));
 
     Http::assertNothingSent();
 });
 
 test('the renewal date is read from the subscription row', function (): void {
     $user = User::factory()->create();
-    billingSubscribe($user, 'var_pro_monthly', renewsAt: new DateTimeImmutable('2026-09-01T00:00:00+00:00'));
+    billingSubscribe($user, 'prod_pro_monthly', renewsAt: new DateTimeImmutable('2026-09-01T00:00:00+00:00'));
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
@@ -129,19 +120,23 @@ test('the renewal date is read from the subscription row', function (): void {
 });
 
 /**
- * Lemon Squeezy leaves the last renewal date on a cancelled subscription
- * rather than clearing it, so `renewsAt` alone would read as a promise to
- * charge again. It is sent as it stands, and `cancelled`, `onGracePeriod`
- * and `endsAt` are sent beside it — the page branches on those first and
- * tells a cancelled pilot when their access ends, never when it renews.
+ * A subscription scheduled to end can still carry the renewal date it had
+ * before somebody cancelled it, so `renewsAt` alone would read as a promise to
+ * charge again. It is sent as it stands, and `cancelled`, `onGracePeriod` and
+ * `endsAt` are sent beside it — the page branches on those first and tells a
+ * cancelled pilot when their access ends, never when it renews.
+ *
+ * `endsAt` is derived rather than stored: Creem reports a period end, a
+ * cancellation time and a next-transaction date, and which of them ends the
+ * subscription depends on how it is ending. See App\Models\Subscription.
  */
 test('a cancelled subscription reports its ending alongside its stale renewal date', function (): void {
     $user = User::factory()->create();
     billingSubscribe(
         $user,
-        'var_pro_monthly',
-        status: Subscription::STATUS_CANCELLED,
-        endsAt: new DateTimeImmutable('2026-08-27T00:00:00+00:00'),
+        'prod_pro_monthly',
+        status: SubscriptionStatus::ScheduledCancel,
+        periodEndsAt: new DateTimeImmutable('2026-08-27T00:00:00+00:00'),
         renewsAt: new DateTimeImmutable('2026-08-27T00:00:00+00:00'),
     );
 
@@ -158,68 +153,83 @@ test('a cancelled subscription reports its ending alongside its stale renewal da
 });
 
 /**
- * The card on file is stored locally by the webhook, so the page can name it
- * without asking anyone. A trial that has never charged has no card, and the
- * empty strings Lemon Squeezy sends for that case are normalised to null so
- * the page has one branch rather than two.
+ * A real loss against the Lemon Squeezy integration, pinned so that nobody
+ * reintroduces the columns by guessing at them.
+ *
+ * Creem publishes no card brand and no last four on any payload it sends —
+ * not on a checkout, not on a subscription, not on an order. So this page
+ * cannot name the card being charged, and it does not pretend to: the
+ * "Manage billing" button beside the plan opens Creem's own portal, which is
+ * the only place a pilot sees their card.
  */
-test('the card on file is named from local columns and absent when there is none', function (): void {
-    $withCard = User::factory()->create();
-    billingSubscribe($withCard, 'var_pro_monthly', cardBrand: 'visa', cardLastFour: '4242');
+test('the page says nothing about the card, because nothing is published about it', function (): void {
+    $user = User::factory()->create();
+    billingSubscribe($user, 'prod_pro_monthly');
 
-    $this->actingAs($withCard)
+    $this->actingAs($user)
         ->get(route('billing.edit'))
         ->assertInertia(fn ($page) => $page
-            ->where('subscription.cardBrand', 'visa')
-            ->where('subscription.cardLastFour', '4242'));
-
-    $onTrial = User::factory()->create();
-    billingSubscribe($onTrial, 'var_pro_monthly', cardBrand: '', cardLastFour: '');
-
-    $this->actingAs($onTrial)
-        ->get(route('billing.edit'))
-        ->assertInertia(fn ($page) => $page
-            ->where('subscription.cardBrand', null)
-            ->where('subscription.cardLastFour', null));
+            ->has('subscription')
+            ->missing('subscription.cardBrand')
+            ->missing('subscription.cardLastFour'));
 });
 
 test('receipts are listed newest first', function (): void {
     $user = User::factory()->create();
 
-    order($user, '900001', total: 1900, orderNumber: 11, orderedAt: '2026-05-01 10:00:00');
-    order($user, '900002', total: 19000, orderNumber: 12, orderedAt: '2026-06-01 10:00:00');
+    order($user, 'ord_900001', amount: 1900, orderedAt: '2026-05-01 10:00:00');
+    order($user, 'ord_900002', amount: 19000, orderedAt: '2026-06-01 10:00:00');
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
         ->assertInertia(fn ($page) => $page
-            ->where('orders.0.id', '900002')
-            ->where('orders.0.orderNumber', 12)
+            ->where('orders.0.id', 'ord_900002')
             ->where('orders.0.total', '$190.00')
-            ->where('orders.0.receiptUrl', 'https://app.lemonsqueezy.com/my-orders/900002')
             ->where('orders.0.refunded', false)
-            ->where('orders.1.id', '900001')
+            ->where('orders.0.refundedTotal', null)
+            ->where('orders.1.id', 'ord_900001')
             ->where('orders.1.total', '$19.00'));
 });
 
 /**
- * An order that never reached `paid` has no receipt to link to, and the
- * empty string Lemon Squeezy leaves behind for it is normalised to null so
- * the page can render nothing rather than a link that would 404.
+ * Creem allows partial refunds, so the flag alone would tell a pilot their
+ * whole year came back when a month did. The amount travels beside it and the
+ * page prints it in the badge.
  */
-test('an order with no receipt reports none', function (): void {
+test('a partial refund reports what actually came back', function (): void {
     $user = User::factory()->create();
-    order($user, '900001', status: Order::STATUS_FAILED, receiptUrl: '');
+    order($user, 'ord_900001', amount: 19000)
+        ->forceFill(['refunded' => true, 'refunded_amount' => 1900, 'refunded_at' => now()])
+        ->save();
+
+    $this->actingAs($user)
+        ->get(route('billing.edit'))
+        ->assertInertia(fn ($page) => $page
+            ->where('orders.0.total', '$190.00')
+            ->where('orders.0.refunded', true)
+            ->where('orders.0.refundedTotal', '$19.00'));
+});
+
+/**
+ * There is no receipt link on a row, and there is not meant to be. Creem
+ * publishes no per-order receipt URL — invoices are behind the customer
+ * portal, reached by a magic link minted per request — so the page links to
+ * the portal once rather than carrying a document link it cannot fill in.
+ */
+test('an order carries no receipt link, because creem publishes none', function (): void {
+    $user = User::factory()->create();
+    order($user, 'ord_900001', status: 'failed');
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
         ->assertInertia(fn ($page) => $page
             ->where('orders.0.status', 'failed')
-            ->where('orders.0.receiptUrl', null));
+            ->missing('orders.0.receiptUrl'));
 });
 
 test('one pilots receipts do not leak to another', function (): void {
     $payer = User::factory()->create();
-    order($payer, '900001');
+    order($payer, 'ord_900001');
 
     $this->actingAs(User::factory()->create())
         ->get(route('billing.edit'))
@@ -228,11 +238,11 @@ test('one pilots receipts do not leak to another', function (): void {
 
 test('cancelling schedules the end of the paid period', function (): void {
     $user = User::factory()->create();
-    $subscription = billingSubscribe($user, 'var_pro_monthly');
+    $subscription = billingSubscribe($user, 'prod_pro_monthly');
 
-    fakeSubscriptionApi($subscription, [
-        'status' => Subscription::STATUS_CANCELLED,
-        'ends_at' => '2026-08-27T00:00:00.000000Z',
+    fakeSubscriptionApi($subscription, 'cancel', [
+        'status' => SubscriptionStatus::ScheduledCancel->value,
+        'current_period_end_date' => '2026-08-27T00:00:00.000Z',
     ]);
 
     $this->travelTo('2026-08-10T00:00:00+00:00');
@@ -245,6 +255,12 @@ test('cancelling schedules the end of the paid period', function (): void {
 
     expect($subscription->cancelled())->toBeTrue();
     expect($subscription->onGracePeriod())->toBeTrue();
+    /*
+     * `scheduled`, never `immediate`. Creem's cancel endpoint cuts access off
+     * on the spot unless it is told otherwise, and this is the flag that tells
+     * it otherwise.
+     */
+    expect(lastCreemRequest()['mode'])->toBe('scheduled');
     /*
      * The whole point of cancelling at period end: they bought the month,
      * so they keep the catalogue until it runs out.
@@ -259,15 +275,9 @@ test('cancelling schedules the end of the paid period', function (): void {
  */
 test('a failed cancellation is reported rather than thrown', function (): void {
     $user = User::factory()->create();
-    $subscription = billingSubscribe($user, 'var_pro_monthly');
+    $subscription = billingSubscribe($user, 'prod_pro_monthly');
 
-    config(['lemon-squeezy.api_key' => 'test-api-key']);
-
-    Http::fake([
-        LemonSqueezy::API.'/subscriptions/*' => Http::response([
-            'errors' => [['detail' => 'Something went wrong.', 'status' => '500']],
-        ], 500),
-    ]);
+    fakeCreemOutage();
 
     $this->actingAs($user)
         ->delete(route('subscription.destroy'))
@@ -281,14 +291,14 @@ test('resuming calls off a pending cancellation', function (): void {
     $user = User::factory()->create();
     $subscription = billingSubscribe(
         $user,
-        'var_pro_monthly',
-        status: Subscription::STATUS_CANCELLED,
-        endsAt: now()->addWeek(),
+        'prod_pro_monthly',
+        status: SubscriptionStatus::ScheduledCancel,
+        periodEndsAt: now()->addWeek(),
     );
 
-    fakeSubscriptionApi($subscription, [
-        'status' => Subscription::STATUS_ACTIVE,
-        'renews_at' => '2026-09-01T00:00:00.000000Z',
+    fakeSubscriptionApi($subscription, 'resume', [
+        'status' => SubscriptionStatus::Active->value,
+        'next_transaction_date' => '2026-09-01T00:00:00.000Z',
     ]);
 
     $this->actingAs($user)
@@ -297,20 +307,20 @@ test('resuming calls off a pending cancellation', function (): void {
 
     $subscription->refresh();
 
-    expect($subscription->ends_at)->toBeNull();
+    expect($subscription->endsAt())->toBeNull();
     expect($subscription->onGracePeriod())->toBeFalse();
-    expect($subscription->active())->toBeTrue();
+    expect($subscription->status())->toBe(SubscriptionStatus::Active);
 });
 
 /**
  * The grace-period guard earns its keep twice over: it is the rule that a
- * lapsed subscription is bought again rather than resumed, and it is also
- * what keeps resume()'s LogicException on an expired subscription out of the
- * request.
+ * lapsed subscription is bought again rather than resumed, and it is also what
+ * keeps Creem's own refusal out of the request — its resume endpoint accepts
+ * only a subscription in `scheduled_cancel` or `paused`.
  */
-test('resuming a subscription that has already ended fails without calling lemon squeezy', function (): void {
+test('resuming a subscription that has already ended fails without calling creem', function (): void {
     $user = User::factory()->create();
-    billingSubscribe($user, 'var_pro_monthly', status: Subscription::STATUS_EXPIRED);
+    billingSubscribe($user, 'prod_pro_monthly', status: SubscriptionStatus::Expired);
 
     $this->actingAs($user)
         ->put(route('subscription.update'))
@@ -333,7 +343,7 @@ test('a starter pilot has no subscription to cancel', function (): void {
  */
 test('cancelling only ever reaches your own subscription', function (): void {
     $subscriber = User::factory()->create();
-    $theirs = billingSubscribe($subscriber, 'var_pro_monthly');
+    $theirs = billingSubscribe($subscriber, 'prod_pro_monthly');
 
     $this->actingAs(User::factory()->create())
         ->delete(route('subscription.destroy'));
@@ -344,7 +354,7 @@ test('cancelling only ever reaches your own subscription', function (): void {
 
 test('a subscriber is offered every plan and period they could move to', function (): void {
     $user = User::factory()->create();
-    billingSubscribe($user, 'var_pro_monthly');
+    billingSubscribe($user, 'prod_pro_monthly');
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
@@ -368,10 +378,10 @@ test('a subscriber is offered every plan and period they could move to', functio
  * for by advertising something that cannot be selected.
  */
 test('a period with no configured price is not offered as a destination', function (): void {
-    config(['plans.prices.team' => ['monthly' => 'var_team_monthly']]);
+    config(['plans.prices.team' => ['monthly' => 'prod_team_monthly']]);
 
     $user = User::factory()->create();
-    billingSubscribe($user, 'var_pro_monthly');
+    billingSubscribe($user, 'prod_pro_monthly');
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
@@ -400,9 +410,9 @@ test('a subscription winding down offers nothing to switch to', function (): voi
     $user = User::factory()->create();
     billingSubscribe(
         $user,
-        'var_pro_monthly',
-        status: Subscription::STATUS_CANCELLED,
-        endsAt: now()->addWeek(),
+        'prod_pro_monthly',
+        status: SubscriptionStatus::ScheduledCancel,
+        periodEndsAt: now()->addWeek(),
     );
 
     $this->actingAs($user)
@@ -415,89 +425,74 @@ test('a subscription winding down offers nothing to switch to', function (): voi
 
 test('switching tier reprices the one subscription', function (): void {
     $user = User::factory()->create();
-    $subscription = billingSubscribe($user, 'var_pro_monthly');
+    $subscription = billingSubscribe($user, 'prod_pro_monthly');
 
-    fakeSubscriptionApi($subscription, [
-        'product_id' => 'prod_team',
-        'variant_id' => 'var_team_yearly',
+    fakeSubscriptionApi($subscription, 'upgrade', ['product' => 'prod_team_yearly']);
+
+    $this->actingAs($user)
+        ->put(route('subscription.swap'), ['plan' => 'team', 'variant' => 'yearly'])
+        ->assertRedirect(route('billing.edit'));
+
+    $sent = lastCreemRequest();
+
+    expect($sent['product_id'])->toBe('prod_team_yearly');
+    /*
+     * Prorated, and settled now. Creem's alternative is `proration-none`,
+     * which would hand an upgrading pilot the rest of the month for free and
+     * take a downgrading one's unused period away without refunding it — the
+     * same money either way, and only one party notices.
+     */
+    expect($sent['update_behavior'])->toBe('proration-charge-immediately');
+
+    expect($subscription->refresh()->product_id)->toBe('prod_team_yearly');
+    expect($user->fresh()?->plan())->toBe(Plan::Team);
+});
+
+test('switching billing period keeps the plan', function (): void {
+    $user = User::factory()->create();
+    $subscription = billingSubscribe($user, 'prod_pro_monthly');
+
+    fakeSubscriptionApi($subscription, 'upgrade', ['product' => 'prod_pro_yearly']);
+
+    $this->actingAs($user)
+        ->put(route('subscription.swap'), ['plan' => 'pro', 'variant' => 'yearly'])
+        ->assertRedirect(route('billing.edit'));
+
+    expect($subscription->refresh()->product_id)->toBe('prod_pro_yearly');
+    expect($user->fresh()?->plan())->toBe(Plan::Pro);
+});
+
+/**
+ * The card has already been charged by the time Creem answers, so a response
+ * this application cannot read in full is not a change that did not happen.
+ * The entitlement is written from what was asked for, and the dates are left
+ * to the webhook that follows.
+ */
+test('a switch survives an answer that cannot be read in full', function (): void {
+    $user = User::factory()->create();
+    $subscription = billingSubscribe($user, 'prod_pro_monthly');
+
+    config(['creem.api_key' => 'creem_test_key']);
+
+    Http::fake([
+        CREEM_API.'/subscriptions/'.$subscription->creem_id.'/upgrade' => Http::response(['ok' => true]),
     ]);
 
     $this->actingAs($user)
         ->put(route('subscription.swap'), ['plan' => 'team', 'variant' => 'yearly'])
         ->assertRedirect(route('billing.edit'));
 
-    $attributes = lastSubscriptionRequest()['data']['attributes'];
-
-    expect($attributes['product_id'])->toBe('prod_team');
-    expect($attributes['variant_id'])->toBe('var_team_yearly');
-    /*
-     * Prorated, so the unused remainder of the month already paid for is
-     * credited against the year being moved to.
-     */
-    expect($attributes['disable_prorations'])->toBeFalse();
-    /*
-     * And not invoiced on the spot. The difference lands on the next
-     * renewal, which is what the button promised.
-     */
-    expect($attributes)->not->toHaveKey('invoice_immediately');
-
-    expect($subscription->refresh()->variant_id)->toBe('var_team_yearly');
+    expect($subscription->refresh()->product_id)->toBe('prod_team_yearly');
     expect($user->fresh()?->plan())->toBe(Plan::Team);
-});
-
-test('switching billing period keeps the plan', function (): void {
-    $user = User::factory()->create();
-    $subscription = billingSubscribe($user, 'var_pro_monthly');
-
-    fakeSubscriptionApi($subscription, ['variant_id' => 'var_pro_yearly']);
-
-    $this->actingAs($user)
-        ->put(route('subscription.swap'), ['plan' => 'pro', 'variant' => 'yearly'])
-        ->assertRedirect(route('billing.edit'));
-
-    expect($subscription->refresh()->variant_id)->toBe('var_pro_yearly');
-    expect($user->fresh()?->plan())->toBe(Plan::Pro);
-});
-
-/**
- * Product IDs exist for one operation and are the only new configuration
- * plan switching needs, so an environment that has never set them must still
- * do the half of switching that stays inside one product. Crossing tiers
- * genuinely needs them, and says so by refusing rather than by sending one
- * plan's product with another's variant.
- */
-test('a period switch needs no configured product but a tier switch does', function (): void {
-    config(['plans.products' => []]);
-
-    $user = User::factory()->create();
-    $subscription = billingSubscribe($user, 'var_pro_monthly');
-
-    fakeSubscriptionApi($subscription, ['variant_id' => 'var_pro_yearly']);
-
-    $this->actingAs($user)
-        ->put(route('subscription.swap'), ['plan' => 'pro', 'variant' => 'yearly'])
-        ->assertRedirect(route('billing.edit'));
-
-    expect(lastSubscriptionRequest()['data']['attributes']['product_id'])->toBe('prod_pro');
-    expect($subscription->refresh()->variant_id)->toBe('var_pro_yearly');
-
-    Http::fake();
-
-    $this->actingAs($user)
-        ->put(route('subscription.swap'), ['plan' => 'team', 'variant' => 'monthly'])
-        ->assertRedirect(route('billing.edit'));
-
-    Http::assertNothingSent();
-    expect($subscription->refresh()->variant_id)->toBe('var_pro_yearly');
 });
 
 /**
  * Submitting the dialog without touching it. Nothing to do, and nothing to
- * ask Lemon Squeezy about.
+ * ask Creem about.
  */
 test('switching to the plan you are already on reaches nobody', function (): void {
     $user = User::factory()->create();
-    billingSubscribe($user, 'var_pro_monthly');
+    billingSubscribe($user, 'prod_pro_monthly');
 
     $this->actingAs($user)
         ->put(route('subscription.swap'), ['plan' => 'pro', 'variant' => 'monthly'])
@@ -508,7 +503,7 @@ test('switching to the plan you are already on reaches nobody', function (): voi
 
 test('switching refuses the free tier and an unsold period', function (): void {
     $user = User::factory()->create();
-    $subscription = billingSubscribe($user, 'var_pro_monthly');
+    $subscription = billingSubscribe($user, 'prod_pro_monthly');
 
     foreach ([
         ['plan' => 'starter', 'variant' => 'monthly'],
@@ -520,12 +515,12 @@ test('switching refuses the free tier and an unsold period', function (): void {
     }
 
     Http::assertNothingSent();
-    expect($subscription->refresh()->variant_id)->toBe('var_pro_monthly');
+    expect($subscription->refresh()->product_id)->toBe('prod_pro_monthly');
 });
 
 test('switching refuses a plan that does not exist', function (): void {
     $user = User::factory()->create();
-    billingSubscribe($user, 'var_pro_monthly');
+    billingSubscribe($user, 'prod_pro_monthly');
 
     $this->actingAs($user)
         ->put(route('subscription.swap'), ['plan' => 'platinum', 'variant' => 'monthly'])
@@ -543,9 +538,9 @@ test('a subscription winding down is resumed before it is repriced', function ()
     $user = User::factory()->create();
     $subscription = billingSubscribe(
         $user,
-        'var_pro_monthly',
-        status: Subscription::STATUS_CANCELLED,
-        endsAt: now()->addWeek(),
+        'prod_pro_monthly',
+        status: SubscriptionStatus::ScheduledCancel,
+        periodEndsAt: now()->addWeek(),
     );
 
     $this->actingAs($user)
@@ -553,7 +548,7 @@ test('a subscription winding down is resumed before it is repriced', function ()
         ->assertRedirect(route('billing.edit'));
 
     Http::assertNothingSent();
-    expect($subscription->refresh()->variant_id)->toBe('var_pro_monthly');
+    expect($subscription->refresh()->product_id)->toBe('prod_pro_monthly');
 });
 
 /**
@@ -563,21 +558,15 @@ test('a subscription winding down is resumed before it is repriced', function ()
  */
 test('a failed switch is reported rather than thrown', function (): void {
     $user = User::factory()->create();
-    $subscription = billingSubscribe($user, 'var_pro_monthly');
+    $subscription = billingSubscribe($user, 'prod_pro_monthly');
 
-    config(['lemon-squeezy.api_key' => 'test-api-key']);
-
-    Http::fake([
-        LemonSqueezy::API.'/subscriptions/*' => Http::response([
-            'errors' => [['detail' => 'Something went wrong.', 'status' => '500']],
-        ], 500),
-    ]);
+    fakeCreemOutage();
 
     $this->actingAs($user)
         ->put(route('subscription.swap'), ['plan' => 'team', 'variant' => 'monthly'])
         ->assertRedirect(route('billing.edit'));
 
-    expect($subscription->refresh()->variant_id)->toBe('var_pro_monthly');
+    expect($subscription->refresh()->product_id)->toBe('prod_pro_monthly');
     expect($user->fresh()?->plan())->toBe(Plan::Pro);
 });
 
@@ -595,42 +584,49 @@ test('a starter pilot has no subscription to switch', function (): void {
  */
 test('switching only ever reaches your own subscription', function (): void {
     $subscriber = User::factory()->create();
-    $theirs = billingSubscribe($subscriber, 'var_pro_monthly');
+    $theirs = billingSubscribe($subscriber, 'prod_pro_monthly');
 
     $this->actingAs(User::factory()->create())
         ->put(route('subscription.swap'), ['plan' => 'team', 'variant' => 'monthly']);
 
-    expect($theirs->refresh()->variant_id)->toBe('var_pro_monthly');
+    expect($theirs->refresh()->product_id)->toBe('prod_pro_monthly');
     Http::assertNothingSent();
 });
 
-test('the payment method page is lemon squeezys own', function (): void {
+/**
+ * The portal covers the card, the invoices and Creem's own support, so it is a
+ * link out rather than a screen we render — card details should never touch a
+ * page of ours.
+ *
+ * Minted against the customer rather than the subscription, because the two
+ * outlast each other differently: somebody whose subscription ended last month
+ * still has invoices to download.
+ */
+test('the billing portal is creems own, minted per request', function (): void {
     $user = User::factory()->create();
-    $subscription = billingSubscribe($user, 'var_pro_monthly');
+    billingSubscribe($user, 'prod_pro_monthly');
 
-    fakeSubscriptionApi($subscription, [
-        'urls' => ['update_payment_method' => 'https://droneverse.lemonsqueezy.com/update'],
-    ]);
+    fakePortalApi('https://creem.io/my-orders/login/abc123');
 
     $this->actingAs($user)
-        ->get(route('payment-method.edit'))
-        ->assertRedirect('https://droneverse.lemonsqueezy.com/update');
+        ->get(route('billing-portal.edit'))
+        ->assertRedirect('https://creem.io/my-orders/login/abc123');
+
+    expect(lastCreemRequest()['customer_id'])->toBe(creemCustomerId($user));
 });
 
 /**
  * The billing page reaches this route with an Inertia <Link>, which is an
- * XHR. A plain 302 is followed by the browser and answered with Lemon
- * Squeezy's HTML, which carries no X-Inertia header — Inertia rejects that as
- * an invalid response rather than navigating, so the subscriber can never
- * reach the page. The 409 below is the only answer it acts on.
+ * XHR. A plain 302 is followed by the browser and answered with Creem's HTML,
+ * which carries no X-Inertia header — Inertia rejects that as an invalid
+ * response rather than navigating, so the subscriber can never reach the page.
+ * The 409 below is the only answer it acts on.
  */
-test('the payment method page is reachable from an inertia visit', function (): void {
+test('the billing portal is reachable from an inertia visit', function (): void {
     $user = User::factory()->create();
-    $subscription = billingSubscribe($user, 'var_pro_monthly');
+    billingSubscribe($user, 'prod_pro_monthly');
 
-    fakeSubscriptionApi($subscription, [
-        'urls' => ['update_payment_method' => 'https://droneverse.lemonsqueezy.com/update'],
-    ]);
+    fakePortalApi('https://creem.io/my-orders/login/abc123');
 
     /*
      * Resolved through the app's own middleware rather than hardcoded: a
@@ -641,35 +637,40 @@ test('the payment method page is reachable from an inertia visit', function (): 
     $version = resolve(HandleInertiaRequests::class)->version($this->app->make('request'));
 
     $this->actingAs($user)
-        ->get(route('payment-method.edit'), [
+        ->get(route('billing-portal.edit'), [
             'X-Inertia' => 'true',
             'X-Inertia-Version' => (string) $version,
         ])
         ->assertStatus(409)
-        ->assertHeader('X-Inertia-Location', 'https://droneverse.lemonsqueezy.com/update');
+        ->assertHeader('X-Inertia-Location', 'https://creem.io/my-orders/login/abc123');
 });
 
-test('a starter pilot has no payment method to change', function (): void {
+/**
+ * An account Creem has never named a customer for has no portal to open, and
+ * the customer row is written by the webhook rather than by checkout — so this
+ * is also what a buyer sees in the seconds between paying and being recorded.
+ */
+test('an account creem has never seen has no portal to open', function (): void {
     $this->actingAs(User::factory()->create())
-        ->get(route('payment-method.edit'))
+        ->get(route('billing-portal.edit'))
         ->assertRedirect(route('billing.edit'));
 
     Http::assertNothingSent();
 });
 
 /**
- * The body of the last call made to Lemon Squeezy, decoded.
+ * The body of the last call made to Creem, decoded.
  *
  * Asserted on field by field rather than matched inside a closure, so a
  * mismatch reports which one was wrong.
  *
  * @return array<string, mixed>
  */
-function lastSubscriptionRequest(): array
+function lastCreemRequest(): array
 {
     $recorded = Http::recorded();
 
-    expect($recorded)->not->toBeEmpty('Expected a call to Lemon Squeezy.');
+    expect($recorded)->not->toBeEmpty('Expected a call to Creem.');
 
     /** @var array<string, mixed> $data */
     $data = $recorded->last()[0]->data();
@@ -678,123 +679,109 @@ function lastSubscriptionRequest(): array
 }
 
 /**
- * Answer the one Lemon Squeezy endpoint every subscription action goes
- * through — DELETE to cancel, PATCH to resume, GET for the card page — with
- * the attributes the package syncs back onto the row.
+ * Answer one of the subscription endpoints with the subscription as it now
+ * stands, in the shape Creem's own webhooks use.
  *
- * `product_id` and `variant_id` are always present because Subscription::sync
- * reads them unconditionally, and a fake that omitted them would fail on an
- * undefined key rather than on the thing under test.
+ * `id`, `product`, `customer` and `status` are always present because
+ * App\Actions\SyncCreemSubscription refuses a payload missing any of them —
+ * and refusing is the right behaviour, so a fake that omitted one would be
+ * testing the fallback rather than the path.
  *
  * @param  array<string, mixed>  $attributes
  */
-function fakeSubscriptionApi(Subscription $subscription, array $attributes = []): void
+function fakeSubscriptionApi(Subscription $subscription, string $action, array $attributes = []): void
 {
-    config(['lemon-squeezy.api_key' => 'test-api-key']);
+    config(['creem.api_key' => 'creem_test_key']);
 
     Http::fake([
-        LemonSqueezy::API.'/subscriptions/'.$subscription->lemon_squeezy_id => Http::response([
-            'data' => [
-                'id' => $subscription->lemon_squeezy_id,
-                'attributes' => [
-                    'status' => $subscription->status,
-                    'product_id' => $subscription->product_id,
-                    'variant_id' => $subscription->variant_id,
-                    ...$attributes,
-                ],
-            ],
+        CREEM_API.'/subscriptions/'.$subscription->creem_id.'/'.$action => Http::response([
+            'id' => $subscription->creem_id,
+            'object' => 'subscription',
+            'product' => $subscription->product_id,
+            'customer' => $subscription->customer_id,
+            'status' => $subscription->status,
+            ...$attributes,
         ]),
     ]);
 }
 
+function fakePortalApi(string $link): void
+{
+    config(['creem.api_key' => 'creem_test_key']);
+
+    Http::fake([
+        CREEM_API.'/customers/billing' => Http::response(['customer_portal_link' => $link]),
+    ]);
+}
+
 /**
- * Give the user a Lemon Squeezy subscription, alongside the one customer row
- * a real account has.
- *
- * Built with the package's factory but saved by hand: its afterCreating hook
- * creates a customer per subscription, and lemon_squeezy_customers is unique
- * on (billable_id, billable_type).
+ * Every Creem call this application makes is a POST to a path under the same
+ * host, so one outage fake covers cancelling, resuming, switching and the
+ * portal alike.
+ */
+function fakeCreemOutage(): void
+{
+    config(['creem.api_key' => 'creem_test_key']);
+
+    Http::fake([
+        CREEM_API.'/*' => Http::response(['error' => 'Something went wrong.'], 500),
+    ]);
+}
+
+/**
+ * Give the user a Creem subscription, alongside the one customer row a real
+ * account has.
  */
 function billingSubscribe(
     User $user,
-    string $variantId,
-    string $status = Subscription::STATUS_ACTIVE,
-    ?DateTimeInterface $endsAt = null,
+    string $productId,
+    SubscriptionStatus $status = SubscriptionStatus::Active,
+    ?DateTimeInterface $periodEndsAt = null,
     ?DateTimeInterface $renewsAt = null,
-    ?string $cardBrand = 'visa',
-    ?string $cardLastFour = '4242',
-    string $productId = 'prod_pro',
 ): Subscription {
-    customerFor($user);
+    $customer = customerFor($user);
 
-    $subscription = Subscription::factory()->make([
-        'billable_id' => $user->id,
-        'billable_type' => $user->getMorphClass(),
-        'type' => Subscription::DEFAULT_TYPE,
-        'lemon_squeezy_id' => (string) fake()->unique()->randomNumber(8),
-        'status' => $status,
-        'product_id' => $productId,
-        'variant_id' => $variantId,
-        'card_brand' => $cardBrand,
-        'card_last_four' => $cardLastFour,
-        'renews_at' => $renewsAt,
-        'ends_at' => $endsAt,
-    ]);
-
-    $subscription->save();
-
-    return $subscription;
+    return Subscription::factory()
+        ->billable($user)
+        ->selling($productId)
+        ->create([
+            'customer_id' => $customer->creem_id,
+            'status' => $status->value,
+            'renews_at' => $renewsAt,
+            ...($periodEndsAt instanceof DateTimeInterface ? ['current_period_end_at' => $periodEndsAt] : []),
+        ]);
 }
 
 /**
- * Give the user a paid order, the way handleOrderCreated would have.
- *
- * `identifier` is set by hand because the package's factory leaves it out
- * and the column is a non-null unique uuid.
+ * Give the user a paid order, the way `checkout.completed` would have.
  */
 function order(
     User $user,
-    string $lemonSqueezyId,
-    int $total = 1900,
-    int $orderNumber = 1,
+    string $creemId,
+    int $amount = 1900,
     string $orderedAt = '2026-06-01 10:00:00',
-    string $status = Order::STATUS_PAID,
-    ?string $receiptUrl = null,
+    string $status = 'paid',
 ): Order {
     customerFor($user);
 
-    $order = Order::factory()->make([
-        'billable_id' => $user->id,
-        'billable_type' => $user->getMorphClass(),
-        'lemon_squeezy_id' => $lemonSqueezyId,
-        'identifier' => fake()->unique()->uuid(),
-        'customer_id' => '800001',
-        'product_id' => 'prod_droneverse_pro',
-        'variant_id' => 'var_pro_monthly',
-        'order_number' => $orderNumber,
+    return Order::factory()->billable($user)->create([
+        'creem_id' => $creemId,
+        'amount' => $amount,
         'currency' => 'USD',
-        'subtotal' => $total,
-        'discount_total' => 0,
-        'tax' => 0,
-        'total' => $total,
         'status' => $status,
-        'receipt_url' => $receiptUrl ?? 'https://app.lemonsqueezy.com/my-orders/'.$lemonSqueezyId,
-        'refunded' => false,
-        'refunded_at' => null,
         'ordered_at' => $orderedAt,
     ]);
-
-    $order->save();
-
-    return $order;
 }
 
-function customerFor(User $user): void
+function customerFor(User $user): Customer
 {
-    Customer::query()->firstOrCreate([
-        'billable_id' => $user->id,
-        'billable_type' => $user->getMorphClass(),
-    ], [
-        'lemon_squeezy_id' => (string) fake()->unique()->randomNumber(8),
-    ]);
+    return Customer::query()->firstOrCreate(
+        ['billable_id' => $user->id, 'billable_type' => $user->getMorphClass()],
+        ['creem_id' => 'cust_'.fake()->unique()->bothify('??##??##'), 'email' => $user->email],
+    );
+}
+
+function creemCustomerId(User $user): string
+{
+    return (string) customerFor($user)->creem_id;
 }

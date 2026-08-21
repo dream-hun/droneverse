@@ -5,20 +5,24 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\Plan;
+use App\Http\Integrations\Creem;
 use App\Models\User;
+use RuntimeException;
 
 /**
- * Open a Lemon Squeezy checkout for a plan, server-side.
+ * Open a Creem checkout for a plan, server-side.
  *
- * Returns the checkout URL Lemon Squeezy mints for the resolved variant. The
- * browser is handed a checkout it cannot alter the price of — it never learns
- * an ID, and it has nothing to submit but the plan it clicked. The URL is
- * already scoped to this buyer and this variant by the time it leaves here.
+ * Returns the checkout URL Creem mints for the resolved product. The browser is
+ * handed a checkout it cannot alter the price of — it never learns a product
+ * ID, and it has nothing to submit but the plan it clicked. The URL is already
+ * scoped to this buyer and this product by the time it leaves here.
  */
 final readonly class StartCheckout
 {
-    public function __construct(private ResolveCheckoutPrice $prices)
-    {
+    public function __construct(
+        private ResolveCheckoutPrice $prices,
+        private Creem $creem,
+    ) {
         //
     }
 
@@ -26,54 +30,60 @@ final readonly class StartCheckout
      * Returns null when the plan is not for sale in this environment; see
      * ResolveCheckoutPrice for what that covers.
      *
-     * Throws when Lemon Squeezy will not mint a checkout — no API key, no
-     * store, or the API answering with an error. That is new: the old Paddle
-     * path built its option bag locally and could not fail. Callers reached
-     * from a request must turn it into something a buyer can read rather than
-     * letting it become a 500; see App\Http\Controllers\CheckoutController.
+     * Throws when Creem will not mint a checkout — no API key, a product the
+     * account does not have, or the API answering with an error. Callers
+     * reached from a request must turn it into something a buyer can read
+     * rather than letting it become a 500; see
+     * App\Http\Controllers\CheckoutController.
      */
     public function handle(User $user, Plan $plan, string $variant): ?string
     {
-        $priceId = $this->prices->handle($user, $plan, $variant);
+        $productId = $this->prices->handle($user, $plan, $variant);
 
-        if ($priceId === null) {
+        if ($productId === null) {
             return null;
         }
 
-        /*
-         * The user the auth guard hands us has no relations loaded, and the
-         * lazy-loading guard is armed everywhere but production. The customer
-         * row is created by the webhook rather than by checkout, so nothing
-         * below reads the relation today — loading it here keeps that true of
-         * the whole checkout path regardless.
-         */
-        $user->loadMissing('customer');
-
-        /*
-         * subscribe() rather than checkout(): it sets the `subscription_type`
-         * custom key, which is what the webhook needs to record the resulting
-         * subscription against this billable. Our own custom data rides
-         * alongside it — billable_id, billable_type and subscription_type are
-         * reserved and passing any of them here throws.
-         *
-         * embed() is what makes the URL openable in the Lemon.js overlay
-         * instead of only as a full-page navigation.
-         *
-         * No redirectTo(), deliberately. Lemon Squeezy would navigate the
-         * browser there the moment payment completes, which tears down the page
-         * before the `Checkout.Success` handler on the pricing page can poll
-         * for the entitlement — and the plan is granted by a webhook that has
-         * not necessarily landed yet, so the buyer would arrive at a freshly
-         * rendered page still showing their old plan. Letting the overlay close
-         * on its own keeps that handler alive to do the waiting.
-         */
-        return $user->subscribe($priceId)
-            ->withCustomData([
+        $checkout = $this->creem->createCheckout([
+            'product_id' => $productId,
+            /*
+             * Where a buyer lands if the browser navigates rather than framing
+             * the checkout — the embed script being blocked, or a URL opened
+             * directly. The embed cancels this redirect when the page closes
+             * the overlay itself, so setting it costs the inline flow nothing
+             * and rescues the fallback one. The Lemon Squeezy integration this
+             * replaces could not have both: its overlay would navigate away the
+             * instant payment landed, so it set no redirect at all and left a
+             * script-blocked buyer stranded on the payment page.
+             */
+            'success_url' => route('subscription.thank-you'),
+            /*
+             * Locks the email at checkout to the one on the account, so the
+             * Creem customer that comes back is this pilot rather than whoever
+             * they happened to type. It is also what lets a payment made
+             * without metadata still be placed — see ResolveCreemBillable.
+             */
+            'customer' => ['email' => $user->email],
+            /*
+             * Creem copies this onto the subscription it creates and onto every
+             * event about it afterwards, which is how a webhook arriving hours
+             * later knows whose plan to grant. `plan` and `variant` are not read
+             * by anything — the product ID on the subscription is what decides
+             * entitlements — and are here so that a support conversation about
+             * one payment can be had in this application's own vocabulary.
+             */
+            'metadata' => [
+                'billable_id' => (string) $user->getKey(),
+                'billable_type' => $user->getMorphClass(),
                 'plan' => $plan->value,
                 'variant' => $variant,
-            ])
-            ->embed()
-            ->withoutLogo()
-            ->url();
+            ],
+        ]);
+
+        $url = $checkout['checkout_url'] ?? null;
+
+        throw_unless(is_string($url) && $url !== '', RuntimeException::class, 'Creem returned no checkout URL.');
+
+        return $url;
     }
 }

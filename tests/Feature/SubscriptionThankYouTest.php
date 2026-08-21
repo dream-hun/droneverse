@@ -3,18 +3,19 @@
 declare(strict_types=1);
 
 use App\Enums\Plan;
+use App\Enums\SubscriptionStatus;
+use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
-use LemonSqueezy\Laravel\Subscription;
 
 beforeEach(function (): void {
     config([
         'plans.prices' => [
             'pro' => [
-                'monthly' => 'var_pro_monthly',
-                'yearly' => 'var_pro_yearly',
+                'monthly' => 'prod_pro_monthly',
+                'yearly' => 'prod_pro_yearly',
             ],
-            'team' => ['monthly' => 'var_team_monthly'],
+            'team' => ['monthly' => 'prod_team_monthly'],
         ],
     ]);
 
@@ -55,7 +56,7 @@ test('a subscriber is shown the plan, period and renewal date they bought', func
     $user = User::factory()->create();
     confirmationSubscribe(
         $user,
-        'var_pro_yearly',
+        'prod_pro_yearly',
         renewsAt: new DateTimeImmutable('2027-08-21T00:00:00+00:00'),
     );
 
@@ -70,8 +71,6 @@ test('a subscriber is shown the plan, period and renewal date they bought', func
             ->where('subscription.planLabel', 'Pro')
             ->where('subscription.variant', 'yearly')
             ->where('subscription.renewsAt', '2027-08-21T00:00:00+00:00')
-            ->where('subscription.cardBrand', 'visa')
-            ->where('subscription.cardLastFour', '4242')
             ->where('highlights', Plan::Pro->highlights()));
 
     Http::assertNothingSent();
@@ -118,9 +117,9 @@ test('an expired subscription is neither confirmed nor polled for', function ():
     $user = User::factory()->create();
     confirmationSubscribe(
         $user,
-        'var_pro_monthly',
-        status: Subscription::STATUS_EXPIRED,
-        endsAt: new DateTimeImmutable('2026-01-01T00:00:00+00:00'),
+        'prod_pro_monthly',
+        status: SubscriptionStatus::Expired,
+        periodEndsAt: new DateTimeImmutable('2026-01-01T00:00:00+00:00'),
     );
 
     $this->actingAs($user)
@@ -140,19 +139,20 @@ test('an expired subscription is neither confirmed nor polled for', function ():
 });
 
 /**
- * A trial has no card on file until something has been charged, and Lemon
- * Squeezy sends empty strings rather than nulls for that. Normalised here so
- * the page has one branch, not two.
+ * A trial entitles the plan before anything has been charged, so the page
+ * confirms it and names the date the charging starts.
+ *
+ * There is nothing here about the card, deliberately. Creem publishes no card
+ * brand or last four on any payload, so the page cannot name what a buyer paid
+ * with — the billing portal is the only place that shows it.
  */
-test('a trial reports its end date and no card', function (): void {
+test('a trial reports its end date', function (): void {
     $user = User::factory()->create();
     confirmationSubscribe(
         $user,
-        'var_pro_monthly',
-        status: Subscription::STATUS_ON_TRIAL,
+        'prod_pro_monthly',
+        status: SubscriptionStatus::Trialing,
         trialEndsAt: new DateTimeImmutable('2026-09-04T00:00:00+00:00'),
-        cardBrand: '',
-        cardLastFour: '',
     );
 
     $this->actingAs($user)
@@ -160,43 +160,31 @@ test('a trial reports its end date and no card', function (): void {
         ->assertInertia(fn ($page) => $page
             ->where('pending', false)
             ->where('subscription.onTrial', true)
-            ->where('subscription.trialEndsAt', '2026-09-04T00:00:00+00:00')
-            ->where('subscription.cardBrand', null)
-            ->where('subscription.cardLastFour', null));
+            ->where('subscription.trialEndsAt', '2026-09-04T00:00:00+00:00'));
 });
 
 /**
- * Give the user a Lemon Squeezy subscription row.
+ * Give the user a Creem subscription row.
  *
- * Built with the package's factory but saved by hand: its afterCreating hook
- * creates a customer per subscription, and nothing on this page reads one.
+ * No customer row alongside it: this page reads nothing but the subscription,
+ * which is what lets it render seconds after a checkout without asking anyone
+ * anything.
  */
 function confirmationSubscribe(
     User $user,
-    string $variantId,
-    string $status = Subscription::STATUS_ACTIVE,
-    ?DateTimeInterface $endsAt = null,
+    string $productId,
+    SubscriptionStatus $status = SubscriptionStatus::Active,
+    ?DateTimeInterface $periodEndsAt = null,
     ?DateTimeInterface $renewsAt = null,
     ?DateTimeInterface $trialEndsAt = null,
-    ?string $cardBrand = 'visa',
-    ?string $cardLastFour = '4242',
 ): Subscription {
-    $subscription = Subscription::factory()->make([
-        'billable_id' => $user->id,
-        'billable_type' => $user->getMorphClass(),
-        'type' => Subscription::DEFAULT_TYPE,
-        'lemon_squeezy_id' => (string) fake()->unique()->randomNumber(8),
-        'status' => $status,
-        'product_id' => 'prod_pro',
-        'variant_id' => $variantId,
-        'card_brand' => $cardBrand,
-        'card_last_four' => $cardLastFour,
-        'renews_at' => $renewsAt,
-        'ends_at' => $endsAt,
-        'trial_ends_at' => $trialEndsAt,
-    ]);
-
-    $subscription->save();
-
-    return $subscription;
+    return Subscription::factory()
+        ->billable($user)
+        ->selling($productId)
+        ->create([
+            'status' => $status->value,
+            'renews_at' => $renewsAt,
+            'trial_ends_at' => $trialEndsAt,
+            ...($periodEndsAt instanceof DateTimeInterface ? ['current_period_end_at' => $periodEndsAt] : []),
+        ]);
 }

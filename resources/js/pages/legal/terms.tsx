@@ -152,19 +152,18 @@ export default function Terms({ identity, updatedAt }: Props) {
                     </p>
                     <p>
                         <strong>
-                            Payments are handled by Lemon Squeezy, which is the
-                            merchant of record for every subscription sold here.
+                            Payments are handled by Creem, which is the merchant
+                            of record for every subscription sold here.
                         </strong>{' '}
                         That means the purchase itself is a contract between you
-                        and Lemon Squeezy: they take the payment, they appear on
-                        your card statement and on your invoice, and they
-                        calculate, collect and remit any VAT or sales tax owed
-                        on the sale. Their terms and privacy notice apply to
-                        that part of the transaction alongside these terms. We
-                        never see or store your card details. You can still
-                        raise anything about a payment with us at{' '}
-                        <MailLink email={support} /> and we will take it up with
-                        them.
+                        and Creem: they take the payment, they appear on your
+                        card statement and on your invoice, and they calculate,
+                        collect and remit any VAT or sales tax owed on the sale.
+                        Their terms and privacy notice apply to that part of the
+                        transaction alongside these terms. We never see or store
+                        your card details. You can still raise anything about a
+                        payment with us at <MailLink email={support} /> and we
+                        will take it up with them.
                     </p>
                     <p>
                         Subscriptions renew automatically at the end of each
@@ -238,7 +237,7 @@ export default function Terms({ identity, updatedAt }: Props) {
                         meantime, we may keep an amount in proportion to what
                         you used before withdrawing, measured against the full
                         price of the subscription. Refunds are issued through
-                        Lemon Squeezy as merchant of record.
+                        Creem as merchant of record.
                     </p>
                     <div className="border border-primary bg-primary/5 p-6">
                         <h3>What we need from you</h3>

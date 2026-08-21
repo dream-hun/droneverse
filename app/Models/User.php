@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Concerns\Billable;
 use App\Concerns\HasPlan;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -18,10 +19,6 @@ use Illuminate\Support\Carbon;
 use Laravel\Fortify\Contracts\PasskeyUser;
 use Laravel\Fortify\PasskeyAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
-use LemonSqueezy\Laravel\Billable;
-use LemonSqueezy\Laravel\Customer;
-use LemonSqueezy\Laravel\Order;
-use LemonSqueezy\Laravel\Subscription;
 
 /**
  * MustVerifyEmail below is the contract, not the trait. The methods it names —

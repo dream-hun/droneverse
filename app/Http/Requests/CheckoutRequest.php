@@ -12,12 +12,12 @@ use Illuminate\Validation\Rule;
 /**
  * A request to open checkout on a plan.
  *
- * Note what is not here: a price, an amount or a Lemon Squeezy variant ID. The
+ * Note what is not here: a price, an amount or a Creem product ID. The
  * buyer names a tier and a billing period and nothing else; what that costs is
  * App\Actions\ResolveCheckoutPrice's answer alone.
  *
  * The `variant` field below is this application's sense of the word — a billing
- * period such as `monthly` — and not Lemon Squeezy's, which means the price
+ * period such as `monthly` — and not Creem's, which means the price
  * object being sold. Nothing a client posts ever names one of those.
  */
 final class CheckoutRequest extends FormRequest

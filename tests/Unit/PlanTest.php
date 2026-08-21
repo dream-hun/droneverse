@@ -18,7 +18,6 @@ test('starter grants no gated features', function (): void {
 
 test('pro grants every feature the comparison table sells', function (): void {
     $expected = [
-        Feature::PythonRuntime,
         Feature::MissionBuilder,
         Feature::DroneConfigEditor,
         Feature::PremiumCertificates,
@@ -50,10 +49,25 @@ test('no plan sells a metered capability', function (): void {
         );
 });
 
+/**
+ * Python was dropped rather than deferred. Every paid tier sold it and nothing
+ * behind it was ever built, and a second language is a worker sandbox, a grader
+ * and a set of mission docs rather than a flag waiting to be flipped. Asserted
+ * by absence from the enum: re-adding the case fails here, which is the
+ * reminder that it lands in the commit that builds it.
+ */
+test('no plan sells a language the simulator cannot run', function (): void {
+    expect('python_runtime')
+        ->not->toBeIn(
+            Feature::values(),
+            'The simulator runs JavaScript only, so Python is a phase of work rather than a feature flag.',
+        );
+});
+
 test('team adds classroom features on top of pro', function (): void {
     expect(Plan::Team->hasFeature(Feature::TeamManagement))->toBeTrue();
     expect(Plan::Team->hasFeature(Feature::ClassroomTools))->toBeTrue();
-    expect(Plan::Team->hasFeature(Feature::PythonRuntime))->toBeTrue();
+    expect(Plan::Team->hasFeature(Feature::MissionBuilder))->toBeTrue();
 });
 
 /**

@@ -338,7 +338,7 @@ test('the annual saving is computed from the prices it describes', function (): 
 test('the comparison grid marks unbuilt capabilities', function (): void {
     $this->get(route('pricing'))
         ->assertInertia(fn ($page) => $page
-            ->where('comparison.0.value', 'python_runtime')
+            ->where('comparison.0.value', 'mission_builder')
             ->where('comparison.0.available', false)
             // Starter, Pro, Team.
             ->where('comparison.0.plans', [false, true, true]));

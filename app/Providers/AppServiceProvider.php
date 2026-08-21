@@ -91,7 +91,7 @@ final class AppServiceProvider extends ServiceProvider
      * Register one Gate ability per plan feature.
      *
      * Going through the Gate rather than exposing bespoke checks means routes
-     * can use `->middleware('can:python_runtime')`, Blade and React can ask
+     * can use `->middleware('can:mission_builder')`, Blade and React can ask
      * `$user->can(...)`, and every gated capability answers the same way. The
      * abilities are named after the enum values, so adding a Feature case
      * registers its gate with no further wiring.

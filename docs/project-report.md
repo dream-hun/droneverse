@@ -197,7 +197,7 @@ were that ever necessary.
 | **Catalogue** | Authored content: courses, missions, quizzes | `courses`, `challenges`, `quizzes`, `quiz_questions`, `quiz_options` | `routes/courses.php` (read) |
 | **Flight** | Reconstruction and grading of a run | *nothing* — stateless | `POST …/attempts` |
 | **Progress** | What a learner has earned | `user_challenge_progress`, `challenge_runs`, `user_quiz_progress`, `quiz_attempts` | `RecordChallengeAttempt`, `RecordQuizAttempt`, `Queries\Leaderboard`, `Queries\FlightLog` |
-| **Billing** | Subscriptions and entitlement | `lemon_squeezy_*`, `users.plan_override` | `routes/billing.php`, webhook |
+| **Billing** | Subscriptions and entitlement | `creem_*`, `users.plan_override` | `routes/billing.php`, webhook |
 
 The **Flight** context is notable for owning no persistent state at all. Grading is a pure
 function of a submitted trajectory and an authored mission; it writes nothing and reads
@@ -1148,7 +1148,7 @@ Twenty-eight application routes, excluding vendor-registered authentication endp
 | Knowledge checks | `GET …/quizzes/{quiz}`, `POST …/quizzes/{quiz}/attempts` | graded server-side |
 | Progress views | `GET /dashboard`, `GET /leaderboard`, `GET /analytics` | analytics is capability-gated |
 | Billing | `POST /checkout`, `PUT /settings/subscription`, `PUT /settings/subscription/plan`, `DELETE /settings/subscription` | throttled |
-| Webhook | `POST /lemon-squeezy/webhook` | browser middleware removed; signature verified unconditionally |
+| Webhook | `POST /creem/webhook` | browser middleware removed; signature verified unconditionally |
 | Settings | profile, security, appearance, billing | |
 
 Nested paths express *containment*, not merely hierarchy: a mission is addressed through its

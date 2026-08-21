@@ -15,7 +15,7 @@ use Illuminate\Validation\Rule;
  * The same two fields CheckoutRequest carries, and for the same reason: a pilot
  * names a tier and a billing period, and what that costs is
  * App\Actions\ResolveCheckoutPrice's answer alone. Nothing here names a price,
- * an amount or a Lemon Squeezy variant ID, so no request can reprice itself into
+ * an amount or a Creem product ID, so no request can reprice itself into
  * a plan it is not paying for.
  *
  * Which subscription is being changed is not a field either. It is the

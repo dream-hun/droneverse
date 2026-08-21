@@ -461,11 +461,10 @@
 <line x1="1470" y1="992" x2="1750" y2="992" stroke="#E2E8F0" stroke-width="1.25"/>
 <text x="1484" y="1016" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.5" font-weight="700" fill="#0F172A">Not shown</text>
 <text x="1484" y="1045" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="10.5" font-weight="400" fill="#64748B">Billing, excluded by request —</text>
-<text x="1484" y="1059.5" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="10.5" font-weight="400" fill="#64748B">lemon_squeezy_customers,</text>
-<text x="1484" y="1074" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="10.5" font-weight="400" fill="#64748B">lemon_squeezy_subscriptions and</text>
-<text x="1484" y="1088.5" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="10.5" font-weight="400" fill="#64748B">lemon_squeezy_orders. Each joins</text>
-<text x="1484" y="1103" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="10.5" font-weight="400" fill="#64748B">users through a polymorphic</text>
-<text x="1484" y="1117.5" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="10.5" font-weight="400" fill="#64748B">(billable_type, billable_id) pair.</text>
+<text x="1484" y="1059.5" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="10.5" font-weight="400" fill="#64748B">creem_customers, creem_subscriptions</text>
+<text x="1484" y="1074" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="10.5" font-weight="400" fill="#64748B">and creem_orders. Each joins users</text>
+<text x="1484" y="1088.5" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="10.5" font-weight="400" fill="#64748B">through a polymorphic</text>
+<text x="1484" y="1103" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="10.5" font-weight="400" fill="#64748B">(billable_type, billable_id) pair.</text>
 <text x="1484" y="1146.5" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="10.5" font-weight="400" fill="#64748B">Framework plumbing, which carries no</text>
 <text x="1484" y="1161" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="10.5" font-weight="400" fill="#64748B">domain relationships — cache,</text>
 <text x="1484" y="1175.5" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="10.5" font-weight="400" fill="#64748B">cache_locks, jobs, job_batches,</text>

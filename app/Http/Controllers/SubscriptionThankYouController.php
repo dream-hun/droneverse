@@ -13,14 +13,15 @@ use Inertia\Response;
 final class SubscriptionThankYouController extends Controller
 {
     /**
-     * Where a buyer lands once Lemon Squeezy reports the checkout done.
+     * Where a buyer lands once Creem reports the checkout done.
      *
-     * The pricing page sends them here from the `Checkout.Success` handler
-     * rather than Lemon Squeezy redirecting them: an Inertia visit swaps the
-     * page under the overlay without reloading the document, so the overlay is
-     * still there to be closed and the waiting for the webhook moves here,
-     * where the page is built to do it. See App\Actions\StartCheckout for why
-     * no `redirectTo()` is set on the checkout itself.
+     * Two ways in, and they are the same page. The pricing page sends a buyer
+     * here from the embed's `onComplete` handler, as an Inertia visit that
+     * swaps the page under the overlay without reloading the document — so the
+     * overlay is still there to be closed, and the waiting for the webhook
+     * moves here where the page is built to do it. It is also the `success_url`
+     * on the checkout itself, which is the route a buyer takes when the embed
+     * script never loaded and they paid on Creem's own page.
      *
      * Signed in, and nothing more. There is no order to authorise against —
      * that is the whole point of the page, which is often rendered before the

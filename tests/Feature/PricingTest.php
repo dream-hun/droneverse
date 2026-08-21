@@ -3,35 +3,36 @@
 declare(strict_types=1);
 
 use App\Enums\Plan;
+use App\Enums\SubscriptionStatus;
+use App\Models\Customer;
+use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
-use LemonSqueezy\Laravel\Customer;
-use LemonSqueezy\Laravel\LemonSqueezy;
-use LemonSqueezy\Laravel\Subscription;
 
-const CHECKOUT_URL = 'https://droneverse.lemonsqueezy.com/checkout/custom/8f2c1d';
+const CHECKOUT_URL = 'https://www.creem.io/payment/ch_4l0N34kxo16AhRKUHFUuXr';
+const CHECKOUT_ENDPOINT = 'https://test-api.creem.io/v1/checkouts';
 
 beforeEach(function (): void {
     config([
         'plans.prices' => [
             'pro' => [
-                'monthly' => 'var_pro_monthly',
-                'yearly' => 'var_pro_yearly',
+                'monthly' => 'prod_pro_monthly',
+                'yearly' => 'prod_pro_yearly',
             ],
             /*
              * Half-priced on purpose. Team sells itself now, and listing
-             * only its monthly variant keeps the per-period answers under
+             * only its monthly product keeps the per-period answers under
              * test: the tier is buyable, and one of its two periods is not.
              */
-            'team' => ['monthly' => 'var_team_monthly'],
+            'team' => ['monthly' => 'prod_team_monthly'],
         ],
     ]);
 
     /*
      * The pricing page itself quotes config/plans.php and reaches nobody.
-     * Only POST /checkout talks to Lemon Squeezy, and only the tests that
-     * mean to fake the answer.
+     * Only POST /checkout talks to Creem, and only the tests that mean to
+     * fake the answer.
      */
     Http::preventStrayRequests();
 });
@@ -47,43 +48,36 @@ test('a guest can read the pricing page', function (): void {
 });
 
 /**
- * An environment with no Lemon Squeezy credentials — every local checkout,
- * every test run, and any deployment set up before the store was — still
- * renders the whole page. `configured` is false, which the page reads as
- * "the upgrade buttons stay disabled": presentation only, since
- * ResolveCheckoutPrice is the guard that actually refuses to sell.
+ * An environment with no Creem credentials — every local checkout, every test
+ * run, and any deployment set up before the account was — still renders the
+ * whole page. `configured` is false, which the page reads as "the upgrade
+ * buttons stay disabled": presentation only, since ResolveCheckoutPrice is
+ * the guard that actually refuses to sell.
  */
 test('the page renders where checkout cannot open at all', function (): void {
     $this->get(route('pricing'))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page->where('lemonSqueezy.configured', false));
+        ->assertInertia(fn ($page) => $page->where('creem.configured', false));
 });
 
 /**
- * Both values are needed to mint a checkout, so either one missing has to
- * report the same thing. Lemon.js takes no publishable key of its own, which
- * is why this one boolean is the whole of what the browser is told.
+ * The API key is the whole of what makes checkout possible: Creem needs no
+ * store identifier, its embed script takes no publishable key, and the key's
+ * own prefix decides whether test or live products are being sold. So one
+ * boolean is the whole of what the browser is told.
  */
-test('checkout is reported as unconfigured unless both the store and the key are set', function (): void {
-    foreach ([
-        ['api_key' => 'test-api-key', 'store' => null],
-        ['api_key' => null, 'store' => 'droneverse'],
-        ['api_key' => '', 'store' => 'droneverse'],
-        ['api_key' => 'test-api-key', 'store' => ''],
-    ] as $configuration) {
-        config([
-            'lemon-squeezy.api_key' => $configuration['api_key'],
-            'lemon-squeezy.store' => $configuration['store'],
-        ]);
+test('checkout is reported as unconfigured unless the api key is set', function (): void {
+    foreach ([null, ''] as $apiKey) {
+        config(['creem.api_key' => $apiKey]);
 
         $this->get(route('pricing'))
-            ->assertInertia(fn ($page) => $page->where('lemonSqueezy.configured', false));
+            ->assertInertia(fn ($page) => $page->where('creem.configured', false));
     }
 
-    config(['lemon-squeezy.api_key' => 'test-api-key', 'lemon-squeezy.store' => 'droneverse']);
+    config(['creem.api_key' => 'creem_test_key']);
 
     $this->get(route('pricing'))
-        ->assertInertia(fn ($page) => $page->where('lemonSqueezy.configured', true));
+        ->assertInertia(fn ($page) => $page->where('creem.configured', true));
 });
 
 test('a guest is sent to sign up rather than to checkout', function (): void {
@@ -118,8 +112,8 @@ test('a pro pilot is not sold pro again', function (): void {
 /**
  * The card quotes its price from `plans.amounts` and its button from
  * `plans.prices`. An environment with the first and not the second — every
- * environment with no Lemon Squeezy catalogue behind it — must still render
- * honest copy above a button that refuses.
+ * environment with no Creem catalogue behind it — must still render honest
+ * copy above a button that refuses.
  */
 test('an unpriced tier is not for sale however confidently it is quoted', function (): void {
     config(['plans.prices.pro' => []]);
@@ -136,7 +130,7 @@ test('an unpriced tier is not for sale however confidently it is quoted', functi
 /**
  * Purchasability is a question about one billing period, not about the tier.
  *
- * A store is built one variant at a time, so a tier with a monthly ID and no
+ * A store is built one product at a time, so a tier with a monthly ID and no
  * yearly one is the ordinary state of a half-migrated environment rather
  * than an exotic one. The card must stay buyable — monthly is genuinely for
  * sale — while saying, per period, which of them a checkout can be opened
@@ -144,7 +138,7 @@ test('an unpriced tier is not for sale however confidently it is quoted', functi
  * it cannot work that out for itself unless it is told here.
  */
 test('a billing period with no configured price is not for sale though its sibling is', function (): void {
-    config(['plans.prices.pro' => ['monthly' => 'var_pro_monthly']]);
+    config(['plans.prices.pro' => ['monthly' => 'prod_pro_monthly']]);
 
     $this->actingAs(User::factory()->create())
         ->get(route('pricing'))
@@ -165,7 +159,7 @@ test('a billing period with no configured price is not for sale though its sibli
  * buy.
  */
 test('the period the page opens on is marked unsellable when only its sibling is priced', function (): void {
-    config(['plans.prices.pro' => ['yearly' => 'var_pro_yearly']]);
+    config(['plans.prices.pro' => ['yearly' => 'prod_pro_yearly']]);
 
     $this->actingAs(User::factory()->create())
         ->get(route('pricing'))
@@ -226,7 +220,7 @@ test('team is bought from the page like pro', function (): void {
  */
 test('a subscriber is offered a switch rather than a second checkout', function (): void {
     $user = User::factory()->create();
-    pricingSubscribe($user, 'var_pro_monthly');
+    pricingSubscribe($user, 'prod_pro_monthly');
 
     $this->actingAs($user)
         ->get(route('pricing'))
@@ -245,7 +239,7 @@ test('a subscriber is offered a switch rather than a second checkout', function 
  */
 test('a subscriber may switch down a tier where a comped account may not', function (): void {
     $subscriber = User::factory()->create();
-    pricingSubscribe($subscriber, 'var_team_monthly');
+    pricingSubscribe($subscriber, 'prod_team_monthly');
 
     $this->actingAs($subscriber)
         ->get(route('pricing'))
@@ -271,8 +265,8 @@ test('a subscription winding down is sent to billing rather than to either butto
     $user = User::factory()->create();
     pricingSubscribe(
         $user,
-        'var_pro_monthly',
-        status: Subscription::STATUS_CANCELLED,
+        'prod_pro_monthly',
+        status: SubscriptionStatus::ScheduledCancel,
         endsAt: now()->addWeek(),
     );
 
@@ -294,7 +288,7 @@ test('checkout refuses to sell a second subscription', function (): void {
     fakeCheckoutApi();
 
     $user = User::factory()->create();
-    pricingSubscribe($user, 'var_pro_monthly');
+    pricingSubscribe($user, 'prod_pro_monthly');
 
     $this->actingAs($user)
         ->postJson(route('checkout.store'), ['plan' => 'team', 'variant' => 'monthly'])
@@ -306,14 +300,14 @@ test('checkout refuses to sell a second subscription', function (): void {
 
 /**
  * A pilot whose subscription has expired holds nothing, so they buy rather
- * than switch — which is the same answer ResumeSubscription gives once
- * `ends_at` has passed.
+ * than switch — which is the same answer ResumeSubscription gives once the
+ * period has run out.
  */
 test('an expired subscription is bought again rather than switched', function (): void {
     fakeCheckoutApi();
 
     $user = User::factory()->create();
-    pricingSubscribe($user, 'var_pro_monthly', status: Subscription::STATUS_EXPIRED);
+    pricingSubscribe($user, 'prod_pro_monthly', status: SubscriptionStatus::Expired);
 
     $this->actingAs($user)
         ->get(route('pricing'))
@@ -344,12 +338,12 @@ test('the comparison grid marks unbuilt capabilities', function (): void {
             ->where('comparison.0.plans', [false, true, true]));
 });
 
-test('the client is never handed a variant id', function (): void {
+test('the client is never handed a product id', function (): void {
     $response = $this->actingAs(User::factory()->create())->get(route('pricing'));
 
     $response->assertOk();
-    $response->assertDontSee('var_pro_monthly');
-    $response->assertDontSee('var_team_monthly');
+    $response->assertDontSee('prod_pro_monthly');
+    $response->assertDontSee('prod_team_monthly');
 });
 
 test('checkout requires an account', function (): void {
@@ -358,12 +352,12 @@ test('checkout requires an account', function (): void {
 });
 
 /**
- * The response is a URL now rather than an option bag for a client-side SDK
- * to assemble a checkout from. The browser is handed something it cannot
- * alter the price of: it never learns a variant ID, and the URL is already
- * scoped to this buyer and this variant by the time it leaves the server.
+ * The response is a URL and nothing else. The browser is handed something it
+ * cannot alter the price of: it never learns a product ID, and the session is
+ * already scoped to this buyer and this product by the time it leaves the
+ * server.
  */
-test('checkout answers with a url minted for the resolved variant', function (): void {
+test('checkout answers with a url minted for the resolved product', function (): void {
     fakeCheckoutApi();
 
     $user = User::factory()->create();
@@ -375,83 +369,76 @@ test('checkout answers with a url minted for the resolved variant', function ():
     $response->assertExactJson(['checkout' => ['url' => CHECKOUT_URL]]);
 
     $sent = lastRequest();
-    $attributes = $sent->data()['data']['attributes'];
-    $relationships = $sent->data()['data']['relationships'];
 
-    expect($sent->url())->toBe(LemonSqueezy::API.'/checkouts');
-    expect($relationships['variant']['data']['id'])->toBe('var_pro_yearly');
-    expect($relationships['store']['data']['id'])->toBe('droneverse');
+    expect($sent->url())->toBe(CHECKOUT_ENDPOINT);
+    expect($sent->header('x-api-key'))->toBe(['creem_test_key']);
+    expect($sent['product_id'])->toBe('prod_pro_yearly');
 
     /*
-     * Sorted before it is compared because the package assembles this array
-     * in its own order and only the pairs matter. `subscription_type` is
-     * what makes the resulting webhook record a subscription against this
-     * billable, and it is why StartCheckout calls subscribe() rather than
-     * checkout(); `plan` and `variant` are ours, carried along for anyone
-     * reading the payload later.
+     * Creem copies this onto the subscription it creates and onto every event
+     * about it afterwards, which is how a webhook arriving hours later knows
+     * whose plan to grant.
      */
-    $custom = $attributes['checkout_data']['custom'];
-    ksort($custom);
+    $metadata = $sent['metadata'];
+    ksort($metadata);
 
-    expect($custom)
-        ->toBe(
-            ['billable_id' => (string) $user->id, 'billable_type' => $user->getMorphClass(), 'plan' => 'pro', 'subscription_type' => 'default', 'variant' => 'yearly'],
-        );
+    expect($metadata)->toBe([
+        'billable_id' => (string) $user->id,
+        'billable_type' => $user->getMorphClass(),
+        'plan' => 'pro',
+        'variant' => 'yearly',
+    ]);
 
     /*
-     * The overlay needs this; without it the URL only works as a full-page
-     * navigation.
+     * Locked to the account's own address, so the Creem customer that comes
+     * back is this pilot rather than whoever they happened to type.
      */
-    expect($attributes['checkout_options']['embed'])->toBeTrue();
+    expect($sent['customer'])->toBe(['email' => $user->email]);
 });
 
 /**
- * A redirect URL navigates the browser away the instant Lemon Squeezy has
- * the money, which tears the pricing page down before its Checkout.Success
- * handler can poll for the entitlement — and the plan is granted by a webhook
- * that has not necessarily arrived, so the buyer lands on a fresh page still
- * showing the plan they just paid to leave.
+ * The success URL is not where the overlay sends anybody — the page cancels
+ * that navigation and makes the same trip as an Inertia visit, which keeps the
+ * app mounted underneath. It is there for the buyer whose browser blocked
+ * embed.js and paid on Creem's own page, who would otherwise be stranded on it.
  */
-test('checkout leaves the browser on the pricing page', function (): void {
+test('checkout names the thank you page for a buyer who never framed it', function (): void {
     fakeCheckoutApi();
 
     $this->actingAs(User::factory()->create())
         ->postJson(route('checkout.store'), ['plan' => 'pro', 'variant' => 'monthly'])
         ->assertOk();
 
-    expect(lastRequest()->data()['data']['attributes']['product_options'])->not->toHaveKey('redirect_url');
+    expect(lastRequest()['success_url'])->toBe(route('subscription.thank-you'));
 });
 
 /**
- * Minting a checkout is a live API call, which is new: the old Paddle path
- * built its option bag locally and could not fail. An unset store, an unset
- * key or a provider outage must not reach the pilot as a 500, and must not
- * name our configuration in the message it does reach them as.
+ * Minting a checkout is a live API call. An unset key or a provider outage
+ * must not reach the pilot as a 500, and must not name our configuration in
+ * the message it does reach them as.
  */
-test('an unconfigured store is a validation error rather than a five hundred', function (): void {
-    expect(config('lemon-squeezy.store'))->toBeEmpty();
+test('an unconfigured account is a validation error rather than a five hundred', function (): void {
+    expect(config('creem.api_key'))->toBeEmpty();
 
     $response = $this->actingAs(User::factory()->create())
         ->postJson(route('checkout.store'), ['plan' => 'pro', 'variant' => 'monthly']);
 
     $response->assertStatus(422);
     $response->assertJsonValidationErrors('plan');
-    $response->assertDontSee('store', escape: false);
+    $response->assertDontSee('CREEM_API_KEY', escape: false);
 
     /*
-     * The store is read before anything leaves the building, so a
-     * misconfigured environment does not even spend the round trip.
+     * The key is read before anything leaves the building, so a misconfigured
+     * environment does not even spend the round trip.
      */
     Http::assertNothingSent();
 });
 
 test('a provider outage is a validation error rather than a five hundred', function (): void {
-    config(['lemon-squeezy.api_key' => 'test-api-key', 'lemon-squeezy.store' => 'droneverse']);
+    config(['creem.api_key' => 'creem_test_key']);
 
     Http::fake([
-        LemonSqueezy::API.'/checkouts' => Http::response([
-            'errors' => [['detail' => 'Service unavailable.', 'status' => '503']],
-        ], 503),
+        CHECKOUT_ENDPOINT => Http::response(['error' => 'Service unavailable.'], 503),
     ]);
 
     $this->actingAs(User::factory()->create())
@@ -508,39 +495,24 @@ test('checkout refuses a plan that does not exist', function (): void {
 });
 
 /**
- * Give the user a Lemon Squeezy subscription, alongside the one customer row
- * a real account has.
- *
- * Built with the package's factory but saved by hand: its afterCreating hook
- * creates a customer per subscription, and lemon_squeezy_customers is unique
- * on (billable_id, billable_type).
+ * Give the user a Creem subscription, alongside the one customer row a real
+ * account has.
  */
 function pricingSubscribe(
     User $user,
-    string $variantId,
-    string $status = Subscription::STATUS_ACTIVE,
+    string $productId,
+    SubscriptionStatus $status = SubscriptionStatus::Active,
     ?DateTimeInterface $endsAt = null,
 ): Subscription {
-    Customer::query()->create([
-        'billable_id' => $user->id,
-        'billable_type' => $user->getMorphClass(),
-        'lemon_squeezy_id' => (string) fake()->unique()->randomNumber(8),
-    ]);
+    Customer::factory()->billable($user)->create();
 
-    $subscription = Subscription::factory()->make([
-        'billable_id' => $user->id,
-        'billable_type' => $user->getMorphClass(),
-        'type' => Subscription::DEFAULT_TYPE,
-        'lemon_squeezy_id' => (string) fake()->unique()->randomNumber(8),
-        'status' => $status,
-        'product_id' => 'prod_droneverse',
-        'variant_id' => $variantId,
-        'ends_at' => $endsAt,
-    ]);
-
-    $subscription->save();
-
-    return $subscription;
+    return Subscription::factory()
+        ->billable($user)
+        ->selling($productId)
+        ->create([
+            'status' => $status->value,
+            ...($endsAt instanceof DateTimeInterface ? ['current_period_end_at' => $endsAt] : []),
+        ]);
 }
 
 /**
@@ -557,19 +529,22 @@ function lastRequest(): Request
 }
 
 /**
- * Configure a store and answer the one endpoint that mints a checkout.
+ * Configure an API key and answer the one endpoint that mints a checkout.
+ *
+ * The key is a test-mode one, which is also what points the client at Creem's
+ * test host — so CHECKOUT_ENDPOINT is not an arbitrary URL to fake, it is the
+ * host that prefix resolves to.
  */
 function fakeCheckoutApi(): void
 {
-    config(['lemon-squeezy.api_key' => 'test-api-key', 'lemon-squeezy.store' => 'droneverse']);
+    config(['creem.api_key' => 'creem_test_key']);
 
     Http::fake([
-        LemonSqueezy::API.'/checkouts' => Http::response([
-            'data' => [
-                'type' => 'checkouts',
-                'id' => 'chk_test',
-                'attributes' => ['url' => CHECKOUT_URL],
-            ],
+        CHECKOUT_ENDPOINT => Http::response([
+            'id' => 'ch_4l0N34kxo16AhRKUHFUuXr',
+            'checkout_url' => CHECKOUT_URL,
+            'product_id' => 'prod_pro_yearly',
+            'status' => 'pending',
         ]),
     ]);
 }

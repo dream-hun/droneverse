@@ -4,10 +4,10 @@ A plain description of every model in the application and the data it holds. The
 behind the overall shape of the schema is in project-report.md, section 7, and the diagram
 is in erd.svg.
 
-There are twelve models in the application's own model directory. Four more come from
-packages — the passkey model from Laravel Fortify and three billing models from the Lemon
-Squeezy package — but their tables are created by migrations kept in this repository, so
-they are described here as well.
+There are fifteen models in the application's own model directory, three of which mirror
+the payment provider's records locally. One more comes from a package — the passkey model
+from Laravel Fortify — but its table is created by a migration kept in this repository, so
+it is described here as well.
 
 ## Some things that are true everywhere
 
@@ -353,43 +353,57 @@ the code building the link can never disagree about where the log is.
 
 ## Billing
 
-These three models come from the Lemon Squeezy package and are reached through the billable
-trait on the user. Their migrations were copied into this repository so the schema is
-versioned here rather than in the vendor directory, and the application tells the package
-not to load its own. The package's two license-key tables were deliberately not copied:
-this application sells subscriptions, not licenses.
+These three models mirror what Creem holds, kept in step by the webhook and read by every
+screen that shows a pilot their billing. Creem is the record and these are the copy, so
+nothing in the application writes one except the actions the webhook drives — which is what
+lets the whole billing page render without a network call, in an environment with no
+credentials at all. They are reached through the billable trait on the user, and they are
+polymorphic rather than keyed to users so that a future classroom can be billed too.
 
 **Customer: this stores the link between an account and its customer record at the payment
 provider.**
 
-The polymorphic owner — always a user here — the provider's customer identifier, and a
-generic trial end date independent of any particular subscription.
+The polymorphic owner — always a user here — the provider's customer identifier and the
+email it was created with. Written by the webhook rather than by checkout, because Creem
+names the customer when the payment succeeds. It outlives every subscription the pilot ever
+holds, which is what makes it the right thing to mint a billing-portal link against:
+somebody whose subscription ended last month still has invoices to download.
 
 **Subscription: this stores what a pilot is currently paying for.**
 
 The owner, a name allowing more than one subscription per account, the provider's
-identifier, and a status — active, on trial, past due, paused, cancelled or expired.
+identifier, its customer, and a status — active, trialing, scheduled to cancel, past due,
+unpaid, incomplete, paused, expired or cancelled.
 
-The important value is the variant, which identifies the exact thing being sold. Unlike the
-Paddle integration that preceded it there is no separate subscription-items table, so the
-question "which price is this pilot subscribed to?" is one column and no join; entitlement
-resolution maps that value back to a plan through configuration. The product identifier
-alongside it matters only when swapping plans, because the provider's update endpoint takes
-a product and a variant together and refuses a pairing that does not match.
+The important value is the product, which identifies the exact thing being sold. A Creem
+product carries its own price and billing period, so one product is one purchasable price:
+there is no separate price object and, unlike the Paddle integration two providers ago, no
+subscription-items table. The question "which price is this pilot subscribed to?" is one
+column and no join, and entitlement resolution maps that value back to a plan through
+configuration.
 
-The rest is the detail the settings page shows: the card brand and last four digits, the
-pause mode and when a pause resumes, and three dates — when a trial ends, when the
-subscription next renews, and when it finally ends. That last date is the grace period
-after a cancellation, during which the subscription still counts as valid.
+A unit count sits beside it for the classroom seats that are not built yet, since Creem
+bills seats as a quantity against one product rather than as a second subscription.
+
+The rest is dates, and they are stored as the provider reports them rather than reduced to
+a single "ends" column, because which one ends a subscription depends on how it is ending:
+when a trial ends, when the next charge falls, when the current period started and ends,
+and when somebody cancelled. The model derives the one date a page actually shows from
+those. There is no card brand and no last four, because Creem publishes neither — the
+billing portal is the only place a pilot sees the card being charged.
 
 **Order: this stores one completed purchase, and together they are the billing history.**
 
-Replacing the transactions table the previous payment provider used. Each row holds who
-paid, three identifiers (the provider's, a public UUID, and a human-facing order number,
-all unique), what was bought as a product and variant, and the money: currency, subtotal,
-discount total, tax and tax name, and total, all in minor units. It also records the
-order's status, a receipt URL, whether and when it was refunded, and when the order was
-placed, which is distinct from when the row was written.
+Each row holds who paid, the provider's identifiers for the order, the checkout, the
+customer and the subscription it belongs to, what was bought as a product, and the money:
+an amount in minor units and its currency. It also records the order's status, whether and
+when it was refunded and for how much — Creem allows partial refunds, so the amount matters
+as well as the flag — and when the order was placed, which is distinct from when the row
+was written.
+
+There is no receipt URL, because Creem publishes none: invoices live behind the customer
+portal, reached by a magic link minted per request, so the billing page links to the portal
+once rather than carrying a document link per row.
 
 ---
 

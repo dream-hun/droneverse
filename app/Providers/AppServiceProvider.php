@@ -13,35 +13,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
-use LemonSqueezy\Laravel\LemonSqueezy;
 
 final class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
-    public function register(): void
-    {
-        /*
-         * The three billing tables are versioned in database/migrations like
-         * every other table this application owns, so the package must not also
-         * load its own copies from the vendor directory — the same schema would
-         * be created twice, and a schema we cannot edit is a schema we cannot
-         * evolve.
-         */
-        LemonSqueezy::ignoreMigrations();
-
-        /*
-         * The package registers its webhook route only wrapped in
-         * `if (config('lemon-squeezy.signing_secret'))` for the signature
-         * middleware, so an environment that forgets the secret would serve an
-         * unauthenticated endpoint that grants paid plans. routes/billing.php
-         * registers the route itself with a signature check that is not
-         * conditional on configuration. See VerifyLemonSqueezyWebhookSignature.
-         */
-        LemonSqueezy::ignoreRoutes();
-    }
-
     /**
      * Bootstrap any application services.
      */
@@ -61,7 +35,7 @@ final class AppServiceProvider extends ServiceProvider
      * at once, one of which is `App::isProduction()`. That is a literal
      * `APP_ENV === 'production'` comparison, so every staging, demo, preview and
      * uat environment served all thirteen to anonymous visitors: full stack
-     * traces, Lemon Squeezy webhook payloads, session identifiers and pilots'
+     * traces, Creem webhook payloads, session identifiers and pilots'
      * email addresses, plus the ability to delete the evidence afterwards.
      *
      * Defining this gate is what replaces that. The middleware skips its

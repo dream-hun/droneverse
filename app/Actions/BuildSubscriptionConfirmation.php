@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\Plan;
+use App\Models\Subscription;
 use App\Models\User;
 use App\Queries\DefaultSubscription;
 use DateTimeInterface;
-use LemonSqueezy\Laravel\Subscription;
 
 /**
  * What the thank-you page tells a pilot about the subscription they just paid
@@ -39,7 +39,7 @@ final readonly class BuildSubscriptionConfirmation
     public function handle(User $user): array
     {
         $subscription = $this->subscriptions->for($user);
-        $active = $subscription?->valid() === true;
+        $active = $subscription instanceof Subscription && $subscription->valid();
         $plan = $user->plan();
 
         return [
@@ -48,7 +48,7 @@ final readonly class BuildSubscriptionConfirmation
                 'label' => $plan->label(),
                 'isPaid' => $plan->isPaid(),
             ],
-            'subscription' => $active && $subscription instanceof Subscription
+            'subscription' => $active
                 ? $this->subscription($subscription)
                 : null,
             /*
@@ -76,7 +76,7 @@ final readonly class BuildSubscriptionConfirmation
      */
     private function subscription(Subscription $subscription): array
     {
-        $priceId = $subscription->variant_id;
+        $priceId = $subscription->product_id;
         $plan = Plan::fromPriceId($priceId);
 
         return [
@@ -85,23 +85,11 @@ final readonly class BuildSubscriptionConfirmation
             'onTrial' => $subscription->onTrial(),
             'trialEndsAt' => $this->iso($subscription->trial_ends_at),
             'renewsAt' => $this->iso($subscription->renews_at),
-            /*
-             * Written by the webhook once a payment has actually been taken, so
-             * both are null on a subscription that started on a trial. The page
-             * names the card when it can and says nothing when it cannot.
-             */
-            'cardBrand' => $this->text($subscription->card_brand),
-            'cardLastFour' => $this->text($subscription->card_last_four),
         ];
     }
 
     private function iso(mixed $date): ?string
     {
         return $date instanceof DateTimeInterface ? $date->format(DATE_ATOM) : null;
-    }
-
-    private function text(?string $value): ?string
-    {
-        return $value === null || $value === '' ? null : $value;
     }
 }

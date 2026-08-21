@@ -10,13 +10,15 @@ use App\Actions\SwapSubscription;
 use App\Enums\Plan;
 use App\Enums\PlanChange;
 use App\Http\Controllers\Controller;
+use App\Http\Integrations\Creem;
 use App\Http\Requests\ChangePlanRequest;
+use App\Models\Customer;
+use App\Models\Subscription;
 use App\Models\User;
 use App\Queries\DefaultSubscription;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
-use LemonSqueezy\Laravel\Subscription;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -41,7 +43,7 @@ final class SubscriptionController extends Controller
         try {
             $resumed = $resume->handle($user, $subscription);
         } catch (Throwable) {
-            return $this->failed(__('Lemon Squeezy could not resume your subscription. Please try again.'));
+            return $this->failed(__('Creem could not resume your subscription. Please try again.'));
         }
 
         if (! $resumed) {
@@ -67,7 +69,7 @@ final class SubscriptionController extends Controller
         try {
             $cancelled = $cancel->handle($user, $subscription);
         } catch (Throwable) {
-            return $this->failed(__('Lemon Squeezy could not cancel your subscription. Please try again.'));
+            return $this->failed(__('Creem could not cancel your subscription. Please try again.'));
         }
 
         if (! $cancelled) {
@@ -83,30 +85,41 @@ final class SubscriptionController extends Controller
     }
 
     /**
-     * Send the pilot to Lemon Squeezy's hosted page for changing the card on file.
+     * Send the pilot to Creem's customer portal.
      *
      * Hosted rather than an overlay of our own: card details should never touch
-     * a page we render, and the URL is minted per request and subscription-scoped.
+     * a page we render, and the link is a magic link minted per request and
+     * scoped to one customer, so it is redirected to rather than stored.
+     *
+     * The portal is broader than the payment method it is reached from. It is
+     * also where a pilot downloads invoices, which is why the receipts table
+     * beside this button carries no per-row link — Creem publishes no receipt
+     * URL, and this one page is where every document lives.
+     *
+     * Keyed on the customer rather than on the subscription, because the two
+     * outlast each other differently: somebody whose subscription ended last
+     * month still has invoices to download, and the customer row is what
+     * survives to let them.
      *
      * Inertia::location() rather than a plain away-redirect: the billing page
      * reaches this with an Inertia <Link>, which is an XHR. The browser follows
-     * a 302 transparently, and Lemon Squeezy's HTML comes back without the X-Inertia
+     * a 302 transparently, and Creem's HTML comes back without the X-Inertia
      * header — Inertia rejects that as an invalid response instead of
      * navigating. This answers an Inertia visit with the 409 and
      * X-Inertia-Location it acts on, and a plain request with the 302 it wants.
      */
-    public function edit(#[CurrentUser] User $user): Response
+    public function edit(#[CurrentUser] User $user, Creem $creem): Response
     {
-        $subscription = $this->subscriptions->for($user);
+        $customer = Customer::query()->whereMorphedTo('billable', $user)->first();
 
-        if (! $subscription instanceof Subscription) {
-            return $this->failed(__('There is no subscription to update.'));
+        if (! $customer instanceof Customer || $customer->creem_id === null) {
+            return $this->failed(__('There is no billing account to manage yet.'));
         }
 
         try {
-            return Inertia::location($subscription->updatePaymentMethodUrl());
+            return Inertia::location($creem->customerPortalUrl($customer->creem_id));
         } catch (Throwable) {
-            return $this->failed(__('Lemon Squeezy could not open the payment method page. Please try again.'));
+            return $this->failed(__('Creem could not open the billing portal. Please try again.'));
         }
     }
 
@@ -114,8 +127,8 @@ final class SubscriptionController extends Controller
      * Move to another plan or billing period, keeping one subscription.
      *
      * Upgrades, downgrades and monthly-to-yearly are all this one route: which
-     * direction the move goes changes what Lemon Squeezy prorates, and nothing
-     * else. A subscriber never buys a second subscription to change tier — see
+     * direction the move goes changes what Creem prorates, and nothing else. A
+     * subscriber never buys a second subscription to change tier — see
      * App\Actions\SwapSubscription for what that would cost them.
      */
     public function swap(ChangePlanRequest $request, #[CurrentUser] User $user, SwapSubscription $swap): RedirectResponse
@@ -143,10 +156,10 @@ final class SubscriptionController extends Controller
         } catch (Throwable) {
             /*
              * A live API call, so it fails for reasons that are none of the
-             * pilot's business: an unset key, a variant the store does not have,
-             * Lemon Squeezy being down. The subscription is untouched either way.
+             * pilot's business: an unset key, a product the account does not
+             * have, Creem being down. The subscription is untouched either way.
              */
-            return $this->failed(__('Lemon Squeezy could not change your plan. Please try again.'));
+            return $this->failed(__('Creem could not change your plan. Please try again.'));
         }
 
         return match ($change) {
@@ -159,16 +172,18 @@ final class SubscriptionController extends Controller
     /**
      * Report a completed switch.
      *
-     * It says what will happen to the money, because the button gave no warning
-     * about it: nothing is charged today, and the difference lands on the next
-     * renewal. A pilot who reads "you're on Team now" and nothing else is left
-     * wondering what their card just did.
+     * It says what happened to the money, because the button is the last thing
+     * between a pilot and a charge: Creem prorates immediately, so the
+     * difference for the rest of this period has already been taken — or
+     * refunded, on a downgrade — by the time this renders. A pilot who reads
+     * "you're on Team now" and nothing else is left wondering what their card
+     * just did.
      */
     private function changed(Plan $plan): RedirectResponse
     {
         Inertia::flash('toast', [
             'type' => 'success',
-            'message' => __('You are on :plan now. The difference is settled on your next renewal.', ['plan' => $plan->label()]),
+            'message' => __('You are on :plan now. The difference for the rest of this period has been settled.', ['plan' => $plan->label()]),
         ]);
 
         return to_route('billing.edit');

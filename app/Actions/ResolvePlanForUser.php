@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\Plan;
+use App\Models\Subscription;
 use App\Models\User;
-use LemonSqueezy\Laravel\Subscription;
 
 final readonly class ResolvePlanForUser
 {
@@ -17,10 +17,10 @@ final readonly class ResolvePlanForUser
      *
      *   1. `plan_override` — set by hand for comped, staff and academic
      *      accounts, and for pre-launch users backfilled when gating lands. It
-     *      outranks Lemon Squeezy deliberately: an override exists precisely to
-     *      say something billing does not know.
-     *   2. An active Lemon Squeezy subscription, mapped back to a plan through
-     *      the variant ID in config/plans.php.
+     *      outranks Creem deliberately: an override exists precisely to say
+     *      something billing does not know.
+     *   2. An active Creem subscription, mapped back to a plan through the
+     *      product ID in config/plans.php.
      *   3. Starter. Everyone has an account, so everyone has a plan.
      *
      * Guests resolve to Starter too, so callers sharing entitlements with an
@@ -62,8 +62,8 @@ final readonly class ResolvePlanForUser
      * The best plan among the price IDs the user currently subscribes to.
      *
      * A user can hold more than one valid subscription — mid-upgrade, or a
-     * personal Pro seat alongside a Team one — so every price ID is considered
-     * and the most generous wins.
+     * personal Pro seat alongside a Team one — so every product ID is
+     * considered and the most generous wins.
      */
     private function fromSubscription(User $user): ?Plan
     {
@@ -84,20 +84,19 @@ final readonly class ResolvePlanForUser
     }
 
     /**
-     * The variant IDs behind the user's still-valid subscriptions — active or
-     * trialing, plus past due, a free pause, and the grace period after a
-     * cancellation.
+     * The product IDs behind the user's still-valid subscriptions — active or
+     * trialing, plus past due and the grace period after a cancellation.
      *
-     * A Lemon Squeezy subscription names the variant it sells on the row
-     * itself, so there is no join here; Paddle's subscription_items table has
-     * no counterpart in this schema.
+     * A Creem subscription names the product it sells on the row itself, so
+     * there is no join here: a Creem product carries its own price and billing
+     * period, and Paddle's subscription_items table has no counterpart in this
+     * schema.
      *
-     * Filtered in PHP rather than in SQL because `valid()` exists only as an
-     * instance method — the package ships scopes for the individual statuses
-     * but none that reproduces the union of them, and re-expressing it as a
-     * `whereIn` would leave two definitions of "valid" to drift apart. The set
-     * is one user's subscriptions, so it is small enough that the difference
-     * does not matter.
+     * Filtered in PHP rather than in SQL because which statuses entitle
+     * anything is App\Enums\SubscriptionStatus's answer, and re-expressing it as
+     * a `whereIn` here would leave two definitions of "valid" to drift apart.
+     * The set is one user's subscriptions, so it is small enough that the
+     * difference does not matter.
      *
      * Querying Subscription directly rather than reading `$user->subscriptions`
      * keeps resolution clear of the lazy-loading guard, which is armed
@@ -111,7 +110,7 @@ final readonly class ResolvePlanForUser
             ->whereMorphedTo('billable', $user)
             ->get()
             ->filter(fn (Subscription $subscription): bool => $subscription->valid())
-            ->pluck('variant_id')
+            ->pluck('product_id')
             ->all();
     }
 }

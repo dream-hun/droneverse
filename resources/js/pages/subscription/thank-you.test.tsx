@@ -49,8 +49,6 @@ const SUBSCRIPTION: SubscriptionConfirmation = {
     onTrial: false,
     trialEndsAt: null,
     renewsAt: '2027-08-21T00:00:00+00:00',
-    cardBrand: 'visa',
-    cardLastFour: '4242',
 };
 
 beforeEach(() => {
@@ -108,7 +106,11 @@ describe('ThankYou', () => {
             'Welcome to Pro',
         );
         expect(screen.getByText('Billed yearly')).toBeDefined();
-        expect(screen.getByText('VISA ending 4242')).toBeDefined();
+        /*
+         * No "paid with" line to assert: Creem publishes no card brand or last
+         * four on any payload, so the page has nothing to say about the card
+         * and the billing portal is where a buyer sees it.
+         */
         expect(
             screen.getByText('Every course and every mission'),
         ).toBeDefined();

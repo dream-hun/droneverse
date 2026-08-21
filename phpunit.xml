@@ -27,17 +27,16 @@
         <env name="DB_DATABASE" value=":memory:"/>
         <env name="DB_URL" value=""/>
         <!--
-            The suite must pass with no Lemon Squeezy credentials, and it must
-            pass the same way on a machine whose .env has real ones. Blanked
-            here so the tests that assert an unconfigured environment — the
-            pricing page rendering with checkout disabled, a webhook refused
-            because no signing secret is set — cannot be quietly disarmed by a
-            developer's local store. Tests that need a credential set it with
-            config() for the duration of the test.
+            The suite must pass with no Creem credentials, and it must pass the
+            same way on a machine whose .env has real ones. Blanked here so the
+            tests that assert an unconfigured environment — the pricing page
+            rendering with checkout disabled, a webhook refused because no
+            signing secret is set — cannot be quietly disarmed by a developer's
+            local account. Tests that need a credential set it with config()
+            for the duration of the test.
         -->
-        <env name="LEMON_SQUEEZY_API_KEY" value=""/>
-        <env name="LEMON_SQUEEZY_STORE" value=""/>
-        <env name="LEMON_SQUEEZY_SIGNING_SECRET" value=""/>
+        <env name="CREEM_API_KEY" value=""/>
+        <env name="CREEM_WEBHOOK_SECRET" value=""/>
         <!--
             The log viewer ships disabled in .env.example, which unregisters its
             routes entirely. That is right for a real environment and wrong for

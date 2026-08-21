@@ -34,7 +34,7 @@ import {
 import type { ColumnDef } from '@/lib/data-table';
 import { pricing } from '@/routes';
 import { edit as editBilling } from '@/routes/billing';
-import { edit as editPaymentMethod } from '@/routes/payment-method';
+import { edit as editBillingPortal } from '@/routes/billing-portal';
 import type { PlanValue } from '@/types/auth';
 import type {
     BillingOrder,
@@ -73,8 +73,10 @@ function formatDate(value: string | null): string | null {
  * ("$12.00"), and sorting that as text puts $9 after $10. Sorting it properly
  * needs a raw minor-unit amount on the payload, which is a backend change.
  *
- * `orderNumber` has no such problem — Lemon Squeezy counts orders with an
- * integer, and it is sent as one — so that column sorts on the number itself.
+ * There is no invoice column either. Creem publishes no per-order receipt URL —
+ * invoices live behind the customer portal, reached by a link minted per
+ * request — so the "Manage billing" button above this table is where every
+ * document is, and a column here would have nothing to put in it.
  */
 const ORDER_COLUMNS: ColumnDef<BillingOrder>[] = [
     {
@@ -86,11 +88,15 @@ const ORDER_COLUMNS: ColumnDef<BillingOrder>[] = [
         cell: (order) => formatDate(order.orderedAt) ?? '—',
     },
     {
-        id: 'orderNumber',
+        /*
+         * Creem's own ID, shown in full because it is what support asks for and
+         * a truncated one cannot be pasted into a reply.
+         */
+        id: 'id',
         header: 'Order',
-        className: 'whitespace-nowrap tabular-nums',
-        sortValue: (order) => order.orderNumber,
-        cell: (order) => `#${order.orderNumber}`,
+        className: 'font-mono text-xs whitespace-nowrap',
+        sortValue: (order) => order.id,
+        cell: (order) => order.id,
     },
     {
         id: 'status',
@@ -100,7 +106,18 @@ const ORDER_COLUMNS: ColumnDef<BillingOrder>[] = [
         cell: (order) => (
             <span className="flex items-center gap-2">
                 <span>{order.status.replace('_', ' ')}</span>
-                {order.refunded && <Badge variant="secondary">Refunded</Badge>}
+                {order.refunded && (
+                    /*
+                     * The amount rather than the word alone, because Creem
+                     * allows partial refunds and "Refunded" beside a year's
+                     * total would read as the whole year coming back.
+                     */
+                    <Badge variant="secondary">
+                        {order.refundedTotal
+                            ? `${order.refundedTotal} refunded`
+                            : 'Refunded'}
+                    </Badge>
+                )}
             </span>
         ),
     },
@@ -110,32 +127,6 @@ const ORDER_COLUMNS: ColumnDef<BillingOrder>[] = [
         align: 'end',
         className: 'whitespace-nowrap',
         cell: (order) => order.total,
-    },
-    {
-        /*
-         * Lemon Squeezy hosts the receipt itself and there is no PDF to serve
-         * from here, so this is a link out rather than a download. An order
-         * that has none — one that never reached `paid` — shows nothing at all
-         * rather than a link that would 404 on arrival.
-         */
-        id: 'receipt',
-        header: '',
-        srHeader: 'Receipt',
-        align: 'end',
-        width: 'w-16',
-        cell: (order) =>
-            order.receiptUrl ? (
-                <Button asChild variant="ghost" size="sm">
-                    <a
-                        href={order.receiptUrl}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                    >
-                        Receipt
-                        <ExternalLink aria-hidden />
-                    </a>
-                </Button>
-            ) : null,
     },
 ];
 
@@ -168,7 +159,7 @@ function PlanSummary({
                 }
 
                 if (subscription?.pastDue) {
-                    return 'Your last payment did not go through. Update your payment method to keep flying.';
+                    return 'Your last payment did not go through. Update your card in the billing portal to keep flying.';
                 }
 
                 if (subscription?.paused) {
@@ -184,10 +175,11 @@ function PlanSummary({
                 }
 
                 /*
-                 * The date and nothing more. Lemon Squeezy mirrors `renews_at`
-                 * onto the subscription but publishes no forthcoming amount,
-                 * and quoting the last order's total as the next one would be
-                 * wrong the first time a price or a seat count changed.
+                 * The date and nothing more. Creem sends the next transaction
+                 * date on every subscription event but publishes no forthcoming
+                 * amount, and quoting the last order's total as the next one
+                 * would be wrong the first time a price or a seat count
+                 * changed.
                  */
                 return renewsAt ? `Renews ${renewsAt}.` : 'Active.';
             default:
@@ -225,7 +217,7 @@ function PlanSummary({
  *
  * Both directions and both periods through one control, because to the pilot
  * they are one decision: an upgrade, a downgrade and a move to annual billing
- * differ only in what Lemon Squeezy prorates afterwards.
+ * differ only in which way Creem prorates them.
  *
  * The selects are controlled but the values they submit are the plain `plan`
  * and `variant` fields the server validates — Radix renders a hidden input per
@@ -268,7 +260,7 @@ function ChangePlanDialog({ plans }: { plans: SwitchablePlan[] }) {
                 </Button>
             }
             title="Change your plan"
-            description="Nothing is charged today. Lemon Squeezy works out what the rest of your current period is worth and settles the difference on your next renewal."
+            description="Creem works out what the rest of your current period is worth and settles the difference now — charging you on an upgrade, refunding you on a downgrade. Your renewal date does not move."
             submitLabel="Change plan"
             pendingLabel="Changing…"
             submitProps={{
@@ -414,16 +406,6 @@ export default function Billing({
     const canResume = Boolean(subscription?.onGracePeriod);
     const hasSubscription = plan.source === 'subscription';
 
-    /*
-     * Lemon Squeezy keeps the card's brand and last four on the subscription
-     * row, so the page can name the card being charged without a network call.
-     * Both are absent until the first webhook lands, hence the pair check.
-     */
-    const card =
-        subscription?.cardBrand && subscription.cardLastFour
-            ? `${subscription.cardBrand} ending ${subscription.cardLastFour}`
-            : null;
-
     return (
         <>
             <Head title="Billing settings" />
@@ -441,18 +423,22 @@ export default function Billing({
 
                 {hasSubscription && (
                     <div className="flex flex-wrap items-center gap-2">
+                        {/*
+                         * One button for the card, the invoices and Creem's
+                         * own support. Creem publishes no card brand or last
+                         * four anywhere, so this page cannot name the card
+                         * being charged the way the Lemon Squeezy one did —
+                         * the portal behind this link is where a pilot sees
+                         * it, and it is a link out rather than a screen we
+                         * render because card details should never touch a
+                         * page of ours.
+                         */}
                         <Button asChild variant="outline" size="sm">
-                            <Link href={editPaymentMethod()}>
-                                Update payment method
+                            <Link href={editBillingPortal()}>
+                                Manage billing
                                 <ExternalLink aria-hidden />
                             </Link>
                         </Button>
-
-                        {card && (
-                            <span className="text-sm text-muted-foreground capitalize">
-                                {card}
-                            </span>
-                        )}
 
                         {/*
                          * Absent while there is nothing to move — a cancelled

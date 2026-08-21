@@ -6,25 +6,27 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Lemon Squeezy Variant IDs
+    | Creem Product IDs
     |--------------------------------------------------------------------------
     |
-    | The single map from a plan and one of its variants to the Lemon Squeezy
-    | variant ID that sells it. Those IDs are environment configuration, never
-    | database rows: a test store and a live store carry different IDs for the
-    | same product, and a row would let a client-supplied value reach checkout.
+    | The single map from a plan and one of its variants to the Creem product
+    | that sells it. Those IDs are environment configuration, never database
+    | rows: a test store and a live store are isolated environments carrying
+    | different IDs for the same thing, and a row would let a client-supplied
+    | value reach checkout.
     |
-    | Note the word "variant" is doing two jobs here, and they are not the same
-    | job. This application's variants are billing periods — monthly, yearly,
-    | the launch prices below. A Lemon Squeezy variant is the purchasable price
-    | object, which is what the values are. The keys of this array are the
-    | former; the values identify the latter. App\Enums\Plan calls the values
-    | "price IDs" throughout for exactly that reason: it is the provider-neutral
-    | name for whatever identifies the thing being sold.
+    | Note the word "variant" is doing one job here and Creem does not use it at
+    | all. This application's variants are billing periods — monthly, yearly,
+    | the launch prices below. Creem has no separate price object: a product
+    | carries its own amount and its own billing period, so one product is one
+    | purchasable price and "Pro monthly" and "Pro yearly" are two products.
+    | The keys of this array are billing periods; the values are product IDs.
+    | App\Enums\Plan calls the values "price IDs" throughout, which is the
+    | provider-neutral name for whatever identifies the thing being sold.
     |
     | App\Enums\Plan reads this map, and App\Actions\ResolvePlanForUser reads it
-    | in reverse — mapping a subscribed variant ID back onto the plan it grants.
-    | Every variant listed here must therefore be unique across all plans.
+    | in reverse — mapping a subscribed product ID back onto the plan it grants.
+    | Every product listed here must therefore be unique across all plans.
     |
     | Starter is free, so it has no ID.
     |
@@ -37,8 +39,8 @@ return [
     'prices' => [
 
         'pro' => [
-            'monthly' => env('LEMON_SQUEEZY_VARIANT_PRO_MONTHLY'),
-            'yearly' => env('LEMON_SQUEEZY_VARIANT_PRO_YEARLY'),
+            'monthly' => env('CREEM_PRODUCT_PRO_MONTHLY'),
+            'yearly' => env('CREEM_PRODUCT_PRO_YEARLY'),
 
             /*
              * Launch pricing for the first 100 paying customers ($15/mo,
@@ -47,46 +49,24 @@ return [
              * discount to people who never convert and is bounded by nothing
              * you control. Phase 5 picks these in ResolveCheckoutPrice.
              */
-            'monthly_launch' => env('LEMON_SQUEEZY_VARIANT_PRO_MONTHLY_LAUNCH'),
-            'yearly_launch' => env('LEMON_SQUEEZY_VARIANT_PRO_YEARLY_LAUNCH'),
+            'monthly_launch' => env('CREEM_PRODUCT_PRO_MONTHLY_LAUNCH'),
+            'yearly_launch' => env('CREEM_PRODUCT_PRO_YEARLY_LAUNCH'),
         ],
 
         'team' => [
-            'monthly' => env('LEMON_SQUEEZY_VARIANT_TEAM_MONTHLY'),
-            'yearly' => env('LEMON_SQUEEZY_VARIANT_TEAM_YEARLY'),
+            'monthly' => env('CREEM_PRODUCT_TEAM_MONTHLY'),
+            'yearly' => env('CREEM_PRODUCT_TEAM_YEARLY'),
 
             /*
-             * The quantity-based seat prices Phase 7 increments on invite.
-             * $5/mo per student past the ten the base subscription covers.
+             * The per-seat products Phase 7 bills against on invite. $5/month
+             * per student past the ten the base subscription covers. Creem
+             * charges `base_price × units` on a checkout, so a seat count is a
+             * `units` value against one of these rather than a product each.
              */
-            'seat_monthly' => env('LEMON_SQUEEZY_VARIANT_TEAM_SEAT_MONTHLY'),
-            'seat_yearly' => env('LEMON_SQUEEZY_VARIANT_TEAM_SEAT_YEARLY'),
+            'seat_monthly' => env('CREEM_PRODUCT_TEAM_SEAT_MONTHLY'),
+            'seat_yearly' => env('CREEM_PRODUCT_TEAM_SEAT_YEARLY'),
         ],
 
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Lemon Squeezy Product IDs
-    |--------------------------------------------------------------------------
-    |
-    | The product each plan's variants belong to. Checkout never needs these —
-    | a variant ID is enough to sell something — but changing the plan of a
-    | subscription that already exists does: Lemon Squeezy's update endpoint
-    | takes a product and a variant together, and refuses a variant that does
-    | not belong to the product named beside it.
-    |
-    | Only the tiers a pilot can move between need one, which is every tier in
-    | `prices` above. App\Actions\SwapSubscription falls back to the product the
-    | subscription is already on when a pilot only changes billing period, so an
-    | environment that has never set these can still switch monthly to yearly —
-    | it just cannot move between tiers.
-    |
-    */
-
-    'products' => [
-        'pro' => env('LEMON_SQUEEZY_PRODUCT_PRO'),
-        'team' => env('LEMON_SQUEEZY_PRODUCT_TEAM'),
     ],
 
     /*
@@ -95,17 +75,15 @@ return [
     |--------------------------------------------------------------------------
     |
     | What the pricing page quotes, in minor units of plans.currency below.
-    | Lemon Squeezy remains authoritative for what is actually charged —
-    | checkout only ever sends a variant ID, never an amount — so these numbers
-    | are copy, and they are kept beside the IDs they describe precisely so the
-    | two are edited in the same breath. A variant priced here but unlisted
-    | above simply cannot be bought; a variant with an ID but no amount cannot
-    | be advertised.
+    | Creem remains authoritative for what is actually charged — checkout only
+    | ever sends a product ID, never an amount — so these numbers are copy, and
+    | they are kept beside the IDs they describe precisely so the two are edited
+    | in the same breath. A variant priced here but unlisted above simply cannot
+    | be bought; a variant with an ID but no amount cannot be advertised.
     |
-    | Reading the prices back from the Lemon Squeezy API would remove the
-    | duplication, but it needs live credentials to answer, which would make the
-    | pricing page unrenderable in tests and in any environment without a Lemon
-    | Squeezy store.
+    | Reading the prices back from the Creem API would remove the duplication,
+    | but it needs live credentials to answer, which would make the pricing page
+    | unrenderable in tests and in any environment without a Creem account.
     |
     */
 
@@ -129,16 +107,16 @@ return [
     |--------------------------------------------------------------------------
     |
     | The currency the amounts below are denominated in, and the one the pricing
-    | page formats them with. It lives here rather than in config/lemon-squeezy.php
-    | because it describes this application's copy, not the provider: Lemon
-    | Squeezy decides what a customer is actually charged, and it will happily
-    | quote a different currency at checkout than the one advertised here.
-    | Keeping it beside the amounts means a repricing into another currency is
-    | one edit in one file.
+    | page formats them with. It lives here rather than in config/creem.php
+    | because it describes this application's copy, not the provider: Creem
+    | decides what a customer is actually charged, and as merchant of record it
+    | will happily quote a different currency at checkout than the one
+    | advertised here. Keeping it beside the amounts means a repricing into
+    | another currency is one edit in one file.
     |
     */
 
-    'currency' => env('LEMON_SQUEEZY_CURRENCY', 'USD'),
+    'currency' => env('CREEM_CURRENCY', 'USD'),
 
     'amounts' => [
 

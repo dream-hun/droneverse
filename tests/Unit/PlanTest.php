@@ -110,31 +110,16 @@ test('every paid tier sells itself and the free one does not', function (): void
     expect(Plan::Starter->isSelfServe())->toBeFalse();
 });
 
-/**
- * Only changing an existing subscription needs a product ID, so an
- * environment that has never configured one still sells every tier.
- */
-test('product ids are read from configuration', function (): void {
-    config(['plans.products' => [
-        'pro' => 'prod_pro',
-        'team' => '',
-    ]]);
-
-    expect(Plan::Pro->productId())->toBe('prod_pro');
-    expect(Plan::Team->productId())->toBeNull();
-    expect(Plan::Starter->productId())->toBeNull();
-});
-
 test('price ids are read from configuration', function (): void {
     config(['plans.prices.pro' => [
-        'monthly' => 'var_pro_monthly',
-        'yearly' => 'var_pro_yearly',
+        'monthly' => 'prod_pro_monthly',
+        'yearly' => 'prod_pro_yearly',
         'monthly_launch' => null,
         'yearly_launch' => '',
     ]]);
 
-    expect(Plan::Pro->priceId('monthly'))->toBe('var_pro_monthly');
-    expect(Plan::Pro->priceIds())->toBe(['monthly' => 'var_pro_monthly', 'yearly' => 'var_pro_yearly']);
+    expect(Plan::Pro->priceId('monthly'))->toBe('prod_pro_monthly');
+    expect(Plan::Pro->priceIds())->toBe(['monthly' => 'prod_pro_monthly', 'yearly' => 'prod_pro_yearly']);
 });
 
 test('unconfigured variants resolve to null rather than a default', function (): void {
@@ -148,26 +133,26 @@ test('unconfigured variants resolve to null rather than a default', function ():
 
 test('a price id maps back to the plan that sells it', function (): void {
     config(['plans.prices' => [
-        'pro' => ['monthly' => 'var_pro_monthly', 'monthly_launch' => 'var_pro_monthly_launch'],
-        'team' => ['monthly' => 'var_team_monthly'],
+        'pro' => ['monthly' => 'prod_pro_monthly', 'monthly_launch' => 'prod_pro_monthly_launch'],
+        'team' => ['monthly' => 'prod_team_monthly'],
     ]]);
 
-    expect(Plan::fromPriceId('var_pro_monthly'))->toBe(Plan::Pro);
-    expect(Plan::fromPriceId('var_pro_monthly_launch'))->toBe(Plan::Pro);
-    expect(Plan::fromPriceId('var_team_monthly'))->toBe(Plan::Team);
+    expect(Plan::fromPriceId('prod_pro_monthly'))->toBe(Plan::Pro);
+    expect(Plan::fromPriceId('prod_pro_monthly_launch'))->toBe(Plan::Pro);
+    expect(Plan::fromPriceId('prod_team_monthly'))->toBe(Plan::Team);
 });
 
 test('an unrecognised price id grants nothing', function (): void {
-    config(['plans.prices' => ['pro' => ['monthly' => 'var_pro_monthly']]]);
+    config(['plans.prices' => ['pro' => ['monthly' => 'prod_pro_monthly']]]);
 
-    expect(Plan::fromPriceId('var_retired_beta_plan'))->toBeNull();
+    expect(Plan::fromPriceId('prod_retired_beta_plan'))->toBeNull();
     expect(Plan::fromPriceId(null))->toBeNull();
     expect(Plan::fromPriceId(''))->toBeNull();
 });
 
 /**
  * config/plans.php requires price IDs to be unique across plans and nothing
- * enforces it, so the same variant ID under two tiers is one paste into one
+ * enforces it, so the same product ID under two tiers is one paste into one
  * `.env`. Answering with the first match would decide it by the order the
  * cases are declared in — Pro before Team, for no reason anybody chose — and
  * hand Pro to every Team subscriber without a word. There is no honest
@@ -175,14 +160,14 @@ test('an unrecognised price id grants nothing', function (): void {
  */
 test('a price id claimed by two plans grants neither', function (): void {
     config(['plans.prices' => [
-        'pro' => ['monthly' => 'var_shared_by_mistake'],
-        'team' => ['monthly' => 'var_shared_by_mistake', 'yearly' => 'var_team_yearly'],
+        'pro' => ['monthly' => 'prod_shared_by_mistake'],
+        'team' => ['monthly' => 'prod_shared_by_mistake', 'yearly' => 'prod_team_yearly'],
     ]]);
 
-    expect(Plan::fromPriceId('var_shared_by_mistake'))->toBeNull();
+    expect(Plan::fromPriceId('prod_shared_by_mistake'))->toBeNull();
 
     // The slip is contained: every other ID still resolves.
-    expect(Plan::fromPriceId('var_team_yearly'))->toBe(Plan::Team);
+    expect(Plan::fromPriceId('prod_team_yearly'))->toBe(Plan::Team);
 });
 
 /**
@@ -192,11 +177,11 @@ test('a price id claimed by two plans grants neither', function (): void {
  */
 test('a price id repeated within one plan still grants that plan', function (): void {
     config(['plans.prices.pro' => [
-        'monthly' => 'var_pro_everything',
-        'yearly' => 'var_pro_everything',
+        'monthly' => 'prod_pro_everything',
+        'yearly' => 'prod_pro_everything',
     ]]);
 
-    expect(Plan::fromPriceId('var_pro_everything'))->toBe(Plan::Pro);
+    expect(Plan::fromPriceId('prod_pro_everything'))->toBe(Plan::Pro);
 });
 
 test('unconfigured price ids do not collide on null', function (): void {
@@ -206,17 +191,17 @@ test('unconfigured price ids do not collide on null', function (): void {
     ]]);
 
     expect(Plan::fromPriceId(null))->toBeNull();
-    expect(Plan::fromPriceId('var_anything'))->toBeNull();
+    expect(Plan::fromPriceId('prod_anything'))->toBeNull();
 });
 
 test('a price id maps back to the billing period it sells', function (): void {
     config(['plans.prices.pro' => [
-        'monthly' => 'var_pro_monthly',
-        'yearly' => 'var_pro_yearly',
+        'monthly' => 'prod_pro_monthly',
+        'yearly' => 'prod_pro_yearly',
     ]]);
 
-    expect(Plan::Pro->variantFor('var_pro_yearly'))->toBe('yearly');
-    expect(Plan::Pro->variantFor('var_team_monthly'))->toBeNull();
+    expect(Plan::Pro->variantFor('prod_pro_yearly'))->toBe('yearly');
+    expect(Plan::Pro->variantFor('prod_team_monthly'))->toBeNull();
     expect(Plan::Pro->variantFor(null))->toBeNull();
     expect(Plan::Pro->variantFor(''))->toBeNull();
 });

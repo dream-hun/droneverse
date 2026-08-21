@@ -11,7 +11,7 @@ namespace App\Enums;
  * the pilot and two of them are not failures. A swap that changed nothing is the
  * ordinary answer to submitting the form without touching it. A plan that cannot
  * be moved to is our configuration's problem rather than theirs. Only a thrown
- * exception means Lemon Squeezy refused the change itself.
+ * exception means Creem refused the change itself.
  *
  * Not backed by a string: nothing persists or transmits one of these, and giving
  * them values would invite a controller to hand one to the client in place of

@@ -8,7 +8,7 @@ use App\Enums\Plan;
 use App\Models\User;
 
 /**
- * The Lemon Squeezy variant ID a given buyer should be charged for a given plan.
+ * The Creem product ID a given buyer should be charged for a given plan.
  *
  * The one place a price ID is chosen, and deliberately the only one: the client
  * posts a plan and a billing period, never an ID, so no request can nominate
@@ -17,15 +17,17 @@ use App\Models\User;
  * keeps the quoted price and the charged price the same number.
  *
  * "Price ID" is the provider-neutral name this application uses for whatever
- * identifies the thing being sold; under Lemon Squeezy that is a variant ID.
- * The `$variant` argument means something else entirely — a billing period,
- * one of the keys in config/plans.php — and the two are not related.
+ * identifies the thing being sold; under Creem that is a product ID, because a
+ * Creem product carries its own amount and billing period and there is no
+ * separate price object. The `$variant` argument means something else entirely
+ * — a billing period, one of the keys in config/plans.php — and the two are not
+ * related.
  */
 final readonly class ResolveCheckoutPrice
 {
     /**
      * Returns null when the plan cannot be bought — a tier that is sales-led,
-     * a billing period it does not offer, or a price ID that is simply not
+     * a billing period it does not offer, or a product ID that is simply not
      * configured in this environment. Callers about to charge a card must treat
      * that as fatal rather than falling back to any other price.
      */
@@ -42,7 +44,7 @@ final readonly class ResolveCheckoutPrice
         /*
          * Phase 4 intercepts here: while the platform is under 100 paying
          * customers — customers who have paid, not accounts that have
-         * registered — Pro resolves to its `_launch` variant instead.
+         * registered — Pro resolves to its `_launch` product instead.
          */
         return $plan->priceId($variant);
     }

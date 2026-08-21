@@ -6,7 +6,6 @@ namespace App\Actions;
 
 use App\Enums\Feature;
 use App\Enums\Plan;
-use LemonSqueezy\Laravel\LemonSqueezy;
 
 /**
  * Everything the pricing page renders, resolved for one viewer.
@@ -18,6 +17,11 @@ use LemonSqueezy\Laravel\LemonSqueezy;
  */
 final readonly class BuildPricingCatalog
 {
+    public function __construct(private FormatMoney $money)
+    {
+        //
+    }
+
     /**
      * The last two arguments are both about the viewer's subscription, and they
      * differ for exactly one pilot.
@@ -76,13 +80,13 @@ final readonly class BuildPricingCatalog
     /**
      * The price of every variant this plan sells, keyed by variant.
      *
-     * A variant with an amount but no configured Lemon Squeezy variant ID is still
+     * A variant with an amount but no configured Creem product ID is still
      * quoted — the copy is true, and `purchasable` is what turns the button off.
      * Quoting nothing would make an unconfigured environment look like a free
      * plan.
      *
      * `purchasable` is per variant because that is the granularity the answer
-     * actually has: a store is built one variant at a time, and a tier with a
+     * actually has: a store is built one product at a time, and a tier with a
      * monthly ID and no yearly one sells one of its two periods. cta() below
      * cannot express that — it is computed once for the card, while the period
      * is chosen afterwards by a toggle that never asks the server again — so a
@@ -104,7 +108,7 @@ final readonly class BuildPricingCatalog
 
             $prices[$variant] = [
                 'amount' => $amount,
-                'formatted' => LemonSqueezy::formatAmount($amount, $this->currency(), options: ['min_fraction_digits' => 0]),
+                'formatted' => $this->money->handle($amount, $this->currency(), minFractionDigits: 0),
                 'savingPercent' => $variant === 'yearly' ? $this->annualSaving($plan) : null,
                 /*
                  * Whether ResolveCheckoutPrice would answer with an ID for this
@@ -203,7 +207,7 @@ final readonly class BuildPricingCatalog
      *
      * A self-serve plan with no configured price ID is not for sale, however
      * confidently the card quotes a number — which is the state of every tier
-     * in an environment with no Lemon Squeezy store behind it.
+     * in an environment with no Creem account behind it.
      */
     private function isPurchasable(Plan $plan): bool
     {
@@ -243,8 +247,8 @@ final readonly class BuildPricingCatalog
      *
      * Read from config/plans.php rather than from the provider's config,
      * because it describes this page's copy: it is the currency the numbers in
-     * `plans.amounts` are written in, and Lemon Squeezy is free to charge the
-     * buyer in another one at checkout.
+     * `plans.amounts` are written in, and Creem is free to charge the buyer in
+     * another one at checkout.
      */
     private function currency(): string
     {

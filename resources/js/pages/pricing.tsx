@@ -17,14 +17,14 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { useLemonSqueezy } from '@/hooks/use-lemon-squeezy';
+import { useCreem } from '@/hooks/use-creem';
 import { cn } from '@/lib/utils';
 import { dashboard, register } from '@/routes';
 import { edit as editBilling } from '@/routes/billing';
 import { index as coursesIndex } from '@/routes/courses';
 import { thankYou as subscriptionThankYou } from '@/routes/subscription';
 import type {
-    LemonSqueezyConfig,
+    CreemConfig,
     PlanComparisonRow,
     PlanVariant,
     PricingPlan,
@@ -33,7 +33,7 @@ import type {
 type PricingProps = {
     plans: PricingPlan[];
     comparison: PlanComparisonRow[];
-    lemonSqueezy: LemonSqueezyConfig;
+    creem: CreemConfig;
 };
 
 /**
@@ -166,11 +166,7 @@ function PlanPriceLine({
     );
 }
 
-export default function Pricing({
-    plans,
-    comparison,
-    lemonSqueezy,
-}: PricingProps) {
+export default function Pricing({ plans, comparison, creem }: PricingProps) {
     const { auth } = usePage().props;
     const [variant, setVariant] = useState<PlanVariant>('monthly');
     const comparisonCaptionId = useId();
@@ -187,13 +183,13 @@ export default function Pricing({
     /**
      * Hand a paid-up buyer over to the thank-you page.
      *
-     * An Inertia visit rather than a redirect from Lemon Squeezy, and rather
-     * than the waiting this page used to do itself. The overlay is an iframe on
-     * the document, so a client-side visit swaps the page underneath it without
+     * An Inertia visit rather than the embed's own redirect, and rather than
+     * the waiting this page used to do itself. The overlay is an iframe on the
+     * document, so a client-side visit swaps the page underneath it without
      * tearing it down: the buyer closes the overlay when they are ready and
-     * finds the confirmation behind it. See App\Actions\StartCheckout for why
-     * the checkout itself sets no `redirectTo()` — that would be a full
-     * navigation, taken the instant the payment lands.
+     * finds the confirmation behind it. The hook cancels the embed's pending
+     * navigation to the same page for exactly that reason — see
+     * openCheckoutUrl in @/hooks/use-creem.
      *
      * The plan is granted by a webhook arriving separately, and waiting for it
      * belongs to the page that says so. This one has nothing left to poll for.
@@ -202,7 +198,7 @@ export default function Pricing({
         router.visit(subscriptionThankYou());
     }, []);
 
-    const { ready, openCheckout } = useLemonSqueezy(lemonSqueezy, {
+    const { ready, openCheckout } = useCreem(creem, {
         onCompleted: onCheckoutCompleted,
     });
 
@@ -213,13 +209,13 @@ export default function Pricing({
      * server's business. The overlay is opened from the URL in the response
      * rather than from anything this page knows.
      *
-     * The error branch is the whole of this page's failure reporting. Lemon
-     * Squeezy publishes no checkout-failure event of any kind, so once the
-     * overlay is open the app is blind to whatever happens inside it. Every
-     * failure anybody will hear about is one this request returned: a plan that
-     * is not for sale, a variant with no configured ID, or a provider the
-     * server could not reach. Swallowing an error here would leave a buyer
-     * clicking a button that visibly does nothing.
+     * The error branch is the whole of this page's failure reporting. The embed
+     * publishes no checkout-failure event of any kind, so once the overlay is
+     * open the app is blind to whatever happens inside it. Every failure
+     * anybody will hear about is one this request returned: a plan that is not
+     * for sale, a period with no configured product, or a provider the server
+     * could not reach. Swallowing an error here would leave a buyer clicking a
+     * button that visibly does nothing.
      */
     const startCheckout = (plan: PricingPlan) => {
         checkout.setData({ plan: plan.value, variant });
@@ -285,10 +281,10 @@ export default function Pricing({
                  * The server decides that the tier is buyable by this viewer;
                  * whether the period they are looking at is buyable is a
                  * separate answer, and it changes under the toggle without
-                 * another round trip. A tier half-listed in the Lemon Squeezy
-                 * store — monthly created, yearly not yet — would otherwise
-                 * offer a button that can only ever come back as an error
-                 * toast.
+                 * another round trip. A tier half-listed in the Creem account
+                 * — the monthly product created, the yearly one not yet —
+                 * would otherwise offer a button that can only ever come back
+                 * as an error toast.
                  */
                 const purchasable = plan.prices[variant]?.purchasable === true;
 

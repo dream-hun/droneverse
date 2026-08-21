@@ -18,7 +18,7 @@ final class BillingController extends Controller
      *
      * Every prop is spread from BuildBillingSummary, which reads only local
      * tables — this page reaches no third party, so it renders the same in an
-     * environment with no Lemon Squeezy credentials as in one with them.
+     * environment with no Creem credentials as in one with them.
      */
     public function edit(BuildBillingSummary $summary, #[CurrentUser] User $user): Response
     {

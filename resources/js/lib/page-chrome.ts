@@ -19,6 +19,12 @@
  * indexed. The signed-in pilot reads them in the same chrome — they are one
  * page each, not two, and a mission opens the cockpit from there.
  *
+ * `subscription/thank-you` is the one signed-in page here, and it is here for
+ * the same reason the rest are: it draws its own chrome. It is the end of a
+ * purchase rather than a screen in the product, so it carries the brand mark
+ * and two ways onward instead of the sidebar, and the buyer reaches it
+ * straight out of a checkout opened from the pricing page.
+ *
  * resources/views/app.blade.php repeats this list for the same reason it
  * exists, and has to be changed with it: the pages below are dark whatever the
  * visitor prefers, and only the server can put that on `<html>` before the
@@ -30,6 +36,7 @@ export function bringsOwnChrome(component: string): boolean {
         component === 'pricing' ||
         component === 'docs' ||
         component.startsWith('legal/') ||
-        component.startsWith('courses/')
+        component.startsWith('courses/') ||
+        component === 'subscription/thank-you'
     );
 }

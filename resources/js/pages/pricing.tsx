@@ -1,6 +1,6 @@
 import { Head, Link, router, useHttp, usePage } from '@inertiajs/react';
 import { Check, Minus } from 'lucide-react';
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useId, useState } from 'react';
 import { toast } from 'sonner';
 import CheckoutController from '@/actions/App/Http/Controllers/CheckoutController';
 import SubscriptionController from '@/actions/App/Http/Controllers/Settings/SubscriptionController';
@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 import { dashboard, register } from '@/routes';
 import { edit as editBilling } from '@/routes/billing';
 import { index as coursesIndex } from '@/routes/courses';
+import { thankYou as subscriptionThankYou } from '@/routes/subscription';
 import type {
     LemonSqueezyConfig,
     PlanComparisonRow,
@@ -183,46 +184,22 @@ export default function Pricing({
         plans.find((plan) => plan.prices.yearly?.savingPercent)?.prices.yearly
             ?.savingPercent ?? null;
 
-    /*
-     * The overlay closes the moment Lemon Squeezy has the money, which is not
-     * the moment we know about it — the plan is granted by a webhook arriving
-     * separately. Read through a ref so the callback below, registered once
-     * when lemon.js is set up, can still see the current one.
-     */
-    const currentPlan = useRef(auth.plan.value);
-
-    useEffect(() => {
-        currentPlan.current = auth.plan.value;
-    }, [auth.plan.value]);
-
-    const refreshes = useRef<number[]>([]);
-
-    useEffect(
-        () => () => refreshes.current.forEach((id) => window.clearTimeout(id)),
-        [],
-    );
-
     /**
-     * Pull the new plan in once the webhook has landed.
+     * Hand a paid-up buyer over to the thank-you page.
      *
-     * Spaced rather than immediate, and it stops as soon as the plan changes.
-     * A buyer who reaches this point has paid; the worst case is a page that
-     * catches up on their next navigation instead of on its own.
+     * An Inertia visit rather than a redirect from Lemon Squeezy, and rather
+     * than the waiting this page used to do itself. The overlay is an iframe on
+     * the document, so a client-side visit swaps the page underneath it without
+     * tearing it down: the buyer closes the overlay when they are ready and
+     * finds the confirmation behind it. See App\Actions\StartCheckout for why
+     * the checkout itself sets no `redirectTo()` — that would be a full
+     * navigation, taken the instant the payment lands.
+     *
+     * The plan is granted by a webhook arriving separately, and waiting for it
+     * belongs to the page that says so. This one has nothing left to poll for.
      */
     const onCheckoutCompleted = useCallback(() => {
-        const paidFrom = currentPlan.current;
-
-        toast.success('Payment received — activating your plan.');
-
-        refreshes.current = [2000, 5000, 10000].map((delay) =>
-            window.setTimeout(() => {
-                if (currentPlan.current !== paidFrom) {
-                    return;
-                }
-
-                router.reload();
-            }, delay),
-        );
+        router.visit(subscriptionThankYou());
     }, []);
 
     const { ready, openCheckout } = useLemonSqueezy(lemonSqueezy, {

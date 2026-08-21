@@ -22,6 +22,15 @@ describe('bringsOwnChrome', () => {
         expect(bringsOwnChrome('quizzes/show')).toBe(false);
     });
 
+    /**
+     * The one signed-in page that draws its own chrome: a buyer lands on it
+     * out of a checkout overlay, and it is the end of a purchase rather than a
+     * screen in the product.
+     */
+    it('claims the post-checkout confirmation', () => {
+        expect(bringsOwnChrome('subscription/thank-you')).toBe(true);
+    });
+
     it('leaves the signed-in pages to the app shell', () => {
         expect(bringsOwnChrome('dashboard')).toBe(false);
         expect(bringsOwnChrome('leaderboard')).toBe(false);
@@ -40,5 +49,6 @@ describe('bringsOwnChrome', () => {
         expect(bringsOwnChrome('settings/docs')).toBe(false);
         expect(bringsOwnChrome('settings/pricing')).toBe(false);
         expect(bringsOwnChrome('photos/legal/terms')).toBe(false);
+        expect(bringsOwnChrome('settings/subscription/thank-you')).toBe(false);
     });
 });

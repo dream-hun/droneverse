@@ -181,11 +181,11 @@ test('the model answers feature questions from its plan', function (): void {
     $starter = User::factory()->create();
     $pro = User::factory()->onPlan(Plan::Pro)->create();
 
-    expect($starter->hasFeature(Feature::PythonRuntime))->toBeFalse();
+    expect($starter->hasFeature(Feature::MissionBuilder))->toBeFalse();
     expect($starter->onPaidPlan())->toBeFalse();
     expect($starter->features())->toBe([]);
 
-    expect($pro->hasFeature(Feature::PythonRuntime))->toBeTrue();
+    expect($pro->hasFeature(Feature::MissionBuilder))->toBeTrue();
     expect($pro->onPaidPlan())->toBeTrue();
     expect($pro->planCovers(Plan::Starter))->toBeTrue();
 });
@@ -203,14 +203,14 @@ test('the resolved plan is memoised until forgotten', function (): void {
 });
 
 test('a gated route rejects starter and admits pro', function (): void {
-    Route::middleware(['web', 'auth', 'can:'.Feature::PythonRuntime->value])
-        ->get('__test__/python', fn (): string => 'ok');
+    Route::middleware(['web', 'auth', 'can:'.Feature::MissionBuilder->value])
+        ->get('__test__/builder', fn (): string => 'ok');
 
     $starter = User::factory()->create();
     $pro = User::factory()->onPlan(Plan::Pro)->create();
 
-    $this->actingAs($starter)->get('__test__/python')->assertForbidden();
-    $this->actingAs($pro)->get('__test__/python')->assertOk();
+    $this->actingAs($starter)->get('__test__/builder')->assertForbidden();
+    $this->actingAs($pro)->get('__test__/builder')->assertOk();
 });
 
 test('every feature is registered as a gate', function (): void {
@@ -232,7 +232,7 @@ test('entitlements are shared with the front end', function (): void {
             ->where('auth.plan.value', 'pro')
             ->where('auth.plan.label', 'Pro')
             ->where('auth.plan.isPaid', true)
-            ->where('auth.features', fn (Collection $features): bool => $features->contains('python_runtime')
+            ->where('auth.features', fn (Collection $features): bool => $features->contains('mission_builder')
                 && $features->doesntContain('team_management')));
 });
 

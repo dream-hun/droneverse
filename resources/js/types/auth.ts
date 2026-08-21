@@ -15,7 +15,6 @@ export type PlanValue = 'starter' | 'pro' | 'team';
 
 /** Mirrors App\Enums\Feature. */
 export type FeatureValue =
-    | 'python_runtime'
     | 'mission_builder'
     | 'drone_config_editor'
     | 'premium_certificates'

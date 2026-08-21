@@ -73,7 +73,7 @@ enum Plan: string
     {
         return match ($this) {
             self::Starter => 'Everything you need to find out whether flying code is for you.',
-            self::Pro => 'The whole catalogue, every language, and the tools that come with them.',
+            self::Pro => 'The whole catalogue, every mission in it, and the tools that come with them.',
             self::Team => 'Everything Pro gives one pilot, on its way to a whole classroom.',
         };
     }
@@ -106,14 +106,6 @@ enum Plan: string
             ],
             self::Pro => [
                 'Every course and every mission',
-                'JavaScript and Python',
-                /*
-                 * These were one bullet until the drone fleet shipped, and
-                 * splitting them is the same correction the analytics line
-                 * below records: a bullet pairing a built capability with an
-                 * unbuilt one makes the built half vouch for the other, which
-                 * is exactly what this list's docblock exists to prevent.
-                 */
                 'Pick your airframe on any mission — five drones, five envelopes',
                 'Mission Builder — coming soon',
                 /*
@@ -180,7 +172,6 @@ enum Plan: string
     public function features(): array
     {
         $pro = [
-            Feature::PythonRuntime,
             Feature::MissionBuilder,
             Feature::DroneConfigEditor,
             Feature::PremiumCertificates,

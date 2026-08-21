@@ -365,10 +365,9 @@ export default function CoursesIndex({ courses }: CoursesIndexProps) {
                                     Unlock the whole catalogue
                                 </h3>
                                 <p className="mb-8 max-w-xl leading-relaxed text-muted-foreground">
-                                    A subscription adds every course above,
-                                    Python alongside JavaScript, your pick of
-                                    airframe on any mission, and analytics on
-                                    every run you fly.
+                                    A subscription adds every course above, your
+                                    pick of airframe on any mission, and
+                                    analytics on every run you fly.
                                 </p>
                                 <div className="flex flex-wrap gap-4">
                                     <Link

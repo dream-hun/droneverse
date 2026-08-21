@@ -8,8 +8,8 @@ namespace App\Enums;
  * A capability a plan either grants or withholds.
  *
  * Every case is registered as a Gate ability under its own value, so both
- * `$user->can(Feature::PythonRuntime->value)` and
- * `->middleware('can:python_runtime')` work without a bespoke check. Adding a
+ * `$user->can(Feature::MissionBuilder->value)` and
+ * `->middleware('can:mission_builder')` work without a bespoke check. Adding a
  * case here and listing it on the relevant plans in App\Enums\Plan is all a new
  * gated capability needs.
  *
@@ -26,10 +26,15 @@ namespace App\Enums;
  * thing granting them. Every case here has to be granted by some plan: the
  * pricing page renders one comparison row per case, and a row no tier can tick
  * advertises a capability nobody is able to buy.
+ *
+ * A Python runtime left for the opposite reason — every paid tier granted it
+ * and nothing behind it exists. A second language is a second worker sandbox, a
+ * second grader and a second set of mission docs, which is a phase of work
+ * rather than a flag flipped when one lands. The platform teaches JavaScript;
+ * if Python is ever built, the case comes back in the commit that builds it.
  */
 enum Feature: string
 {
-    case PythonRuntime = 'python_runtime';
     case MissionBuilder = 'mission_builder';
     case DroneConfigEditor = 'drone_config_editor';
     case PremiumCertificates = 'premium_certificates';
@@ -51,7 +56,6 @@ enum Feature: string
     public function label(): string
     {
         return match ($this) {
-            self::PythonRuntime => 'Python Runtime',
             self::MissionBuilder => 'Mission Builder',
             self::DroneConfigEditor => 'Drone Configuration Editor',
             self::PremiumCertificates => 'Premium Certificates',
@@ -77,7 +81,6 @@ enum Feature: string
     {
         return match ($this) {
             self::PrioritySupport, self::BetaAccess, self::AdvancedAnalytics, self::DroneConfigEditor => true,
-            self::PythonRuntime,
             self::MissionBuilder,
             self::PremiumCertificates,
             self::DownloadableProjects => false,

@@ -2,7 +2,6 @@ import {
     IdentityBlock,
     LegalPage,
     MailLink,
-    Missing,
 } from '@/components/marketing/legal-page';
 import type { LegalSection } from '@/components/marketing/legal-page';
 import { privacy, withdrawalForm } from '@/routes';
@@ -518,34 +517,13 @@ export default function Terms({ identity, updatedAt }: Props) {
             ),
         },
         {
-            id: 'governing-law',
-            title: 'Governing law and courts',
+            id: 'severability',
+            title: 'If part of these terms does not hold',
             body: (
-                <>
-                    <p>
-                        These terms are governed by{' '}
-                        {identity.governingLaw ?? (
-                            <Missing label="governing law" />
-                        )}
-                        .
-                    </p>
-                    <p>
-                        <strong>
-                            If you are a consumer, that choice cannot take away
-                            the protection of the mandatory rules of the country
-                            you habitually live in
-                        </strong>{' '}
-                        — Article 6 of the Rome I Regulation says so, and we are
-                        not attempting to contract around it. You may bring
-                        proceedings in the courts of your own country of
-                        residence, and if we ever bring proceedings against you
-                        as a consumer, we will bring them there too.
-                    </p>
-                    <p>
-                        If a court finds any part of these terms unenforceable,
-                        the rest continues to apply.
-                    </p>
-                </>
+                <p>
+                    If a court finds any part of these terms unenforceable, the
+                    rest continues to apply.
+                </p>
             ),
         },
     ];

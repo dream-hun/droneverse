@@ -19,7 +19,6 @@ export type LegalIdentity = {
         address: string | null;
         email: string | null;
     } | null;
-    governingLaw: string | null;
     /** Where the data sits, in plain words: "the United States". */
     hostingRegion: string | null;
 };

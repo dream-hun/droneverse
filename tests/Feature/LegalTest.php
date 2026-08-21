@@ -35,7 +35,6 @@ test('the identity block reports the configured trader', function (): void {
         'legal.entity.address' => '1 Runway Road, Kigali',
         'legal.entity.country' => 'Rwanda',
         'legal.entity.registration' => 'RDB 123456789',
-        'legal.governing_law' => 'the laws of Rwanda',
         'legal.hosting_region' => 'the United States',
     ]);
 
@@ -44,7 +43,6 @@ test('the identity block reports the configured trader', function (): void {
         ->where('identity.address', '1 Runway Road, Kigali')
         ->where('identity.country', 'Rwanda')
         ->where('identity.registration', 'RDB 123456789')
-        ->where('identity.governingLaw', 'the laws of Rwanda')
         ->where('identity.hostingRegion', 'the United States'));
 });
 
@@ -60,7 +58,6 @@ test('unconfigured identity details are null rather than guessed', function (): 
         'legal.entity.address' => null,
         'legal.entity.country' => null,
         'legal.entity.registration' => null,
-        'legal.governing_law' => null,
         'legal.hosting_region' => null,
     ]);
 
@@ -69,7 +66,6 @@ test('unconfigured identity details are null rather than guessed', function (): 
         ->where('identity.address', null)
         ->where('identity.country', null)
         ->where('identity.registration', null)
-        ->where('identity.governingLaw', null)
         ->where('identity.hostingRegion', null));
 });
 

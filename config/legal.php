@@ -81,22 +81,6 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Governing Law
-    |--------------------------------------------------------------------------
-    |
-    | The law the terms are written against. It is deliberately not the whole
-    | answer and the terms say so: Rome I Article 6 gives a consumer the
-    | protection of their own country's mandatory rules whatever a contract
-    | picks, and a choice of law clause that reads as though it overrides them
-    | is itself an unfair term. Naming ours is for the questions their local
-    | rules leave open, not for displacing those rules.
-    |
-    */
-
-    'governing_law' => env('LEGAL_GOVERNING_LAW'),
-
-    /*
-    |--------------------------------------------------------------------------
     | Where The Data Lives
     |--------------------------------------------------------------------------
     |

@@ -144,3 +144,23 @@ export type BillingOrder = {
     refunded: boolean;
     orderedAt: string | null;
 };
+
+/**
+ * What a completed checkout is confirmed with, from
+ * App\Actions\BuildSubscriptionConfirmation.
+ *
+ * Only ever present once the webhook has written the subscription, which is
+ * why every field is a fact rather than a promise: the page has nothing to
+ * report until there is a row to report it from.
+ */
+export type SubscriptionConfirmation = {
+    planLabel: string | null;
+    variant: string | null;
+    onTrial: boolean;
+    trialEndsAt: string | null;
+    /** The date the next charge lands. Lemon Squeezy publishes no amount. */
+    renewsAt: string | null;
+    /** Both null until a payment has actually been taken. */
+    cardBrand: string | null;
+    cardLastFour: string | null;
+};

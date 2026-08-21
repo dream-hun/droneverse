@@ -12,7 +12,7 @@
      * has to be on `<html>` in the markup itself. By the time a script can add
      * it, the first paint has already happened.
      */
-    $alwaysDark = in_array($page['component'] ?? '', ['welcome', 'pricing', 'docs'], true)
+    $alwaysDark = in_array($page['component'] ?? '', ['welcome', 'pricing', 'docs', 'subscription/thank-you'], true)
         || str_starts_with($page['component'] ?? '', 'legal/')
         || str_starts_with($page['component'] ?? '', 'courses/');
 

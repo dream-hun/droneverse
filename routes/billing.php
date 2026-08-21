@@ -6,6 +6,7 @@ use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\PricingController;
 use App\Http\Controllers\Settings\BillingController;
 use App\Http\Controllers\Settings\SubscriptionController;
+use App\Http\Controllers\SubscriptionThankYouController;
 use App\Http\Middleware\PreventLemonSqueezyWebhookRetryLoops;
 use App\Http\Middleware\VerifyLemonSqueezyWebhookSignature;
 use Illuminate\Support\Facades\Route;
@@ -82,6 +83,18 @@ Route::middleware(['auth'])->group(function (): void {
     Route::post('checkout', [CheckoutController::class, 'store'])
         ->middleware('throttle:20,1')
         ->name('checkout.store');
+
+    /*
+     * The page a completed checkout lands on.
+     *
+     * A GET the buyer can bookmark, reload and come back to, deliberately: the
+     * plan is granted by a webhook that arrives after the browser does, so the
+     * page has to survive being asked the same question again a few seconds
+     * later. Nothing about which checkout it is travels in the URL — see
+     * App\Actions\BuildSubscriptionConfirmation.
+     */
+    Route::get('subscription/thank-you', SubscriptionThankYouController::class)
+        ->name('subscription.thank-you');
 
     Route::get('settings/billing', [BillingController::class, 'edit'])->name('billing.edit');
 

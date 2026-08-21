@@ -72,6 +72,24 @@ test('the catalogue stays dark for a signed-in pilot who prefers light', functio
 });
 
 /**
+ * The post-checkout confirmation is not a marketing page, but it draws its own
+ * chrome in the same brand palette — see bringsOwnChrome(). A buyer arrives on
+ * it straight off the pricing page, so it gets the same treatment for the same
+ * reason, and it is the one signed-in page that does.
+ */
+test('the thank-you page renders dark even for a light preference', function (): void {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->withUnencryptedCookie('appearance', 'light')
+        ->get(route('subscription.thank-you'));
+
+    $response->assertOk();
+    $response->assertSee('class="dark"', false);
+    $response->assertSee('color-scheme: dark !important', false);
+});
+
+/**
  * The counterpart: the app itself does follow the preference, and the
  * override must not leak onto it.
  */

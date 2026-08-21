@@ -30,7 +30,6 @@ final readonly class BuildLegalIdentity
      *     supportEmail: string|null,
      *     privacyEmail: string|null,
      *     euRepresentative: array{name: string, address: string|null, email: string|null}|null,
-     *     governingLaw: string|null,
      *     hostingRegion: string|null,
      * }
      */
@@ -56,7 +55,6 @@ final readonly class BuildLegalIdentity
             'supportEmail' => $support ?? $privacy ?? $sales,
             'privacyEmail' => $privacy ?? $support ?? $sales,
             'euRepresentative' => $this->euRepresentative(),
-            'governingLaw' => $this->configured('legal.governing_law'),
             'hostingRegion' => $this->configured('legal.hosting_region'),
         ];
     }

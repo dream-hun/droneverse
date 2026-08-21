@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Enums\Plan;
 use App\Http\Middleware\VerifyLemonSqueezyWebhookSignature;
 use App\Models\User;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Route;
 use LemonSqueezy\Laravel\Subscription;
@@ -39,6 +40,31 @@ beforeEach(function (): void {
 test('the webhook route is registered', function (): void {
     expect(Route::has('lemon-squeezy.webhook'))->toBeTrue();
     expect(route('lemon-squeezy.webhook', absolute: false))->toBe('/lemon-squeezy/webhook');
+});
+
+/**
+ * The endpoint is served where Lemon Squeezy is told to post, whatever that is.
+ *
+ * Nothing in this application chose that URL alone. `php artisan lmsqueezy:listen
+ * expose` — how a webhook reaches a developer's machine at all — registers it
+ * with Lemon Squeezy as `{tunnel}/{config('lemon-squeezy.path')}/webhook`, and
+ * the package's own registration prefixed its route with the same value. While
+ * the path was written out here as a literal, setting LEMON_SQUEEZY_PATH moved
+ * what was advertised without moving what was served, and every delivery landed
+ * on a 404 — which Lemon Squeezy redelivers, because a 404 is not a 2xx.
+ *
+ * Asserted against a non-default path, because at the default the literal and
+ * the configured value are the same string and the assertion would hold with
+ * the bug still in place.
+ */
+test('the webhook is served at the path lmsqueezy:listen advertises', function (): void {
+    config(['lemon-squeezy.path' => 'billing/lemon-squeezy']);
+
+    /*
+     * The URL ListenCommand::setupWebhook() sends to Lemon Squeezy, minus the
+     * tunnel it prefixes.
+     */
+    expect('/'.reregisteredWebhookUri())->toBe('/'.config('lemon-squeezy.path').'/webhook');
 });
 
 /**
@@ -442,6 +468,45 @@ function orderCreatedPayload(int|string $billableId): array
             ],
         ],
     ];
+}
+
+/**
+ * The URI routes/billing.php registers for the webhook under the configuration
+ * in force right now.
+ *
+ * The application's own routes were registered at boot, before a test could
+ * change anything, so the real file is required again against a throwaway
+ * router and the result read off that. Requiring it rather than restating what
+ * it does is the whole point: a copy of the registration here would keep
+ * agreeing with itself after the file stopped agreeing with it.
+ */
+function reregisteredWebhookUri(): string
+{
+    $original = resolve(Router::class);
+
+    $fresh = new Router(resolve(Dispatcher::class), app());
+    $fresh->middlewareGroup('web', []);
+
+    Route::swap($fresh);
+
+    try {
+        require base_path('routes/billing.php');
+
+        /*
+         * `->name()` is chained onto a route the collection already holds, so
+         * the name lookup it should appear in is built afterwards — which is
+         * why the framework refreshes it on boot rather than on registration.
+         */
+        $fresh->getRoutes()->refreshNameLookups();
+
+        $route = $fresh->getRoutes()->getByName('lemon-squeezy.webhook');
+
+        expect($route)->not->toBeNull('Re-requiring routes/billing.php registered no webhook route.');
+
+        return (string) $route?->uri();
+    } finally {
+        Route::swap($original);
+    }
 }
 
 /**

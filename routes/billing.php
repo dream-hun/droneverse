@@ -18,6 +18,28 @@ use LemonSqueezy\Laravel\Http\Controllers\WebhookController;
 Route::get('pricing', PricingController::class)->name('pricing');
 
 /*
+ * Where Lemon Squeezy is told to post, resolved rather than written out.
+ *
+ * This file is not the only thing that decides where the webhook lives.
+ * `php artisan lmsqueezy:listen expose` — the command that fronts a local
+ * machine with a tunnel and registers the resulting URL with Lemon Squeezy —
+ * advertises it as `{tunnel}/{config('lemon-squeezy.path')}/webhook`, and the
+ * package's own registration (dropped here; see AppServiceProvider) prefixed
+ * its route with the same value. A literal path served one URL while both of
+ * those published another, so setting LEMON_SQUEEZY_PATH pointed every
+ * delivery at a 404 — and a 404 is not 2xx, so Lemon Squeezy redelivers it for
+ * days rather than failing loudly once.
+ *
+ * The fallback matches the package's own config default, so an environment
+ * that blanks the variable rather than removing the line still resolves to the
+ * path everything else assumes.
+ */
+$lemonSqueezyPath = config('lemon-squeezy.path');
+$lemonSqueezyPath = is_string($lemonSqueezyPath) && $lemonSqueezyPath !== ''
+    ? $lemonSqueezyPath
+    : 'lemon-squeezy';
+
+/*
  * Lemon Squeezy posts here as a server, not as a browser: no session, no cookie,
  * no CSRF token. This file is required from routes/web.php, so it inherits the
  * whole `web` group, and the group is dropped wholesale for this one route
@@ -42,13 +64,15 @@ Route::get('pricing', PricingController::class)->name('pricing');
  * redelivers everything that is not 2xx and neither of those improves with
  * repetition.
  */
-Route::post('lemon-squeezy/webhook', WebhookController::class)
-    ->withoutMiddleware('web')
-    ->middleware([
-        VerifyLemonSqueezyWebhookSignature::class,
-        PreventLemonSqueezyWebhookRetryLoops::class,
-    ])
-    ->name('lemon-squeezy.webhook');
+Route::prefix($lemonSqueezyPath)->group(function (): void {
+    Route::post('webhook', WebhookController::class)
+        ->withoutMiddleware('web')
+        ->middleware([
+            VerifyLemonSqueezyWebhookSignature::class,
+            PreventLemonSqueezyWebhookRetryLoops::class,
+        ])
+        ->name('lemon-squeezy.webhook');
+});
 
 Route::middleware(['auth'])->group(function (): void {
     /*

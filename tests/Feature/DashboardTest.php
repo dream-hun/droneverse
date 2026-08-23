@@ -37,8 +37,6 @@ test('dashboard reports course progress and stats', function (): void {
 
     $response->assertInertia(fn ($page) => $page
         ->component('dashboard')
-        // Stats stay eager so the tiles paint immediately; the course grid
-        // below them is deferred and arrives on the follow-up request.
         ->where('stats.completed', 1)
         ->where('stats.stars', 3)
         ->missing('courses')

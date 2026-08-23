@@ -31,13 +31,14 @@ use App\Models\Challenge;
  * many it holds.
  *
  * @return array<string, array{0: array{name: string, why: string, maxScore: int, criteria: array<string, mixed>, measured: array<string, mixed>, expected: array<string, mixed>}}>
+ * @throws Throwable
  */
 function scoringVectors(): array
 {
     $path = dirname(__DIR__).'/Fixtures/scoring-vectors.json';
     $contents = file_get_contents($path);
 
-    throw_if($contents === false, RuntimeException::class, "the shared scoring vectors could not be read from {$path}");
+    throw_if($contents === false, RuntimeException::class, "the shared scoring vectors could not be read from $path");
 
     /** @var array{vectors: array<int, array{name: string, why: string, maxScore: int, criteria: array<string, mixed>, measured: array<string, mixed>, expected: array<string, mixed>}>} $file */
     $file = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
@@ -51,7 +52,9 @@ function scoringVectors(): array
     return $cases;
 }
 
-dataset('scoring vectors', fn (): array => scoringVectors());
+dataset(/**
+ * @throws Throwable
+ */  'scoring vectors', fn (): array => scoringVectors());
 
 /**
  * @param  array{name: string, why: string, maxScore: int, criteria: array<string, mixed>, measured: array<string, mixed>, expected: array<string, mixed>}  $vector
@@ -73,6 +76,7 @@ test('the server grades a run the way the contract says', function (array $vecto
  * A vector file that has quietly become empty, or a suite pointed at a
  * path that no longer exists, would pass every test above by running none
  * of them.
+ * @throws Throwable
  */
 test('the contract covers the cases it claims to', function (): void {
     $vectors = scoringVectors();

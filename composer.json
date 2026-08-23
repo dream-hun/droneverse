@@ -16,8 +16,8 @@
         "laravel/framework": "^13.24",
         "laravel/tinker": "^3.0.2",
         "laravel/wayfinder": "^0.1.21",
-        "league/flysystem-aws-s3-v3": "^3.35",
-        "opcodesio/log-viewer": "^3.24"
+        "league/flysystem-aws-s3-v3": "^3.35.2",
+        "opcodesio/log-viewer": "^3.24.2"
     },
     "require-dev": {
         "driftingly/rector-laravel": "^2.5",
@@ -30,7 +30,8 @@
         "laravel/sail": "^1.65",
         "mockery/mockery": "^1.6.12",
         "nunomaduro/collision": "^8.9.5",
-        "pestphp/pest": "^5.1",
+        "pestphp/pest": "^5.1.1",
+        "pestphp/pest-plugin-phpstan": "^5.1",
         "rector/rector": "^2.6.1"
     },
     "autoload": {

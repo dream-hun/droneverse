@@ -31,8 +31,8 @@ test('pro grants every feature the comparison table sells', function (): void {
         expect(Plan::Pro->hasFeature($feature))->toBeTrue($feature->value);
     }
 
-    expect(Plan::Pro->hasFeature(Feature::TeamManagement))->toBeFalse();
-    expect(Plan::Pro->hasFeature(Feature::ClassroomTools))->toBeFalse();
+    expect(Plan::Pro->hasFeature(Feature::TeamManagement))->toBeFalse()
+        ->and(Plan::Pro->hasFeature(Feature::ClassroomTools))->toBeFalse();
 });
 
 /**
@@ -65,9 +65,9 @@ test('no plan sells a language the simulator cannot run', function (): void {
 });
 
 test('team adds classroom features on top of pro', function (): void {
-    expect(Plan::Team->hasFeature(Feature::TeamManagement))->toBeTrue();
-    expect(Plan::Team->hasFeature(Feature::ClassroomTools))->toBeTrue();
-    expect(Plan::Team->hasFeature(Feature::MissionBuilder))->toBeTrue();
+    expect(Plan::Team->hasFeature(Feature::TeamManagement))->toBeTrue()
+        ->and(Plan::Team->hasFeature(Feature::ClassroomTools))->toBeTrue()
+        ->and(Plan::Team->hasFeature(Feature::MissionBuilder))->toBeTrue();
 });
 
 /**
@@ -82,12 +82,12 @@ test('the top tier grants every feature', function (): void {
 });
 
 test('catalog coverage ranks the paid tiers above starter', function (): void {
-    expect(Plan::Starter->covers(Plan::Starter))->toBeTrue();
-    expect(Plan::Starter->covers(Plan::Pro))->toBeFalse();
+    expect(Plan::Starter->covers(Plan::Starter))->toBeTrue()
+        ->and(Plan::Starter->covers(Plan::Pro))->toBeFalse()
+        ->and(Plan::Pro->covers(Plan::Starter))->toBeTrue()
+        ->and(Plan::Team->covers(Plan::Pro))->toBeTrue()
+        ->and(Plan::Pro->covers(Plan::Team))->toBeFalse();
 
-    expect(Plan::Pro->covers(Plan::Starter))->toBeTrue();
-    expect(Plan::Team->covers(Plan::Pro))->toBeTrue();
-    expect(Plan::Pro->covers(Plan::Team))->toBeFalse();
 });
 
 test('only starter is free', function (): void {
@@ -104,10 +104,10 @@ test('only starter is free', function (): void {
  * and there is no price for a card form to charge.
  */
 test('every paid tier sells itself and the free one does not', function (): void {
-    expect(Plan::Pro->isSelfServe())->toBeTrue();
-    expect(Plan::Team->isSelfServe())->toBeTrue();
+    expect(Plan::Pro->isSelfServe())->toBeTrue()
+        ->and(Plan::Team->isSelfServe())->toBeTrue()
+        ->and(Plan::Starter->isSelfServe())->toBeFalse();
 
-    expect(Plan::Starter->isSelfServe())->toBeFalse();
 });
 
 test('price ids are read from configuration', function (): void {
@@ -118,17 +118,17 @@ test('price ids are read from configuration', function (): void {
         'yearly_launch' => '',
     ]]);
 
-    expect(Plan::Pro->priceId('monthly'))->toBe('prod_pro_monthly');
-    expect(Plan::Pro->priceIds())->toBe(['monthly' => 'prod_pro_monthly', 'yearly' => 'prod_pro_yearly']);
+    expect(Plan::Pro->priceId('monthly'))->toBe('prod_pro_monthly')
+        ->and(Plan::Pro->priceIds())->toBe(['monthly' => 'prod_pro_monthly', 'yearly' => 'prod_pro_yearly']);
 });
 
 test('unconfigured variants resolve to null rather than a default', function (): void {
     config(['plans.prices.pro' => ['monthly' => null, 'yearly' => '']]);
 
-    expect(Plan::Pro->priceId('monthly'))->toBeNull();
-    expect(Plan::Pro->priceId('yearly'))->toBeNull();
-    expect(Plan::Pro->priceId('does_not_exist'))->toBeNull();
-    expect(Plan::Starter->priceId('monthly'))->toBeNull();
+    expect(Plan::Pro->priceId('monthly'))->toBeNull()
+        ->and(Plan::Pro->priceId('yearly'))->toBeNull()
+        ->and(Plan::Pro->priceId('does_not_exist'))->toBeNull()
+        ->and(Plan::Starter->priceId('monthly'))->toBeNull();
 });
 
 test('a price id maps back to the plan that sells it', function (): void {
@@ -137,17 +137,17 @@ test('a price id maps back to the plan that sells it', function (): void {
         'team' => ['monthly' => 'prod_team_monthly'],
     ]]);
 
-    expect(Plan::fromPriceId('prod_pro_monthly'))->toBe(Plan::Pro);
-    expect(Plan::fromPriceId('prod_pro_monthly_launch'))->toBe(Plan::Pro);
-    expect(Plan::fromPriceId('prod_team_monthly'))->toBe(Plan::Team);
+    expect(Plan::fromPriceId('prod_pro_monthly'))->toBe(Plan::Pro)
+        ->and(Plan::fromPriceId('prod_pro_monthly_launch'))->toBe(Plan::Pro)
+        ->and(Plan::fromPriceId('prod_team_monthly'))->toBe(Plan::Team);
 });
 
 test('an unrecognised price id grants nothing', function (): void {
     config(['plans.prices' => ['pro' => ['monthly' => 'prod_pro_monthly']]]);
 
-    expect(Plan::fromPriceId('prod_retired_beta_plan'))->toBeNull();
-    expect(Plan::fromPriceId(null))->toBeNull();
-    expect(Plan::fromPriceId(''))->toBeNull();
+    expect(Plan::fromPriceId('prod_retired_beta_plan'))->toBeNull()
+        ->and(Plan::fromPriceId(null))->toBeNull()
+        ->and(Plan::fromPriceId(''))->toBeNull();
 });
 
 /**
@@ -164,10 +164,10 @@ test('a price id claimed by two plans grants neither', function (): void {
         'team' => ['monthly' => 'prod_shared_by_mistake', 'yearly' => 'prod_team_yearly'],
     ]]);
 
-    expect(Plan::fromPriceId('prod_shared_by_mistake'))->toBeNull();
+    expect(Plan::fromPriceId('prod_shared_by_mistake'))->toBeNull()
+        ->and(Plan::fromPriceId('prod_team_yearly'))->toBe(Plan::Team);
 
     // The slip is contained: every other ID still resolves.
-    expect(Plan::fromPriceId('prod_team_yearly'))->toBe(Plan::Team);
 });
 
 /**
@@ -190,8 +190,8 @@ test('unconfigured price ids do not collide on null', function (): void {
         'team' => ['monthly' => null],
     ]]);
 
-    expect(Plan::fromPriceId(null))->toBeNull();
-    expect(Plan::fromPriceId('prod_anything'))->toBeNull();
+    expect(Plan::fromPriceId(null))->toBeNull()
+        ->and(Plan::fromPriceId('prod_anything'))->toBeNull();
 });
 
 test('a price id maps back to the billing period it sells', function (): void {
@@ -200,32 +200,32 @@ test('a price id maps back to the billing period it sells', function (): void {
         'yearly' => 'prod_pro_yearly',
     ]]);
 
-    expect(Plan::Pro->variantFor('prod_pro_yearly'))->toBe('yearly');
-    expect(Plan::Pro->variantFor('prod_team_monthly'))->toBeNull();
-    expect(Plan::Pro->variantFor(null))->toBeNull();
-    expect(Plan::Pro->variantFor(''))->toBeNull();
+    expect(Plan::Pro->variantFor('prod_pro_yearly'))->toBe('yearly')
+        ->and(Plan::Pro->variantFor('prod_team_monthly'))->toBeNull()
+        ->and(Plan::Pro->variantFor(null))->toBeNull()
+        ->and(Plan::Pro->variantFor(''))->toBeNull();
 });
 
 /**
  * Which periods a plan offers is a fact about the plan, not about whether
- * this environment happens to have priced it — an unpriced Pro still sells
+ * this environment happens to have priced it — an un-priced Pro still sells
  * monthly and yearly, it just cannot be bought.
  */
 test('only the subscription tiers offer a billing period', function (): void {
     config(['plans.prices' => []]);
 
-    expect(Plan::Pro->variants())->toBe(['monthly', 'yearly']);
-    expect(Plan::Team->variants())->toBe(['monthly', 'yearly']);
-    expect(Plan::Starter->variants())->toBe([]);
+    expect(Plan::Pro->variants())->toBe(['monthly', 'yearly'])
+        ->and(Plan::Team->variants())->toBe(['monthly', 'yearly'])
+        ->and(Plan::Starter->variants())->toBe([]);
 });
 
 test('display amounts are read from configuration', function (): void {
     config(['plans.amounts.pro' => ['monthly' => 1900, 'yearly' => 19000]]);
 
-    expect(Plan::Pro->amount('monthly'))->toBe(1900);
-    expect(Plan::Pro->amount('yearly'))->toBe(19000);
-    expect(Plan::Pro->amount('weekly'))->toBeNull();
-    expect(Plan::Starter->amount('monthly'))->toBeNull();
+    expect(Plan::Pro->amount('monthly'))->toBe(1900)
+        ->and(Plan::Pro->amount('yearly'))->toBe(19000)
+        ->and(Plan::Pro->amount('weekly'))->toBeNull()
+        ->and(Plan::Starter->amount('monthly'))->toBeNull();
 });
 
 /**

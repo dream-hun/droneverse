@@ -13,47 +13,15 @@ use App\Http\Controllers\WithdrawalFormController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', WelcomeController::class)->name('home');
-
-/*
- * The reference manual: every command, every worked example, and how a run is
- * scored.
- *
- * Public, and deliberately the most public thing here. It is what somebody
- * deciding whether to write any of this reads first, it is what a pilot comes
- * back to mid-mission, and both of those are worth more open than gated —
- * see App\Http\Controllers\DocsController for why nothing on it is withheld.
- */
 Route::get('docs', DocsController::class)->name('docs');
-
-/*
- * Both public, and both linked from the register form rather than only from
- * the footer: EU law times these disclosures to before the contract and before
- * the first field is filled in, which is squarely before anyone has an account
- * to sign in with.
- */
 Route::get('terms', TermsController::class)->name('terms');
 Route::get('privacy', PrivacyController::class)->name('privacy');
-
-/*
- * The Annex I(B) model withdrawal form. Article 6(1)(h) expects a trader to
- * make it available; the terms deliberately do not put its blanks on the page,
- * because withdrawing here is a person reading an email. A download satisfies
- * the first without reintroducing the second.
- *
- * Named as its own route rather than `terms.withdrawal-form`: `terms` is
- * already a route name, and Wayfinder would have to be both a function and a
- * namespace to generate the pair.
- */
 Route::get('terms/withdrawal-form.pdf', WithdrawalFormController::class)
     ->name('withdrawal-form');
 
 Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('leaderboard', LeaderboardController::class)->name('leaderboard');
-
-    // Advanced analytics is sold on Pro. The Gate is registered from the
-    // Feature enum in AppServiceProvider, so naming the ability here is the
-    // whole of the wiring.
     Route::get('analytics', AnalyticsController::class)
         ->middleware('can:advanced_analytics')
         ->name('analytics');

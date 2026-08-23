@@ -29,7 +29,7 @@ test('a pro pilot may read it', function (): void {
     $this->actingAs($user)
         ->get(route('analytics'))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page->component('analytics'));
+        ->assertInertia(fn($page) => $page->component('analytics'));
 });
 
 test('a pilot who has flown nothing gets an empty summary rather than an error', function (): void {
@@ -38,7 +38,7 @@ test('a pilot who has flown nothing gets an empty summary rather than an error',
     $this->actingAs($user)
         ->get(route('analytics'))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn($page) => $page
             ->where('summary.runs', 0)
             ->where('summary.meanAttemptsToClear', null)
             ->where('missions', [])
@@ -62,8 +62,8 @@ test('the summary counts only playable content', function (): void {
 
     $summary = resolve(FlightLog::class)->summaryFor($user);
 
-    expect($summary['runs'])->toBe(2);
-    expect($summary['missionsFlown'])->toBe(1);
+    expect($summary['runs'])->toBe(2)
+        ->and($summary['missionsFlown'])->toBe(1);
 });
 
 test('the curve is ordered oldest run first and carries a running best', function (): void {
@@ -80,10 +80,10 @@ test('the curve is ordered oldest run first and carries a running best', functio
 
     $curve = resolve(FlightLog::class)->missionCurve($user, $challenge);
 
-    expect(array_column($curve, 'score'))->toBe([20, 60, 40, 90]);
-    expect(array_column($curve, 'attempt'))->toBe([1, 2, 3, 4]);
+    expect(array_column($curve, 'score'))->toBe([20, 60, 40, 90])
+        ->and(array_column($curve, 'attempt'))->toBe([1, 2, 3, 4])
+        ->and(array_column($curve, 'best'))->toBe([20, 60, 60, 90]);
     // The best never falls, and the third run does not undo the second.
-    expect(array_column($curve, 'best'))->toBe([20, 60, 60, 90]);
 });
 
 test('the curve is empty for a mission the pilot has not flown', function (): void {
@@ -135,8 +135,8 @@ test('attempts to clear counts only the runs up to the first clear', function ()
 
     $summary = resolve(FlightLog::class)->summaryFor($user);
 
-    expect($summary['meanAttemptsToClear'])->toBe(3.0);
-    expect($summary['runs'])->toBe(5);
+    expect($summary['meanAttemptsToClear'])->toBe(3.0)
+        ->and($summary['runs'])->toBe(5);
 });
 
 test('weak spots list the uncleared missions first', function (): void {
@@ -173,9 +173,9 @@ test('weak spots list the uncleared missions first', function (): void {
         ->toBe(
             ['Stuck Here', 'Hard Won'],
             'a mission flown once is not a weak spot, and an uncleared one outranks a cleared one',
-        );
-    expect($weakSpots[0]['cleared'])->toBeFalse();
-    expect($weakSpots[1]['cleared'])->toBeTrue();
+        )
+        ->and($weakSpots[0]['cleared'])->toBeFalse()
+        ->and($weakSpots[1]['cleared'])->toBeTrue();
 });
 
 test('the cohort measures a pilot against every pilots best', function (): void {
@@ -204,12 +204,12 @@ test('the cohort measures a pilot against every pilots best', function (): void 
 
     $cohort = resolve(FlightLog::class)->cohortFor($viewer, $challenge);
 
-    expect($cohort)->not->toBeNull();
-    expect($cohort['yourBest'])->toBe(50);
-    expect($cohort['topBest'])->toBe(90);
-    expect($cohort['pilots'])->toBe(5);
+    expect($cohort)->not->toBeNull()
+        ->and($cohort['yourBest'])->toBe(50)
+        ->and($cohort['topBest'])->toBe(90)
+        ->and($cohort['pilots'])->toBe(5)
+        ->and($cohort['percentile'])->toBe(60);
     // Three of five pilots sit below 50, and the viewer is not one of them.
-    expect($cohort['percentile'])->toBe(60);
 });
 
 test('the cohort is null until the pilot has flown the mission', function (): void {
@@ -242,7 +242,7 @@ test('an unknown mission slug falls back to the most recently flown', function (
     $this->actingAs($user)
         ->get(route('analytics', ['mission' => 'no-such-mission']))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page->where('selected.slug', $newer->slug));
+        ->assertInertia(fn($page) => $page->where('selected.slug', $newer->slug));
 });
 
 test('a mission the pilot has never flown cannot be selected', function (): void {
@@ -259,7 +259,7 @@ test('a mission the pilot has never flown cannot be selected', function (): void
     $this->actingAs($user)
         ->get(route('analytics', ['mission' => $unflown->slug]))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page->where('selected.slug', $flown->slug));
+        ->assertInertia(fn($page) => $page->where('selected.slug', $flown->slug));
 });
 
 test('the play page withholds the flight log from a starter pilot', function (): void {
@@ -270,7 +270,7 @@ test('the play page withholds the flight log from a starter pilot', function ():
     $this->actingAs($user)
         ->get(route('challenges.show', [$course, $challenge]))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page->where('flightLog', null));
+        ->assertInertia(fn($page) => $page->where('flightLog', null));
 });
 
 test('the play page offers the flight log to a pro pilot', function (): void {
@@ -286,11 +286,9 @@ test('the play page offers the flight log to a pro pilot', function (): void {
     $this->actingAs($user)
         ->get(route('challenges.show', [$course, $challenge]))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page
-            // Deferred, so the cockpit paints before the two aggregates
-            // behind the panel have run.
+        ->assertInertia(fn($page) => $page
             ->missing('flightLog')
-            ->loadDeferredProps(fn ($reload) => $reload
+            ->loadDeferredProps(fn($reload) => $reload
                 ->has('flightLog.curve', 1)
                 ->where('flightLog.curve.0.score', 45)
                 ->where('flightLog.cohort.yourBest', 45)));

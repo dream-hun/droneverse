@@ -35,7 +35,7 @@ test('it grandfathers accounts that existed before enforcement', function (): vo
 
 /**
  * The case the fixed cutoff exists for: someone who registered in the
- * window between the migration and the deploy, was sent a verification
+ * window between the migration and the deployment, was sent a verification
  * link, and must still be required to use it.
  */
 test('it leaves accounts created after enforcement unverified', function (): void {

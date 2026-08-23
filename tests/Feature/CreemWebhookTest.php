@@ -28,7 +28,7 @@ use Illuminate\Testing\TestResponse;
  * valid forever and there is nothing in the request to reject it by. Replay
  * protection here is weaker than it was, the provider offers no counterpart, and
  * the tests below therefore have none to assert. That the handlers are
- * idempotent is a consequence rather than a defence.
+ * idempotent is a consequence rather than a defense.
  */
 
 const WEBHOOK_SECRET = 'whsec_creem_secret_for_tests';
@@ -41,8 +41,8 @@ beforeEach(function (): void {
 });
 
 test('the webhook route is registered', function (): void {
-    expect(Route::has('creem.webhook'))->toBeTrue();
-    expect(route('creem.webhook', absolute: false))->toBe('/creem/webhook');
+    expect(Route::has('creem.webhook'))->toBeTrue()
+        ->and(route('creem.webhook', absolute: false))->toBe('/creem/webhook');
 });
 
 /**
@@ -67,8 +67,8 @@ test('the webhook is served at the configured path', function (): void {
  * with a 419 and no subscription would ever land.
  *
  * This cannot be asserted by posting without a token, because
- * PreventRequestForgery waves through anything it recognises as a test run — a
- * webhook route fully behind CSRF would pass a behavioural check here and then
+ * PreventRequestForgery waves through anything it recognizes as a test run — a
+ * webhook route fully behind CSRF would pass a behavioral check here and then
  * reject every real call in production. So the middleware is inspected instead,
  * and inspected through the router: Route::gatherMiddleware() lists the `web`
  * group by name without expanding it and without applying the route's own
@@ -88,12 +88,11 @@ test('the webhook is served at the configured path', function (): void {
 test('the webhook route is exempt from csrf', function (): void {
     $middleware = gatheredMiddlewareFor('creem.webhook');
 
-    expect(VerifyCreemWebhookSignature::class)->toBeIn($middleware);
-
-    expect(csrfMiddlewareIn($middleware))->toBeEmpty('The Creem webhook must not run behind CSRF verification.');
-
-    expect(csrfMiddlewareIn(gatheredMiddlewareFor('home')))
+    expect(VerifyCreemWebhookSignature::class)->toBeIn($middleware)
+        ->and(csrfMiddlewareIn($middleware))->toBeEmpty('The Creem webhook must not run behind CSRF verification.')
+        ->and(csrfMiddlewareIn(gatheredMiddlewareFor('home')))
         ->not->toBeEmpty('An ordinary web route should still be behind CSRF; if it is not, the assertion above proves nothing.');
+
 });
 
 test('an unsigned payload is rejected', function (): void {
@@ -254,8 +253,8 @@ test('a renewal keeps the subscription in step', function (): void {
 
     $subscription = Subscription::query()->where('creem_id', 'sub_900001')->firstOrFail();
 
-    expect($subscription->renews_at?->toIso8601String())->toBe('2026-10-01T00:00:00+00:00');
-    expect($user->fresh()?->plan())->toBe(Plan::Pro);
+    expect($subscription->renews_at?->toIso8601String())->toBe('2026-10-01T00:00:00+00:00')
+        ->and($user->fresh()?->plan())->toBe(Plan::Pro);
 });
 
 /**
@@ -365,8 +364,8 @@ test('a renewal with no metadata is placed by the subscription already recorded'
 
     $subscription = Subscription::query()->where('creem_id', 'sub_900001')->firstOrFail();
 
-    expect($subscription->billable_id)->toBe($user->id);
-    expect($subscription->renews_at?->toIso8601String())->toBe('2026-10-01T00:00:00+00:00');
+    expect($subscription->billable_id)->toBe($user->id)
+        ->and($subscription->renews_at?->toIso8601String())->toBe('2026-10-01T00:00:00+00:00');
 });
 
 /**
@@ -376,7 +375,7 @@ test('a renewal with no metadata is placed by the subscription already recorded'
  * of the same values and nothing else.
  *
  * The Lemon Squeezy integration this replaces needed a middleware in front of
- * its webhook for exactly this: its create handlers inserted against a unique
+ * its webhook for exactly this: its creation handlers inserted against a unique
  * index and answered 500 to the second delivery, which earned a third.
  */
 test('a redelivery is recorded once, not three times', function (): void {
@@ -425,9 +424,9 @@ test('a refund marks the order it was issued against', function (): void {
 
     $order = Order::query()->where('creem_id', 'ord_700001')->firstOrFail();
 
-    expect($order->refunded)->toBeTrue();
-    expect($order->refunded_amount)->toBe(500);
-    expect($order->refunded_at)->not->toBeNull();
+    expect($order->refunded)->toBeTrue()
+        ->and($order->refunded_amount)->toBe(500)
+        ->and($order->refunded_at)->not->toBeNull();
 });
 
 /**
@@ -675,7 +674,7 @@ function reregisteredWebhookUri(): string
 
         /*
          * `->name()` is chained onto a route the collection already holds, so
-         * the name lookup it should appear in is built afterwards — which is
+         * the name lookup it should appear in is built afterward — which is
          * why the framework refreshes it on boot rather than on registration.
          */
         $fresh->getRoutes()->refreshNameLookups();

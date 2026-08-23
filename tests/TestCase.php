@@ -40,7 +40,7 @@ abstract class TestCase extends BaseTestCase
      * SSR is on in config, and Inertia dispatches it over HTTP: to the Vite
      * dev server when `public/hot` exists, to the SSR bundle otherwise. Left
      * alone, a developer running `npm run dev` turns every `assertInertia`
-     * test in the suite into a live round trip to that dev server — and the
+     * test in the suite into live round trip to that dev server — and the
      * two classes that call `Http::preventStrayRequests()` into 33 failures,
      * because {@see \Inertia\Ssr\HttpGateway::dispatch()} deliberately
      * rethrows a StrayRequestException rather than falling back.

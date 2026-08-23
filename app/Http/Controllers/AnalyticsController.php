@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Models\Challenge;
+use App\Models\User;
 use App\Queries\FlightLog;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -21,6 +22,7 @@ final class AnalyticsController extends Controller
      */
     public function __invoke(Request $request, FlightLog $flightLog): Response
     {
+        /** @var User $user Route middleware requires an authenticated pilot. */
         $user = $request->user();
 
         $missions = $flightLog->flownMissions($user);
@@ -88,7 +90,11 @@ final class AnalyticsController extends Controller
             return null;
         }
 
+        // Analytics needs only these three fields. A challenge also carries
+        // environment JSON and source code for the simulator, so hydrating the
+        // full model here wastes memory on every analytics page visit.
         return Challenge::query()
+            ->select(['id', 'slug', 'title', 'max_score'])
             ->where('slug', $wanted['challengeSlug'])
             ->whereRelation('course', 'slug', $wanted['courseSlug'])
             ->first();

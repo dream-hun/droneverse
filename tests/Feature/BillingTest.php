@@ -45,7 +45,7 @@ test('a starter pilot sees a page with nothing to bill', function (): void {
     $this->actingAs(User::factory()->create())
         ->get(route('billing.edit'))
         ->assertOk()
-        ->assertInertia(fn($page) => $page
+        ->assertInertia(fn ($page) => $page
             ->component('settings/billing')
             ->where('plan.value', 'starter')
             ->where('plan.source', 'none')
@@ -61,7 +61,7 @@ test('a starter pilot sees a page with nothing to bill', function (): void {
 test('a comped account is reported as an override', function (): void {
     $this->actingAs(User::factory()->onPlan(Plan::Pro)->create())
         ->get(route('billing.edit'))
-        ->assertInertia(fn($page) => $page
+        ->assertInertia(fn ($page) => $page
             ->where('plan.value', 'pro')
             ->where('plan.source', 'override')
             ->where('subscription', null));
@@ -73,7 +73,7 @@ test('a subscriber sees their plan and billing period', function (): void {
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
-        ->assertInertia(fn($page) => $page
+        ->assertInertia(fn ($page) => $page
             ->where('plan.value', 'pro')
             ->where('plan.source', 'subscription')
             ->where('subscription.planLabel', 'Pro')
@@ -102,7 +102,7 @@ test('the billing page reaches nobody', function (): void {
     $this->actingAs($user)
         ->get(route('billing.edit'))
         ->assertOk()
-        ->assertInertia(fn($page) => $page
+        ->assertInertia(fn ($page) => $page
             ->where('subscription.valid', true)
             ->where('orders.0.id', 'ord_900001'));
 
@@ -115,7 +115,7 @@ test('the renewal date is read from the subscription row', function (): void {
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
-        ->assertInertia(fn($page) => $page
+        ->assertInertia(fn ($page) => $page
             ->where('subscription.renewsAt', '2026-09-01T00:00:00+00:00')
             ->where('subscription.valid', true));
 });
@@ -145,7 +145,7 @@ test('a cancelled subscription reports its ending alongside its stale renewal da
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
-        ->assertInertia(fn($page) => $page
+        ->assertInertia(fn ($page) => $page
             ->where('subscription.cancelled', true)
             ->where('subscription.onGracePeriod', true)
             ->where('subscription.endsAt', '2026-08-27T00:00:00+00:00')
@@ -169,7 +169,7 @@ test('the page says nothing about the card, because nothing is published about i
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
-        ->assertInertia(fn($page) => $page
+        ->assertInertia(fn ($page) => $page
             ->has('subscription')
             ->missing('subscription.cardBrand')
             ->missing('subscription.cardLastFour'));
@@ -183,7 +183,7 @@ test('receipts are listed newest first', function (): void {
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
-        ->assertInertia(fn($page) => $page
+        ->assertInertia(fn ($page) => $page
             ->where('orders.0.id', 'ord_900002')
             ->where('orders.0.total', '$190.00')
             ->where('orders.0.refunded', false)
@@ -205,7 +205,7 @@ test('a partial refund reports what actually came back', function (): void {
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
-        ->assertInertia(fn($page) => $page
+        ->assertInertia(fn ($page) => $page
             ->where('orders.0.total', '$190.00')
             ->where('orders.0.refunded', true)
             ->where('orders.0.refundedTotal', '$19.00'));
@@ -223,7 +223,7 @@ test('an order carries no receipt link, because creem publishes none', function 
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
-        ->assertInertia(fn($page) => $page
+        ->assertInertia(fn ($page) => $page
             ->where('orders.0.status', 'failed')
             ->missing('orders.0.receiptUrl'));
 });
@@ -234,7 +234,7 @@ test('one pilots receipts do not leak to another', function (): void {
 
     $this->actingAs(User::factory()->create())
         ->get(route('billing.edit'))
-        ->assertInertia(fn($page) => $page->where('orders', []));
+        ->assertInertia(fn ($page) => $page->where('orders', []));
 });
 
 test('cancelling schedules the end of the paid period', function (): void {
@@ -350,7 +350,7 @@ test('a subscriber is offered every plan and period they could move to', functio
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
-        ->assertInertia(fn($page) => $page
+        ->assertInertia(fn ($page) => $page
             ->where('switchable.0.value', 'pro')
             ->where('switchable.0.variants.0.value', 'monthly')
             ->where('switchable.0.variants.0.formatted', '$19')
@@ -377,7 +377,7 @@ test('a period with no configured price is not offered as a destination', functi
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
-        ->assertInertia(fn($page) => $page
+        ->assertInertia(fn ($page) => $page
             ->where('switchable.1.value', 'team')
             ->count('switchable.1.variants', 1)
             ->where('switchable.1.variants.0.value', 'monthly'));
@@ -391,11 +391,11 @@ test('a period with no configured price is not offered as a destination', functi
 test('an account with no subscription has nothing to switch', function (): void {
     $this->actingAs(User::factory()->onPlan(Plan::Pro)->create())
         ->get(route('billing.edit'))
-        ->assertInertia(fn($page) => $page->where('switchable', []));
+        ->assertInertia(fn ($page) => $page->where('switchable', []));
 
     $this->actingAs(User::factory()->create())
         ->get(route('billing.edit'))
-        ->assertInertia(fn($page) => $page->where('switchable', []));
+        ->assertInertia(fn ($page) => $page->where('switchable', []));
 });
 
 test('a subscription winding down offers nothing to switch to', function (): void {
@@ -409,7 +409,7 @@ test('a subscription winding down offers nothing to switch to', function (): voi
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
-        ->assertInertia(fn($page) => $page
+        ->assertInertia(fn ($page) => $page
             ->where('switchable', [])
             // Still theirs until it runs out, and still resumable.
             ->where('subscription.onGracePeriod', true));
@@ -467,7 +467,7 @@ test('a switch survives an answer that cannot be read in full', function (): voi
     config(['creem.api_key' => 'creem_test_key']);
 
     Http::fake([
-        CREEM_API . '/subscriptions/' . $subscription->creem_id . '/upgrade' => Http::response(['ok' => true]),
+        CREEM_API.'/subscriptions/'.$subscription->creem_id.'/upgrade' => Http::response(['ok' => true]),
     ]);
 
     $this->actingAs($user)
@@ -498,9 +498,9 @@ test('switching refuses the free tier and an unsold period', function (): void {
     $subscription = billingSubscribe($user, 'prod_pro_monthly');
 
     foreach ([
-                 ['plan' => 'starter', 'variant' => 'monthly'],
-                 ['plan' => 'pro', 'variant' => 'weekly'],
-             ] as $attempt) {
+        ['plan' => 'starter', 'variant' => 'monthly'],
+        ['plan' => 'pro', 'variant' => 'weekly'],
+    ] as $attempt) {
         $this->actingAs($user)
             ->put(route('subscription.swap'), $attempt)
             ->assertRedirect(route('billing.edit'));
@@ -635,7 +635,7 @@ test(/**
     $this->actingAs($user)
         ->get(route('billing-portal.edit'), [
             'X-Inertia' => 'true',
-            'X-Inertia-Version' => (string)$version,
+            'X-Inertia-Version' => (string) $version,
         ])
         ->assertStatus(409)
         ->assertHeader('X-Inertia-Location', 'https://creem.io/my-orders/login/abc123');
@@ -683,14 +683,14 @@ function lastCreemRequest(): array
  * and refusing is the right behavior, so a fake that omitted one would be
  * testing the fallback rather than the path.
  *
- * @param array<string, mixed> $attributes
+ * @param  array<string, mixed>  $attributes
  */
 function fakeSubscriptionApi(Subscription $subscription, string $action, array $attributes = []): void
 {
     config(['creem.api_key' => 'creem_test_key']);
 
     Http::fake([
-        CREEM_API . '/subscriptions/' . $subscription->creem_id . '/' . $action => Http::response([
+        CREEM_API.'/subscriptions/'.$subscription->creem_id.'/'.$action => Http::response([
             'id' => $subscription->creem_id,
             'object' => 'subscription',
             'product' => $subscription->product_id,
@@ -706,7 +706,7 @@ function fakePortalApi(string $link): void
     config(['creem.api_key' => 'creem_test_key']);
 
     Http::fake([
-        CREEM_API . '/customers/billing' => Http::response(['customer_portal_link' => $link]),
+        CREEM_API.'/customers/billing' => Http::response(['customer_portal_link' => $link]),
     ]);
 }
 
@@ -720,7 +720,7 @@ function fakeCreemOutage(): void
     config(['creem.api_key' => 'creem_test_key']);
 
     Http::fake([
-        CREEM_API . '/*' => Http::response(['error' => 'Something went wrong.'], 500),
+        CREEM_API.'/*' => Http::response(['error' => 'Something went wrong.'], 500),
     ]);
 }
 
@@ -729,13 +729,12 @@ function fakeCreemOutage(): void
  * account has.
  */
 function billingSubscribe(
-    User               $user,
-    string             $productId,
+    User $user,
+    string $productId,
     SubscriptionStatus $status = SubscriptionStatus::Active,
     ?DateTimeInterface $periodEndsAt = null,
     ?DateTimeInterface $renewsAt = null,
-): Subscription
-{
+): Subscription {
     $customer = customerFor($user);
 
     return Subscription::factory()
@@ -751,21 +750,14 @@ function billingSubscribe(
 
 /**
  * Give the user a paid order, the way `checkout.completed` would have.
- * @param User $user
- * @param string $creemId
- * @param int $amount
- * @param string $orderedAt
- * @param string $status
- * @return Order
  */
 function order(
-    User   $user,
+    User $user,
     string $creemId,
-    int    $amount = 1900,
+    int $amount = 1900,
     string $orderedAt = '2026-06-01 10:00:00',
     string $status = 'paid',
-): Order
-{
+): Order {
     customerFor($user);
 
     return Order::factory()->billable($user)->create([
@@ -781,11 +773,11 @@ function customerFor(User $user): Customer
 {
     return Customer::query()->firstOrCreate(
         ['billable_id' => $user->id, 'billable_type' => $user->getMorphClass()],
-        ['creem_id' => 'cust_' . fake()->unique()->bothify('??##??##'), 'email' => $user->email],
+        ['creem_id' => 'cust_'.fake()->unique()->bothify('??##??##'), 'email' => $user->email],
     );
 }
 
 function creemCustomerId(User $user): string
 {
-    return (string)customerFor($user)->creem_id;
+    return (string) customerFor($user)->creem_id;
 }

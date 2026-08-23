@@ -31,6 +31,7 @@ use App\Models\Challenge;
  * many it holds.
  *
  * @return array<string, array{0: array{name: string, why: string, maxScore: int, criteria: array<string, mixed>, measured: array<string, mixed>, expected: array<string, mixed>}}>
+ *
  * @throws Throwable
  */
 function scoringVectors(): array
@@ -54,7 +55,7 @@ function scoringVectors(): array
 
 dataset(/**
  * @throws Throwable
- */  'scoring vectors', fn (): array => scoringVectors());
+ */ 'scoring vectors', fn (): array => scoringVectors());
 
 /**
  * @param  array{name: string, why: string, maxScore: int, criteria: array<string, mixed>, measured: array<string, mixed>, expected: array<string, mixed>}  $vector
@@ -76,6 +77,7 @@ test('the server grades a run the way the contract says', function (array $vecto
  * A vector file that has quietly become empty, or a suite pointed at a
  * path that no longer exists, would pass every test above by running none
  * of them.
+ *
  * @throws Throwable
  */
 test('the contract covers the cases it claims to', function (): void {

@@ -9,6 +9,7 @@ use App\Http\Resources\CourseCardResource;
 use App\Models\Course;
 use App\Models\User;
 use App\Queries\Leaderboard;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -20,6 +21,7 @@ final class DashboardController extends Controller
      */
     public function __invoke(Request $request, Leaderboard $leaderboard): Response
     {
+        /** @var User $user Route middleware requires an authenticated pilot. */
         $user = $request->user();
 
         /*
@@ -62,11 +64,18 @@ final class DashboardController extends Controller
          */
         $progress = $user->challengeProgress()
             ->select(['id', 'challenge_id'])
-            ->with(['challenge' => fn ($challenge) => $challenge
-                ->select(['id', 'course_id', 'title', 'slug', 'required_plan'])
-                ->with(['course' => fn ($course) => $course->select(['id', 'slug', 'required_plan'])]),
-            ])
-            ->where('status', '!=', ChallengeStatus::Completed)
+            ->with(['challenge' => function (Relation $challenge): void {
+                $challenge->select(['id', 'course_id', 'title', 'slug', 'required_plan']);
+                $challenge->with(['course' => function (Relation $course): void {
+                    $course->select(['id', 'slug', 'required_plan']);
+                }]);
+            }])
+            // A progress row is only created once a pilot starts a mission,
+            // so `in_progress` is the only resumable state. An equality here
+            // also lets the dashboard use the `(user_id, status, updated_at)`
+            // index instead of scanning every completed mission a long-lived
+            // account has accumulated and then sorting the survivors.
+            ->where('status', ChallengeStatus::InProgress)
             ->whereRelation('challenge', 'is_published', true)
             ->whereRelation('challenge.course', 'is_published', true)
             ->latest('updated_at')

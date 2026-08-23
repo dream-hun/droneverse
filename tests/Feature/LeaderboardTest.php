@@ -7,6 +7,7 @@ use App\Models\Challenge;
 use App\Models\Course;
 use App\Models\User;
 use App\Models\UserChallengeProgress;
+use Inertia\Testing\AssertableInertia;
 
 test('guests are redirected to the login page', function (): void {
     $response = $this->get(route('leaderboard'));
@@ -26,7 +27,7 @@ test('pilots are ranked by points', function (): void {
 
     $response = $this->actingAs($runnerUp)->get(route('leaderboard'));
 
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->component('leaderboard/index')
         ->has('standings', 2)
         ->where('standings.0.name', 'Ada')
@@ -55,7 +56,7 @@ test('points are summed across every challenge', function (): void {
 
     $response = $this->actingAs($allRounder)->get(route('leaderboard'));
 
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('standings.0.name', 'Ada')
         ->where('standings.0.points', 120)
         ->where('standings.0.stars', 4)
@@ -78,7 +79,7 @@ test('stars then completions break a points tie', function (): void {
 
     $response = $this->actingAs($starred)->get(route('leaderboard'));
 
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('standings.0.name', 'Ada')
         ->where('standings.0.rank', 1)
         ->where('standings.1.name', 'Grace')
@@ -99,7 +100,7 @@ test('pilots level on every metric share a rank', function (): void {
 
     $response = $this->actingAs($first)->get(route('leaderboard'));
 
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('standings.0.rank', 1)
         ->where('standings.1.rank', 1)
         ->where('standings.2.name', 'Katherine')
@@ -120,7 +121,7 @@ test('the board can be scoped to a single course', function (): void {
 
     $response = $this->actingAs($flyer)->get(route('leaderboard', ['course' => 'city-operations']));
 
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('courseSlug', 'city-operations')
         ->has('standings', 1)
         ->where('standings.0.name', 'Grace')
@@ -138,7 +139,7 @@ test('an unknown course slug falls back to the overall board', function (): void
 
     $response = $this->actingAs($pilot)->get(route('leaderboard', ['course' => 'no-such-course']));
 
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('courseSlug', null)
         ->has('standings', 1));
 });
@@ -158,7 +159,7 @@ test('unpublished content is left out of the standings', function (): void {
 
     $response = $this->actingAs($pilot)->get(route('leaderboard'));
 
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->has('standings', 1)
         ->where('standings.0.points', 30)
         ->where('standings.0.stars', 1)
@@ -185,7 +186,7 @@ test('a pilot outside the top of the board still gets their own row', function (
 
     $response = $this->actingAs($straggler)->get(route('leaderboard'));
 
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->has('standings', $topPilots)
         ->where('you.name', 'Grace')
         ->where('you.rank', $topPilots + 1)
@@ -200,7 +201,7 @@ test('a pilot who has not flown yet has no standing', function (): void {
 
     $response = $this->actingAs(User::factory()->create())->get(route('leaderboard'));
 
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->has('standings', 0)
         ->where('you', null)
         ->where('pilotCount', 0));
@@ -212,7 +213,7 @@ test('the course filter lists only published courses', function (): void {
 
     $response = $this->actingAs(User::factory()->create())->get(route('leaderboard'));
 
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->has('courses', 1)
         ->where('courses.0.title', 'Flight School'));
 });

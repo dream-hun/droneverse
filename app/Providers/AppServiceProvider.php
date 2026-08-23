@@ -26,11 +26,10 @@ final class AppServiceProvider extends ServiceProvider
         $this->registerLogViewerGate();
     }
 
-
     private function registerLogViewerGate(): void
     {
         Gate::define('viewLogViewer', static function (?User $user): bool {
-            if (!$user instanceof User) {
+            if (! $user instanceof User) {
                 return false;
             }
 
@@ -40,13 +39,12 @@ final class AppServiceProvider extends ServiceProvider
         });
     }
 
-
     private function registerFeatureGates(): void
     {
         foreach (Feature::cases() as $feature) {
             Gate::define(
                 $feature->value,
-                static fn(User $user): bool => $user->hasFeature($feature),
+                static fn (User $user): bool => $user->hasFeature($feature),
             );
         }
     }
@@ -59,13 +57,13 @@ final class AppServiceProvider extends ServiceProvider
         Model::unguard();
         Date::use(CarbonImmutable::class);
 
-        Model::preventLazyLoading(!app()->isProduction());
+        Model::preventLazyLoading(! app()->isProduction());
 
         DB::prohibitDestructiveCommands(
             app()->isProduction(),
         );
 
-        Password::defaults(fn(): ?Password => app()->isProduction()
+        Password::defaults(fn (): ?Password => app()->isProduction()
             ? Password::min(12)
                 ->mixedCase()
                 ->letters()

@@ -29,7 +29,7 @@ test('a pro pilot may read it', function (): void {
     $this->actingAs($user)
         ->get(route('analytics'))
         ->assertOk()
-        ->assertInertia(fn($page) => $page->component('analytics'));
+        ->assertInertia(fn ($page) => $page->component('analytics'));
 });
 
 test('a pilot who has flown nothing gets an empty summary rather than an error', function (): void {
@@ -38,7 +38,7 @@ test('a pilot who has flown nothing gets an empty summary rather than an error',
     $this->actingAs($user)
         ->get(route('analytics'))
         ->assertOk()
-        ->assertInertia(fn($page) => $page
+        ->assertInertia(fn ($page) => $page
             ->where('summary.runs', 0)
             ->where('summary.meanAttemptsToClear', null)
             ->where('missions', [])
@@ -242,7 +242,7 @@ test('an unknown mission slug falls back to the most recently flown', function (
     $this->actingAs($user)
         ->get(route('analytics', ['mission' => 'no-such-mission']))
         ->assertOk()
-        ->assertInertia(fn($page) => $page->where('selected.slug', $newer->slug));
+        ->assertInertia(fn ($page) => $page->where('selected.slug', $newer->slug));
 });
 
 test('a mission the pilot has never flown cannot be selected', function (): void {
@@ -259,7 +259,7 @@ test('a mission the pilot has never flown cannot be selected', function (): void
     $this->actingAs($user)
         ->get(route('analytics', ['mission' => $unflown->slug]))
         ->assertOk()
-        ->assertInertia(fn($page) => $page->where('selected.slug', $flown->slug));
+        ->assertInertia(fn ($page) => $page->where('selected.slug', $flown->slug));
 });
 
 test('the play page withholds the flight log from a starter pilot', function (): void {
@@ -270,7 +270,7 @@ test('the play page withholds the flight log from a starter pilot', function ():
     $this->actingAs($user)
         ->get(route('challenges.show', [$course, $challenge]))
         ->assertOk()
-        ->assertInertia(fn($page) => $page->where('flightLog', null));
+        ->assertInertia(fn ($page) => $page->where('flightLog', null));
 });
 
 test('the play page offers the flight log to a pro pilot', function (): void {
@@ -286,9 +286,9 @@ test('the play page offers the flight log to a pro pilot', function (): void {
     $this->actingAs($user)
         ->get(route('challenges.show', [$course, $challenge]))
         ->assertOk()
-        ->assertInertia(fn($page) => $page
+        ->assertInertia(fn ($page) => $page
             ->missing('flightLog')
-            ->loadDeferredProps(fn($reload) => $reload
+            ->loadDeferredProps(fn ($reload) => $reload
                 ->has('flightLog.curve', 1)
                 ->where('flightLog.curve.0.score', 45)
                 ->where('flightLog.cohort.yourBest', 45)));

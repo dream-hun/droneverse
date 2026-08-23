@@ -24,12 +24,12 @@ declare(strict_types=1);
  */
 
 test('every preloaded asset is referenced by a stylesheet the page links', function (): void {
-    $html = (string)$this->get(route('home'))->assertOk()->getContent();
+    $html = (string) $this->get(route('home'))->assertOk()->getContent();
 
     preg_match_all('#<link[^>]*rel="preload"[^>]*>#i', $html, $preloads);
     preg_match_all('#<link[^>]*rel="stylesheet"[^>]*href="([^"]+)"[^>]*>#i', $html, $sheets);
 
-    $localPath = fn(string $url): string => public_path(parse_url($url, PHP_URL_PATH) ?? '');
+    $localPath = fn (string $url): string => public_path(parse_url($url, PHP_URL_PATH) ?? '');
 
     $linked = '';
     foreach ($sheets[1] as $href) {

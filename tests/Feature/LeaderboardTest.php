@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-use Inertia\Testing\AssertableInertia;
 use App\Http\Controllers\LeaderboardController;
 use App\Models\Challenge;
 use App\Models\Course;
 use App\Models\User;
 use App\Models\UserChallengeProgress;
+use Inertia\Testing\AssertableInertia;
 
 test('guests are redirected to the login page', function (): void {
     $response = $this->get(route('leaderboard'));

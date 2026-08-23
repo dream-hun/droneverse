@@ -30,7 +30,7 @@ use App\Models\Challenge;
  * last test in this file counts the cases, and a dataset cannot be asked how
  * many it holds.
  *
- * @return array<string, array{0: array{name: string, why: string, maxScore: int, criteria: array<string, mixed>, measured: array<string, mixed>, expected: array<string, mixed>}}>
+ * @return array<string, array{0: array{name: string, why: string, maxScore: int, criteria: array<string, mixed>, measured: array{waypointsHit: int, waypointsTotal: int, collisions: int, maxAltitude: float, landed: bool, elapsedSeconds: float, timedOut: bool, photosTaken: int, photoTargetsHit: int, photoTargetsTotal: int, photosMissing: int, washRequired: bool, washed: bool}, expected: array<string, bool|float|int>}}>
  *
  * @throws Throwable
  */
@@ -41,7 +41,7 @@ function scoringVectors(): array
 
     throw_if($contents === false, RuntimeException::class, "the shared scoring vectors could not be read from $path");
 
-    /** @var array{vectors: array<int, array{name: string, why: string, maxScore: int, criteria: array<string, mixed>, measured: array<string, mixed>, expected: array<string, mixed>}>} $file */
+    /** @var array{vectors: array<int, array{name: string, why: string, maxScore: int, criteria: array<string, mixed>, measured: array{waypointsHit: int, waypointsTotal: int, collisions: int, maxAltitude: float, landed: bool, elapsedSeconds: float, timedOut: bool, photosTaken: int, photoTargetsHit: int, photoTargetsTotal: int, photosMissing: int, washRequired: bool, washed: bool}, expected: array<string, bool|float|int>}>} $file */
     $file = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
 
     $cases = [];
@@ -58,14 +58,14 @@ dataset(/**
  */ 'scoring vectors', fn (): array => scoringVectors());
 
 /**
- * @param  array{name: string, why: string, maxScore: int, criteria: array<string, mixed>, measured: array<string, mixed>, expected: array<string, mixed>}  $vector
+ * @param  array{name: string, why: string, maxScore: int, criteria: array<string, mixed>, measured: array{waypointsHit: int, waypointsTotal: int, collisions: int, maxAltitude: float, landed: bool, elapsedSeconds: float, timedOut: bool, photosTaken: int, photoTargetsHit: int, photoTargetsTotal: int, photosMissing: int, washRequired: bool, washed: bool}, expected: array<string, bool|float|int>}  $vector
  */
 test('the server grades a run the way the contract says', function (array $vector): void {
+    /** @var array{name: string, why: string, maxScore: int, criteria: array<string, mixed>, measured: array{waypointsHit: int, waypointsTotal: int, collisions: int, maxAltitude: float, landed: bool, elapsedSeconds: float, timedOut: bool, photosTaken: int, photoTargetsHit: int, photoTargetsTotal: int, photosMissing: int, washRequired: bool, washed: bool}, expected: array<string, bool|float|int>} $vector Pest datasets are dynamically invoked. */
     $challenge = new Challenge;
     $challenge->success_criteria = $vector['criteria'];
     $challenge->max_score = $vector['maxScore'];
 
-    /** @var array{waypointsHit: int, waypointsTotal: int, collisions: int, maxAltitude: float, landed: bool, elapsedSeconds: float, timedOut: bool, photosTaken: int, photoTargetsHit: int, photoTargetsTotal: int, photosMissing: int, washRequired: bool, washed: bool} $measured */
     $measured = $vector['measured'];
 
     expect((new GradeSimulatorRun)->handle($measured, $challenge))->toBe($vector['expected'], $vector['why']);

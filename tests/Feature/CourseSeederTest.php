@@ -57,9 +57,9 @@ test('seeded challenges have playable environments', function (): void {
         }
 
         expect($criteria['type'])->toBeIn(['waypoints', 'gates'], $slug);
-        expect($criteria['avoid_collisions'])->toBeBool($slug);
-        expect($criteria['landing_required'])->toBeBool($slug);
-        expect($criteria['waypoints'])->toBeArray($slug);
+        expect($criteria['avoid_collisions'] ?? null)->toBeBool($slug);
+        expect($criteria['landing_required'] ?? null)->toBeBool($slug);
+        expect($criteria['waypoints'] ?? null)->toBeArray($slug);
         expect($criteria['max_time_seconds'])->toBeGreaterThanOrEqual(10, $slug.': max_time_seconds');
 
         if (array_key_exists('min_altitude', $criteria)) {
@@ -70,7 +70,7 @@ test('seeded challenges have playable environments', function (): void {
         expect($environment['goal']['radius'])->toBeGreaterThan(0, $slug.': goal radius');
         assertPointWithinBounds($environment['goal'] + ['y' => 1], $bounds, $slug.': goal');
 
-        foreach ($criteria['waypoints'] as $index => $waypoint) {
+        foreach ($criteria['waypoints'] ?? [] as $index => $waypoint) {
             expect($waypoint['radius'])
                 ->toBeGreaterThanOrEqual(0.5, sprintf('%s: criteria waypoint %s radius too small to hit', $slug, $index));
             assertPointWithinBounds($waypoint, $bounds, sprintf('%s: criteria waypoint %s', $slug, $index));
@@ -80,7 +80,9 @@ test('seeded challenges have playable environments', function (): void {
             assertPointWithinBounds($waypoint, $bounds, sprintf('%s: environment waypoint %s', $slug, $index));
         }
 
-        foreach ($environment['obstacles'] as $index => $obstacle) {
+        expect($environment)->toHaveKey('obstacles', new Any, $slug.': obstacles');
+
+        foreach ($environment['obstacles'] ?? [] as $index => $obstacle) {
             assertPointWithinBounds($obstacle, $bounds, sprintf('%s: obstacle %s', $slug, $index));
         }
 
@@ -119,14 +121,14 @@ test('every seeded challenge ships a reference solution', function (): void {
 
     Challenge::query()->get()->each(function (Challenge $challenge): void {
         $slug = $challenge->slug;
-        $solution = $challenge->solution_code;
+        $solution = $challenge->solution_code ?? '';
         $criteria = $challenge->success_criteria;
 
-        expect($solution)->not->toBeNull($slug.': no reference solution');
+        expect($solution)->not->toBeEmpty($slug.': no reference solution');
         $this->assertStringContainsString('async function main(drone)', $solution, $slug);
         expect($solution)->not->toBe($challenge->starter_code, $slug.': the solution is just the starter code');
 
-        if ($criteria['landing_required']) {
+        if ($criteria['landing_required'] ?? false) {
             $this->assertStringContainsString('drone.land()', $solution, $slug.': never lands');
         }
 
@@ -150,25 +152,25 @@ test('city operations exercises the full mission toolkit', function (): void {
     expect($challenges->keys()->all())
         ->toBe(['downtown-gauntlet', 'street-sweep', 'wash-and-return', 'skyline-survey', 'full-shift']);
 
-    $sweep = $challenges['street-sweep'];
-    expect($sweep->success_criteria['photo_targets'])->not->toBeEmpty();
+    $sweep = $challenges->sole('slug', 'street-sweep');
+    expect($sweep->success_criteria['photo_targets'] ?? [])->not->toBeEmpty();
     expect($sweep->starter_code)->toContain('drone.scan');
-    expect(collect($sweep->environment['props'])->contains(fn (array $prop): bool => ($prop['label'] ?? null) === 'delivery-van'))
+    expect(collect($sweep->environment['props'] ?? [])->contains(fn (array $prop): bool => ($prop['label'] ?? null) === 'delivery-van'))
         ->toBeTrue('street-sweep needs the delivery-van prop its scanner mission hunts for');
 
-    $wash = $challenges['wash-and-return'];
-    expect($wash->success_criteria['wash_required'])->toBeTrue();
+    $wash = $challenges->sole('slug', 'wash-and-return');
+    expect($wash->success_criteria['wash_required'] ?? null)->toBeTrue();
     expect($wash->environment)->toHaveKey('carwash');
 
-    $survey = $challenges['skyline-survey'];
-    expect($survey->success_criteria['min_photos'])->toBe(3);
-    expect($survey->success_criteria['photo_targets'])->toHaveCount(3);
+    $survey = $challenges->sole('slug', 'skyline-survey');
+    expect($survey->success_criteria['min_photos'] ?? null)->toBe(3);
+    expect($survey->success_criteria['photo_targets'] ?? [])->toHaveCount(3);
     expect($survey->starter_code)->toContain('drone.takePhoto');
 
-    $shift = $challenges['full-shift'];
-    expect($shift->success_criteria['wash_required'])->toBeTrue();
-    expect($shift->success_criteria['photo_targets'])->not->toBeEmpty();
-    expect($shift->success_criteria['waypoints'])->not->toBeEmpty();
+    $shift = $challenges->sole('slug', 'full-shift');
+    expect($shift->success_criteria['wash_required'] ?? null)->toBeTrue();
+    expect($shift->success_criteria['photo_targets'] ?? [])->not->toBeEmpty();
+    expect($shift->success_criteria['waypoints'] ?? [])->not->toBeEmpty();
     expect($shift->environment)->toHaveKey('carwash');
 });
 
@@ -218,8 +220,8 @@ test('every seeded mission resolves to a real plan', function (): void {
  * inside half the width/depth and below the height ceiling — a goal or
  * waypoint outside the pad renders (and lands the drone) off the world.
  *
- * @param  array<string, mixed>  $point
- * @param  array<string, mixed>  $bounds
+ * @param  array{x: float|int, y: float|int, z: float|int, ...}  $point
+ * @param  array{width: float|int, depth: float|int, height: float|int}  $bounds
  */
 function assertPointWithinBounds(array $point, array $bounds, string $context): void
 {

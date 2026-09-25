@@ -7,6 +7,7 @@ use App\Enums\SubscriptionStatus;
 use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
+use Inertia\Testing\AssertableInertia;
 
 beforeEach(function (): void {
     config([
@@ -42,7 +43,7 @@ test('a buyer whose webhook has not landed is told the plan is pending', functio
     $this->actingAs(User::factory()->create())
         ->get(route('subscription.thank-you'))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->component('subscription/thank-you')
             ->where('pending', true)
             ->where('subscription', null)
@@ -63,7 +64,7 @@ test('a subscriber is shown the plan, period and renewal date they bought', func
     $this->actingAs($user)
         ->get(route('subscription.thank-you'))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->component('subscription/thank-you')
             ->where('pending', false)
             ->where('plan.value', 'pro')
@@ -85,7 +86,7 @@ test('the page cannot be talked into confirming a plan that was never bought', f
     $this->actingAs(User::factory()->create())
         ->get(route('subscription.thank-you', ['plan' => 'team', 'pending' => false]))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('plan.value', 'starter')
             ->where('pending', true)
             ->where('subscription', null)
@@ -101,7 +102,7 @@ test('a comped account is confirmed rather than left waiting', function (): void
     $this->actingAs(User::factory()->onPlan(Plan::Pro)->create())
         ->get(route('subscription.thank-you'))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('pending', false)
             ->where('plan.value', 'pro')
             ->where('subscription', null)
@@ -125,7 +126,7 @@ test('an expired subscription is neither confirmed nor polled for', function ():
     $this->actingAs($user)
         ->get(route('subscription.thank-you'))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('plan.value', 'starter')
             ->where('subscription', null)
             ->where('highlights', [])
@@ -157,7 +158,7 @@ test('a trial reports its end date', function (): void {
 
     $this->actingAs($user)
         ->get(route('subscription.thank-you'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('pending', false)
             ->where('subscription.onTrial', true)
             ->where('subscription.trialEndsAt', '2026-09-04T00:00:00+00:00'));

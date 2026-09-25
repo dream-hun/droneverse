@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Enums\ChallengeStatus;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -121,7 +122,7 @@ final readonly class RebuildRollups
             ->selectRaw('user_id, challenge_id, min(id) as cleared_id');
 
         return DB::table('challenge_runs')
-            ->leftJoinSub($firstClears, 'first_clears', function ($join): void {
+            ->leftJoinSub($firstClears, 'first_clears', function (JoinClause $join): void {
                 $join->on('first_clears.user_id', '=', 'challenge_runs.user_id')
                     ->on('first_clears.challenge_id', '=', 'challenge_runs.challenge_id');
             })

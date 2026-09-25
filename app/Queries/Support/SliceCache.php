@@ -212,11 +212,12 @@ final readonly class SliceCache
         $generations = Cache::many($generationKeys);
 
         $stamp = implode('|', array_map(
-            fn (string $scope, string $generationKey): string => sprintf(
-                '%s=%d',
-                $scope,
-                (int) ($generations[$generationKey] ?? 0),
-            ),
+            function (string $scope, string $generationKey) use ($generations): string {
+                // Redis hands an incremented counter back as a numeric string.
+                $generation = $generations[$generationKey] ?? 0;
+
+                return sprintf('%s=%d', $scope, is_numeric($generation) ? (int) $generation : 0);
+            },
             $scopes,
             $generationKeys,
         ));

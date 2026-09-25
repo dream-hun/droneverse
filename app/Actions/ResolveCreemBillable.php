@@ -46,7 +46,7 @@ final readonly class ResolveCreemBillable
      * Creem sends nested objects either expanded or as a bare ID string,
      * depending on the event. Both mean the same thing here.
      *
-     * @param  array<string, mixed>  $object
+     * @param  array<mixed>  $object
      */
     public static function id(array $object, string $key): ?string
     {

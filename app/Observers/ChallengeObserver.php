@@ -64,7 +64,8 @@ final readonly class ChallengeObserver
         // A mission that moved between courses leaves a hole in the one it
         // came from, and `getOriginal` is the only place that course is still
         // named by the time the write has landed.
-        $formerCourseId = (int) $challenge->getOriginal('course_id');
+        $original = $challenge->getOriginal('course_id');
+        $formerCourseId = is_numeric($original) ? (int) $original : 0;
 
         if ($formerCourseId !== 0 && $formerCourseId !== $challenge->course_id) {
             $this->rebuild($formerCourseId);

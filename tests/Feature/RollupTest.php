@@ -14,6 +14,8 @@ use App\Models\UserChallengeProgress;
 use App\Queries\FlightLog;
 use App\Queries\Leaderboard;
 use Carbon\CarbonInterface;
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 
 /*
@@ -91,7 +93,10 @@ test('a rebuild keeps finish times a pilot has and nulls the ones they do not', 
     $completedAt = UserChallengeProgress::query()
         ->where('user_id', $pilot->id)
         ->where('challenge_id', $cleared->id)
-        ->value('completed_at');
+        ->sole()
+        ->completed_at;
+
+    $this->assertNotNull($completedAt);
 
     resolve(RebuildRollups::class)->courseTotals();
 
@@ -165,7 +170,7 @@ test('a rebuild corrects a rollup that has gone wrong', function (): void {
         ->where('user_id', $user->id)
         ->update(['runs' => 999, 'best_score' => 999]);
 
-    $this->artisan('rollups:rebuild')->assertSuccessful();
+    expect(Artisan::call('rollups:rebuild'))->toBe(Command::SUCCESS);
 
     $stats = PilotMissionStats::query()->where('user_id', $user->id)->sole();
 
@@ -275,11 +280,11 @@ test('the read models never touch the raw tables for a total', function (): void
     $flightLog->weakSpots($user);
     $flightLog->flownMissions($user);
 
-    $queries = DB::getRawQueryLog();
+    $queries = array_filter(array_column(DB::getRawQueryLog(), 'raw_query'), is_string(...));
     DB::disableQueryLog();
 
     $overRuns = array_values(array_filter(
-        array_map(fn (array $query): string => $query['raw_query'], $queries),
+        $queries,
         fn (string $sql): bool => str_contains($sql, 'challenge_runs'),
     ));
 
@@ -370,12 +375,11 @@ function rollupProgress(User $user, Challenge $challenge, int $points, bool $com
  */
 function pointsFor(User $user, Course $course): ?int
 {
-    $points = PilotCourseTotals::query()
+    return PilotCourseTotals::query()
         ->where('user_id', $user->id)
         ->where('course_id', $course->id)
-        ->value('points');
-
-    return $points === null ? null : (int) $points;
+        ->first()
+        ?->points;
 }
 
 /**
@@ -386,7 +390,8 @@ function finishedAtFor(User $user, Course $course): ?CarbonInterface
     return PilotCourseTotals::query()
         ->where('user_id', $user->id)
         ->where('course_id', $course->id)
-        ->value('finished_at');
+        ->first()
+        ?->finished_at;
 }
 
 /**

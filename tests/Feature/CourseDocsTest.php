@@ -7,6 +7,8 @@ use App\Models\Challenge;
 use App\Models\Course;
 use App\Models\User;
 use Database\Seeders\CourseSeeder;
+use Illuminate\Support\Arr;
+use Inertia\Testing\AssertableInertia;
 
 test('guests can read a course guide', function (): void {
     $course = Course::factory()->create(['slug' => 'drone-basics', 'title' => 'Drone Basics']);
@@ -15,7 +17,7 @@ test('guests can read a course guide', function (): void {
     $response = $this->get(route('courses.docs', $course));
 
     $response->assertOk();
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->component('courses/docs')
         ->where('course.slug', 'drone-basics')
         // The guide is config, so it costs no query and does not defer.
@@ -24,7 +26,7 @@ test('guests can read a course guide', function (): void {
         ->has('documentation.examples')
         // Only the mission index waits.
         ->missing('missions')
-        ->loadDeferredProps(fn ($reload) => $reload
+        ->loadDeferredProps(fn (AssertableInertia $reload): AssertableInertia => $reload
             ->has('missions', 1)
             ->where('missions.0.title', 'Hover & Land')
             ->where('missions.0.locked', false)));
@@ -47,10 +49,10 @@ test('the course page links to the guide only when one exists', function (): voi
     $undocumented = Course::factory()->create(['slug' => 'undocumented-course']);
 
     $this->get(route('courses.show', $documented))
-        ->assertInertia(fn ($page) => $page->where('hasDocs', true));
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('hasDocs', true));
 
     $this->get(route('courses.show', $undocumented))
-        ->assertInertia(fn ($page) => $page->where('hasDocs', false));
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('hasDocs', false));
 });
 
 test('a locked mission is listed in the guide but marked locked', function (): void {
@@ -58,8 +60,8 @@ test('a locked mission is listed in the guide but marked locked', function (): v
     Challenge::factory()->for($course)->requiring(Plan::Pro)->create(['title' => 'Wall Finder']);
 
     $this->get(route('courses.docs', $course))
-        ->assertInertia(fn ($page) => $page
-            ->loadDeferredProps(fn ($reload) => $reload
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->loadDeferredProps(fn (AssertableInertia $reload): AssertableInertia => $reload
                 ->where('missions.0.title', 'Wall Finder')
                 ->where('missions.0.locked', true)));
 });
@@ -71,8 +73,8 @@ test('a paid pilot sees the same mission unlocked', function (): void {
 
     $this->actingAs($user)
         ->get(route('courses.docs', $course))
-        ->assertInertia(fn ($page) => $page
-            ->loadDeferredProps(fn ($reload) => $reload
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->loadDeferredProps(fn (AssertableInertia $reload): AssertableInertia => $reload
                 ->where('missions.0.locked', false)));
 });
 
@@ -80,8 +82,8 @@ test('a guide is published for every seeded course', function (): void {
     $this->seed(CourseSeeder::class);
 
     Course::query()->get()->each(function (Course $course): void {
-        $this->get(route('courses.docs', $course))
-            ->assertOk(sprintf('course %s has no documentation page', $course->slug));
+        expect($this->get(route('courses.docs', $course))->status())
+            ->toBe(200, sprintf('course %s has no documentation page', $course->slug));
     });
 });
 
@@ -91,11 +93,15 @@ test('a guide is published for every seeded course', function (): void {
  * `commands` list is invisible on the page. This is what catches it.
  */
 test('every command a guide names exists in the API reference', function (): void {
-    $reference = config('drone-api.commands');
-    $groups = array_keys(config('drone-api.groups'));
+    $reference = config()->array('drone-api.commands');
+    $groups = array_keys(config()->array('drone-api.groups'));
 
-    foreach (config('course-docs') as $slug => $doc) {
-        foreach ($doc['commands'] as $command) {
+    foreach (array_keys(config()->array('course-docs')) as $slug) {
+        $commands = config()->array("course-docs.{$slug}.commands");
+
+        foreach (array_keys($commands) as $index) {
+            $command = Arr::string($commands, $index);
+
             $this->assertArrayHasKey(
                 $command,
                 $reference,
@@ -103,7 +109,7 @@ test('every command a guide names exists in the API reference', function (): voi
             );
 
             $this->assertContains(
-                $reference[$command]['group'],
+                Arr::string(Arr::array($reference, $command), 'group'),
                 $groups,
                 sprintf('%s is in a group the reference does not render', $command),
             );
@@ -112,20 +118,23 @@ test('every command a guide names exists in the API reference', function (): voi
 });
 
 test('every worked example is a complete, uniquely addressable program', function (): void {
-    foreach (config('course-docs') as $slug => $doc) {
-        expect($doc['examples'])->not->toBeEmpty(sprintf('%s has no worked examples', $slug));
+    foreach (array_keys(config()->array('course-docs')) as $slug) {
+        $examples = config()->array("course-docs.{$slug}.examples");
 
-        $slugs = array_column($doc['examples'], 'slug');
+        expect($examples)->not->toBeEmpty(sprintf('%s has no worked examples', $slug));
 
         // The slugs are rendered as element ids and linked to, so a repeat
         // would make one of the two anchors unreachable.
-        expect($slugs)->toBe(array_unique($slugs), sprintf('%s repeats an example slug', $slug));
+        expect(collect($examples)->pluck('slug')->duplicates()->all())
+            ->toBe([], sprintf('%s repeats an example slug', $slug));
 
-        foreach ($doc['examples'] as $example) {
+        foreach (array_keys($examples) as $index) {
+            $example = Arr::array($examples, $index);
+
             $this->assertStringContainsString(
                 'async function main(drone)',
-                $example['code'],
-                sprintf('%s: %s is not a runnable program', $slug, $example['slug']),
+                Arr::string($example, 'code'),
+                sprintf('%s: %s is not a runnable program', $slug, Arr::string($example, 'slug')),
             );
         }
     }
@@ -142,14 +151,19 @@ test('no worked example is a mission solution', function (): void {
 
     $solutions = Challenge::query()
         ->whereNotNull('solution_code')
-        ->pluck('solution_code', 'slug');
+        ->get(['slug', 'solution_code'])
+        ->mapWithKeys(fn (Challenge $challenge): array => [$challenge->slug => $challenge->solution_code ?? '']);
 
-    foreach (config('course-docs') as $courseSlug => $doc) {
-        foreach ($doc['examples'] as $example) {
+    foreach (array_keys(config()->array('course-docs')) as $courseSlug) {
+        $examples = config()->array("course-docs.{$courseSlug}.examples");
+
+        foreach (array_keys($examples) as $index) {
+            $example = Arr::array($examples, $index);
+
             foreach ($solutions as $missionSlug => $solution) {
-                expect(normalize($example['code']))->not->toBe(
+                expect(normalize(Arr::string($example, 'code')))->not->toBe(
                     normalize($solution),
-                    sprintf('%s/%s is the reference solution for %s', $courseSlug, $example['slug'], $missionSlug),
+                    sprintf('%s/%s is the reference solution for %s', $courseSlug, Arr::string($example, 'slug'), $missionSlug),
                 );
             }
         }

@@ -10,6 +10,7 @@ use App\Models\QuizAttempt;
 use App\Models\QuizQuestion;
 use App\Models\User;
 use App\Models\UserQuizProgress;
+use Inertia\Testing\AssertableInertia;
 
 test('guests are redirected from a quiz', function (): void {
     [$course, $quiz] = publishedQuiz();
@@ -24,7 +25,7 @@ test('a pilot can open a published quiz', function (): void {
     $this->actingAs(User::factory()->create())
         ->get(route('quizzes.show', [$course, $quiz]))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->component('quizzes/show')
             ->where('quiz.slug', $quiz->slug)
             ->where('quiz.passPercentage', 70)
@@ -44,7 +45,7 @@ test('the quiz page never ships the answer key', function (): void {
     $response = $this->actingAs(User::factory()->create())
         ->get(route('quizzes.show', [$course, $quiz]));
 
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->missing('quiz.questions.0.options.0.isCorrect')
         ->missing('quiz.questions.0.options.0.is_correct')
         // An explanation says why an answer is right, which gives the
@@ -243,8 +244,8 @@ test('an option from another quiz is rejected', function (): void {
     [$course, $quiz] = publishedQuiz();
     [, $otherQuiz] = publishedQuiz();
 
-    $foreignOptionId = $otherQuiz->questions()->first()->options()->first()->id;
-    $questionId = $quiz->questions()->first()->id;
+    $foreignOptionId = $otherQuiz->questions()->firstOrFail()->options()->firstOrFail()->id;
+    $questionId = $quiz->questions()->firstOrFail()->id;
 
     $this->actingAs(User::factory()->create())
         ->postJson(route('quizzes.attempts.store', [$course, $quiz]), [
@@ -260,11 +261,11 @@ test('a question from another quiz is rejected', function (): void {
     [$course, $quiz] = publishedQuiz();
     [, $otherQuiz] = publishedQuiz();
 
-    $foreignQuestion = $otherQuiz->questions()->first();
+    $foreignQuestion = $otherQuiz->questions()->firstOrFail();
 
     $this->actingAs(User::factory()->create())
         ->postJson(route('quizzes.attempts.store', [$course, $quiz]), [
-            'answers' => [$foreignQuestion->id => [$foreignQuestion->options()->first()->id]],
+            'answers' => [$foreignQuestion->id => [$foreignQuestion->options()->firstOrFail()->id]],
         ])
         ->assertStatus(422)
         ->assertJsonValidationErrors('answers');
@@ -377,9 +378,9 @@ test('the course page lists its quizzes with the viewers progress', function ():
 
     $this->actingAs($user)
         ->get(route('courses.show', $course))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->missing('quizzes')
-            ->loadDeferredProps(fn ($reload) => $reload
+            ->loadDeferredProps(fn (AssertableInertia $reload): AssertableInertia => $reload
                 ->has('quizzes', 1)
                 ->where('quizzes.0.slug', $quiz->slug)
                 ->where('quizzes.0.questionCount', 4)
@@ -395,8 +396,8 @@ test('a locked quiz is listed as locked rather than hidden', function (): void {
 
     $this->actingAs(User::factory()->create())
         ->get(route('courses.show', $course))
-        ->assertInertia(fn ($page) => $page
-            ->loadDeferredProps(fn ($reload) => $reload
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->loadDeferredProps(fn (AssertableInertia $reload): AssertableInertia => $reload
                 ->has('quizzes', 1)
                 ->where('quizzes.0.slug', $quiz->slug)
                 ->where('quizzes.0.locked', true)

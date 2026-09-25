@@ -73,7 +73,7 @@ final readonly class StartCheckout
              * one payment can be had in this application's own vocabulary.
              */
             'metadata' => [
-                'billable_id' => (string) $user->getKey(),
+                'billable_id' => (string) $user->id,
                 'billable_type' => $user->getMorphClass(),
                 'plan' => $plan->value,
                 'variant' => $variant,

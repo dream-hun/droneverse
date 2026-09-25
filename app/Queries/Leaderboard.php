@@ -78,7 +78,8 @@ final readonly class Leaderboard
         // Already one row per course, so this is a lookup rather than an
         // aggregate: the count the rollup keeps is the count being asked for.
         return $this->playableFor($user)
-            ->pluck('pilot_course_totals.completed', 'pilot_course_totals.course_id');
+            ->get(['pilot_course_totals.course_id', 'pilot_course_totals.completed'])
+            ->mapWithKeys(fn (PilotCourseTotals $totals): array => [$totals->course_id => $totals->completed]);
     }
 
     /**
@@ -91,17 +92,17 @@ final readonly class Leaderboard
      */
     public function statsFor(User $user): array
     {
-        $row = $this->playableFor($user)
+        $row = fluent($this->playableFor($user)
             ->selectRaw(
                 'coalesce(sum(pilot_course_totals.completed), 0) as completed, '
                 .'coalesce(sum(pilot_course_totals.stars), 0) as stars',
             )
             ->toBase()
-            ->first();
+            ->first());
 
         return [
-            'completed' => (int) ($row->completed ?? 0),
-            'stars' => (int) ($row->stars ?? 0),
+            'completed' => $row->integer('completed'),
+            'stars' => $row->integer('stars'),
         ];
     }
 
@@ -123,7 +124,7 @@ final readonly class Leaderboard
             ),
         );
 
-        return (new Collection($rows))
+        return new Collection($rows)
             ->map(fn (array $row): array => $this->toStanding($row, $viewer));
     }
 
@@ -351,14 +352,18 @@ final readonly class Leaderboard
      */
     private function standingRows(array $rows): array
     {
-        return array_map(fn (stdClass $row): array => [
-            'user_id' => (int) $row->user_id,
-            'name' => (string) $row->name,
-            'points' => (int) $row->points,
-            'stars' => (int) $row->stars,
-            'completed' => (int) $row->completed,
-            'place' => (int) $row->place,
-        ], $rows);
+        return array_map(function (stdClass $record): array {
+            $row = fluent($record);
+
+            return [
+                'user_id' => $row->integer('user_id'),
+                'name' => $row->string('name')->value(),
+                'points' => $row->integer('points'),
+                'stars' => $row->integer('stars'),
+                'completed' => $row->integer('completed'),
+                'place' => $row->integer('place'),
+            ];
+        }, $rows);
     }
 
     /**

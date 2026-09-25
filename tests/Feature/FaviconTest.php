@@ -16,13 +16,11 @@ test('the icon assets are published', function (string $file): void {
 })->with('icon files');
 
 test('the ico is a valid multi size icon resource', function (): void {
-    $handle = fopen(public_path('favicon.ico'), 'rb');
-    $header = unpack('vreserved/vtype/vcount', (string) fread($handle, 6));
-    fclose($handle);
+    $header = unpack('vreserved/vtype/vcount', (string) file_get_contents(public_path('favicon.ico'), length: 6)) ?: [];
 
-    expect($header['reserved'])->toBe(0);
-    expect($header['type'])->toBe(1);
-    expect($header['count'])->toBeGreaterThanOrEqual(2);
+    expect($header['reserved'] ?? null)->toBe(0);
+    expect($header['type'] ?? null)->toBe(1);
+    expect($header['count'] ?? null)->toBeGreaterThanOrEqual(2);
 });
 
 test('the svg uses the droneverse mark and brand colour', function (): void {

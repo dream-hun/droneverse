@@ -131,14 +131,8 @@ final class Course extends Model
     {
         $query->published()
             ->withCount([
-                'challenges' => fn ($challenges) => $challenges->published(),
-                'challenges as free_challenges_count' => fn ($challenges) => $challenges
-                    ->published()
-                    ->where(fn ($tier) => $tier
-                        ->where('challenges.required_plan', Plan::Starter->value)
-                        ->orWhere(fn ($inherited) => $inherited
-                            ->whereNull('challenges.required_plan')
-                            ->where('courses.required_plan', Plan::Starter->value))),
+                'challenges' => $this->publishedChallenges(...),
+                'challenges as free_challenges_count' => $this->freeChallenges(...),
             ])
             ->addSelect(['mission_plan' => Challenge::query()
                 ->published()
@@ -149,5 +143,31 @@ final class Course extends Model
                 ->limit(1),
             ])
             ->orderBy('order');
+    }
+
+    /**
+     * The missions a catalog card counts.
+     *
+     * @param  Builder<Challenge>  $challenges
+     */
+    private function publishedChallenges(Builder $challenges): void
+    {
+        $challenges->published();
+    }
+
+    /**
+     * The missions a Starter pilot can fly: those stating Starter, and those
+     * stating nothing inside a Starter course.
+     *
+     * @param  Builder<Challenge>  $challenges
+     */
+    private function freeChallenges(Builder $challenges): void
+    {
+        $challenges->published()
+            ->where(fn (Builder $tier): Builder => $tier
+                ->where('challenges.required_plan', Plan::Starter->value)
+                ->orWhere(fn (Builder $inherited): Builder => $inherited
+                    ->whereNull('challenges.required_plan')
+                    ->where('courses.required_plan', Plan::Starter->value)));
     }
 }

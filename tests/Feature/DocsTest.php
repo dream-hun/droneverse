@@ -6,12 +6,13 @@ use App\Actions\BuildDroneManual;
 use App\Actions\GradeSimulatorRun;
 use App\Models\Course;
 use App\Models\User;
+use Inertia\Testing\AssertableInertia;
 
 test('guests can read the whole manual', function (): void {
     $response = $this->get(route('docs'));
 
     $response->assertOk();
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->component('docs')
         ->has('manual.concepts')
         ->has('manual.commandGroups')
@@ -29,7 +30,7 @@ test('a signed-in pilot reads the same page', function (): void {
     $this->actingAs($user)
         ->get(route('docs'))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page->component('docs'));
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->component('docs'));
 });
 
 /*
@@ -46,7 +47,7 @@ test('the manual describes every command in the reference', function (): void {
         ->values()
         ->all();
 
-    $reference = collect(array_keys(config('drone-api.commands')))
+    $reference = collect(array_keys(config()->array('drone-api.commands')))
         ->sort()
         ->values()
         ->all();
@@ -60,13 +61,11 @@ test('the manual carries every worked example and every pitfall', function (): v
     $examples = collect($manual['examples'])->sum(fn (array $group): int => count($group['items']));
     $pitfalls = collect($manual['pitfalls'])->sum(fn (array $group): int => count($group['items']));
 
-    expect($examples)->toBe(
-        collect(config('course-docs'))->sum(fn (array $doc): int => count($doc['examples'] ?? []))
-    );
+    $authored = fn (string $field): int => collect(array_keys(config()->array('course-docs')))
+        ->sum(fn (int|string $slug): int => count(config()->array("course-docs.{$slug}.{$field}", [])));
 
-    expect($pitfalls)->toBe(
-        collect(config('course-docs'))->sum(fn (array $doc): int => count($doc['pitfalls'] ?? []))
-    );
+    expect($examples)->toBe($authored('examples'));
+    expect($pitfalls)->toBe($authored('pitfalls'));
 });
 
 /*
@@ -119,15 +118,16 @@ test('examples link to a published course and only name an unavailable one', fun
     Course::factory()->create(['slug' => 'drone-basics', 'title' => 'Drone Basics']);
     Course::factory()->unpublished()->create(['slug' => 'sensor-flight']);
 
-    $groups = collect(resolve(BuildDroneManual::class)->handle()['examples'])
-        ->keyBy(fn (array $group): string => $group['course']['slug']);
+    $courses = collect(resolve(BuildDroneManual::class)->handle()['examples'])
+        ->mapWithKeys(fn (array $group): array => [$group['course']['slug'] => $group['course']])
+        ->all();
 
-    expect($groups['drone-basics']['course']['published'])->toBeTrue()
-        ->and($groups['drone-basics']['course']['title'])->toBe('Drone Basics');
+    expect($courses['drone-basics']['published'])->toBeTrue()
+        ->and($courses['drone-basics']['title'])->toBe('Drone Basics');
 
-    expect($groups['sensor-flight']['course']['published'])->toBeFalse();
+    expect($courses['sensor-flight']['published'])->toBeFalse();
 
     // No row at all, so the slug is read back as words rather than printed raw.
-    expect($groups['precision-flight']['course']['published'])->toBeFalse()
-        ->and($groups['precision-flight']['course']['title'])->toBe('Precision Flight');
+    expect($courses['precision-flight']['published'])->toBeFalse()
+        ->and($courses['precision-flight']['title'])->toBe('Precision Flight');
 });

@@ -48,7 +48,7 @@ final readonly class BuildLegalIdentity
         $sales = $this->configured('plans.sales_email');
 
         return [
-            'name' => $this->configured('legal.entity.name') ?? (string) config('app.name'),
+            'name' => $this->configured('legal.entity.name') ?? config()->string('app.name'),
             'address' => $this->configured('legal.entity.address'),
             'country' => $this->configured('legal.entity.country'),
             'registration' => $this->configured('legal.entity.registration'),

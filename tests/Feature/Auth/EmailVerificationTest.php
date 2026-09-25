@@ -38,7 +38,7 @@ test('email can be verified', function (): void {
 
     Event::assertDispatched(Verified::class);
 
-    expect($user->fresh()->hasVerifiedEmail())->toBeTrue();
+    expect($user->refresh()->hasVerifiedEmail())->toBeTrue();
     $response->assertRedirect(route('dashboard', absolute: false).'?verified=1');
 });
 
@@ -56,7 +56,7 @@ test('email is not verified with invalid hash', function (): void {
     $this->actingAs($user)->get($verificationUrl);
 
     Event::assertNotDispatched(Verified::class);
-    expect($user->fresh()->hasVerifiedEmail())->toBeFalse();
+    expect($user->refresh()->hasVerifiedEmail())->toBeFalse();
 });
 
 test('email is not verified with invalid user id', function (): void {
@@ -73,7 +73,7 @@ test('email is not verified with invalid user id', function (): void {
     $this->actingAs($user)->get($verificationUrl);
 
     Event::assertNotDispatched(Verified::class);
-    expect($user->fresh()->hasVerifiedEmail())->toBeFalse();
+    expect($user->refresh()->hasVerifiedEmail())->toBeFalse();
 });
 
 test('verified user is redirected to dashboard from verification prompt', function (): void {
@@ -102,7 +102,7 @@ test('already verified user visiting verification link is redirected without fir
         ->assertRedirect(route('dashboard', absolute: false).'?verified=1');
 
     Event::assertNotDispatched(Verified::class);
-    expect($user->fresh()->hasVerifiedEmail())->toBeTrue();
+    expect($user->refresh()->hasVerifiedEmail())->toBeTrue();
 });
 
 /**
@@ -116,9 +116,9 @@ test('already verified user visiting verification link is redirected without fir
  * That is exactly how it came to be missing while the routes, the Fortify
  * feature and every screen in this file were all present and passing.
  */
-test('user model implements the must verify email contract', function (): void {
-    expect(User::factory()->create())->toBeInstanceOf(MustVerifyEmail::class);
-});
+arch('user model implements the must verify email contract')
+    ->expect(User::class)
+    ->toImplement(MustVerifyEmail::class);
 
 test('unverified user cannot reach a verified route', function (): void {
     $user = User::factory()->unverified()->create();

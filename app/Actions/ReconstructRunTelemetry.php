@@ -52,6 +52,9 @@ use App\Models\Challenge;
  * re-walking arrays of associative samples per obstacle, per waypoint and
  * per photo. Nothing about what is measured changes; it is the same
  * geometry over a cheaper representation of the same points.
+ *
+ * @phpstan-import-type Environment from Challenge
+ * @phpstan-import-type SuccessCriteria from Challenge
  */
 final readonly class ReconstructRunTelemetry
 {
@@ -158,7 +161,7 @@ final readonly class ReconstructRunTelemetry
     }
 
     /**
-     * @param  array<string, mixed>  $criteria
+     * @param  SuccessCriteria  $criteria
      * @return array<int, array{x: float, y: float, z: float, radius: float}>
      */
     private function waypointsFrom(array $criteria): array
@@ -175,7 +178,7 @@ final readonly class ReconstructRunTelemetry
     }
 
     /**
-     * @param  array<string, mixed>  $criteria
+     * @param  SuccessCriteria  $criteria
      * @return array<int, array{x: float, z: float, radius: float}>
      */
     private function photoTargetsFrom(array $criteria): array
@@ -423,7 +426,7 @@ final readonly class ReconstructRunTelemetry
      * @param  array<int, float>  $xs
      * @param  array<int, float>  $ys
      * @param  array<int, float>  $zs
-     * @param  array<string, mixed>  $environment
+     * @param  Environment  $environment
      */
     private function washed(array $xs, array $ys, array $zs, int $samples, array $environment): bool
     {
@@ -524,7 +527,7 @@ final readonly class ReconstructRunTelemetry
      * @param  array<int, float>  $xs
      * @param  array<int, float>  $ys
      * @param  array<int, float>  $zs
-     * @param  array<string, mixed>  $environment
+     * @param  Environment  $environment
      */
     private function floorCollisions(array $xs, array $ys, array $zs, int $samples, array $environment): int
     {

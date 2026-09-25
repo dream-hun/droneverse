@@ -29,7 +29,7 @@ test('every preloaded asset is referenced by a stylesheet the page links', funct
     preg_match_all('#<link[^>]*rel="preload"[^>]*>#i', $html, $preloads);
     preg_match_all('#<link[^>]*rel="stylesheet"[^>]*href="([^"]+)"[^>]*>#i', $html, $sheets);
 
-    $localPath = fn (string $url): string => public_path(parse_url($url, PHP_URL_PATH) ?? '');
+    $localPath = fn (string $url): string => public_path(parse_url($url, PHP_URL_PATH) ?: '');
 
     $linked = '';
     foreach ($sheets[1] as $href) {
@@ -44,10 +44,11 @@ test('every preloaded asset is referenced by a stylesheet the page links', funct
         preg_match('#href="([^"]+)"#i', $tag, $href);
         preg_match('#as="([^"]+)"#i', $tag, $as);
 
-        $file = basename(parse_url($href[1], PHP_URL_PATH) ?? '');
+        $url = $href[1] ?? '';
+        $file = basename(parse_url($url, PHP_URL_PATH) ?: '');
 
         if (($as[1] ?? '') === 'style') {
-            expect($sheets[1])->toContain($href[1]);
+            expect($sheets[1])->toContain($url);
 
             continue;
         }

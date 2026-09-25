@@ -77,3 +77,23 @@ test('users are rate limited', function (): void {
 
     $response->assertTooManyRequests();
 });
+
+test('a login posting a non-string email is refused rather than crashing the rate limiter', function (): void {
+    $response = $this->post(route('login.store'), [
+        'email' => ['someone@example.com'],
+        'password' => 'password',
+    ]);
+
+    $response->assertSessionHasErrors('email');
+    $this->assertGuest();
+});
+
+test('a passkey login posting a non-string credential id is refused rather than crashing the rate limiter', function (): void {
+    $response = $this->postJson(route('passkey.login'), [
+        'credential' => ['id' => ['not-a-string']],
+    ]);
+
+    $response->assertUnprocessable();
+    $response->assertJsonValidationErrors('credential.id');
+    $this->assertGuest();
+});

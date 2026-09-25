@@ -17,11 +17,10 @@ use Tests\TestCase;
 | stay stated: a new feature test file cannot forget the database and then
 | pass by reading rows a neighboring test left behind.
 |
-| Unit tests are deliberately left out. The three files under tests/Unit do
-| not agree on what they need — one wants the database, one only wants the
-| application, and ScoringPolicyTest wants neither — so each says so itself
-| with its own `uses()` line rather than inheriting a default that two of
-| them would have to undo.
+| Unit tests are deliberately left out. The two files under tests/Unit do
+| not agree on what they need — PlanTest wants the application and
+| ScoringPolicyTest wants neither it nor the database — so each states its
+| own needs rather than inheriting a default the other would have to undo.
 |
 */
 

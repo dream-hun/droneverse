@@ -8,6 +8,7 @@ use App\Models\Challenge;
 use App\Models\Course;
 use App\Models\User;
 use App\Models\UserChallengeProgress;
+use Inertia\Testing\AssertableInertia;
 
 test('guests can browse published courses', function (): void {
     Course::factory()->create(['title' => 'Drone Basics']);
@@ -16,12 +17,12 @@ test('guests can browse published courses', function (): void {
     $response = $this->get(route('courses.index'));
 
     $response->assertOk();
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->component('courses/index')
         // The catalog is deferred, so the first response carries the shell
         // and nothing else; the grid arrives on the follow-up request.
         ->missing('courses')
-        ->loadDeferredProps(fn ($reload) => $reload
+        ->loadDeferredProps(fn (AssertableInertia $reload): AssertableInertia => $reload
             ->has('courses', 1)
             ->where('courses.0.title', 'Drone Basics')));
 });
@@ -34,12 +35,12 @@ test('guests can view a published course with its challenges', function (): void
     $response = $this->get(route('courses.show', $course));
 
     $response->assertOk();
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->component('courses/show')
         // The course header is eager; only the mission list waits.
         ->where('course.slug', $course->slug)
         ->missing('challenges')
-        ->loadDeferredProps(fn ($reload) => $reload
+        ->loadDeferredProps(fn (AssertableInertia $reload): AssertableInertia => $reload
             ->has('challenges', 1)
             ->where('challenges.0.title', 'Hover & Land')
             ->where('challenges.0.status', ChallengeStatus::NotStarted)));
@@ -65,8 +66,8 @@ test('course show reflects authenticated users progress', function (): void {
 
     $response = $this->actingAs($user)->get(route('courses.show', $course));
 
-    $response->assertInertia(fn ($page) => $page
-        ->loadDeferredProps(fn ($reload) => $reload
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+        ->loadDeferredProps(fn (AssertableInertia $reload): AssertableInertia => $reload
             ->where('challenges.0.status', ChallengeStatus::Completed)
             ->where('challenges.0.stars', 3)));
 });
@@ -78,8 +79,8 @@ test('a locked course still appears in the catalog', function (): void {
     $response = $this->get(route('courses.index'));
 
     $response->assertOk();
-    $response->assertInertia(fn ($page) => $page
-        ->loadDeferredProps(fn ($reload) => $reload
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+        ->loadDeferredProps(fn (AssertableInertia $reload): AssertableInertia => $reload
             ->has('courses', 2)
             ->where('courses.0.title', 'Free Course')
             ->where('courses.0.locked', false)
@@ -95,8 +96,8 @@ test('a paid viewer sees nothing locked', function (): void {
 
     $this->actingAs($user)
         ->get(route('courses.index'))
-        ->assertInertia(fn ($page) => $page
-            ->loadDeferredProps(fn ($reload) => $reload
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->loadDeferredProps(fn (AssertableInertia $reload): AssertableInertia => $reload
                 ->where('courses.0.locked', false)));
 });
 
@@ -107,9 +108,9 @@ test('a pro courses page is open to a starter pilot', function (): void {
     $response = $this->get(route('courses.show', $course));
 
     $response->assertOk();
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('course.requiredPlan', 'pro')
-        ->loadDeferredProps(fn ($reload) => $reload
+        ->loadDeferredProps(fn (AssertableInertia $reload): AssertableInertia => $reload
             ->has('challenges', 1)
             ->where('challenges.0.title', 'Locked Mission')
             ->where('challenges.0.locked', true)
@@ -121,8 +122,8 @@ test('the briefing is still sent for a locked mission', function (): void {
     $challenge = Challenge::factory()->for($course)->create();
 
     $this->get(route('courses.show', $course))
-        ->assertInertia(fn ($page) => $page
-            ->loadDeferredProps(fn ($reload) => $reload
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->loadDeferredProps(fn (AssertableInertia $reload): AssertableInertia => $reload
                 ->where('challenges.0.locked', true)
                 ->where('challenges.0.briefing', $challenge->briefing)));
 });
@@ -133,8 +134,8 @@ test('a course page mixes locked and unlocked missions', function (): void {
     Challenge::factory()->for($course)->requiring(Plan::Pro)->create(['title' => 'Paid', 'order' => 1]);
 
     $this->get(route('courses.show', $course))
-        ->assertInertia(fn ($page) => $page
-            ->loadDeferredProps(fn ($reload) => $reload
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->loadDeferredProps(fn (AssertableInertia $reload): AssertableInertia => $reload
                 ->where('challenges.0.title', 'Free')
                 ->where('challenges.0.locked', false)
                 ->where('challenges.1.title', 'Paid')
@@ -153,8 +154,8 @@ test('a course whose missions all inherit a free tier charges for nothing', func
     Challenge::factory()->for($course)->count(3)->create();
 
     $this->get(route('courses.index'))
-        ->assertInertia(fn ($page) => $page
-            ->loadDeferredProps(fn ($reload) => $reload
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->loadDeferredProps(fn (AssertableInertia $reload): AssertableInertia => $reload
                 ->where('courses.0.challengesCount', 3)
                 ->where('courses.0.freeChallengesCount', 3)
                 ->where('courses.0.missionPlan', null)));
@@ -165,8 +166,8 @@ test('a starter course with pro missions is not sold as free', function (): void
     Challenge::factory()->for($course)->requiring(Plan::Pro)->count(4)->create();
 
     $this->get(route('courses.index'))
-        ->assertInertia(fn ($page) => $page
-            ->loadDeferredProps(fn ($reload) => $reload
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->loadDeferredProps(fn (AssertableInertia $reload): AssertableInertia => $reload
                 // The course's own tier is still Starter: the page stays open.
                 ->where('courses.0.requiredPlan', 'starter')
                 ->where('courses.0.locked', false)
@@ -180,8 +181,8 @@ test('a paid course whose missions inherit falls back to its own tier', function
     Challenge::factory()->for($course)->count(2)->create();
 
     $this->get(route('courses.index'))
-        ->assertInertia(fn ($page) => $page
-            ->loadDeferredProps(fn ($reload) => $reload
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->loadDeferredProps(fn (AssertableInertia $reload): AssertableInertia => $reload
                 ->where('courses.0.freeChallengesCount', 0)
                 ->where('courses.0.missionPlan', 'pro')));
 });
@@ -192,8 +193,8 @@ test('a course that is free to start and paid to finish reports both', function 
     Challenge::factory()->for($course)->requiring(Plan::Pro)->count(3)->create(['order' => 1]);
 
     $this->get(route('courses.index'))
-        ->assertInertia(fn ($page) => $page
-            ->loadDeferredProps(fn ($reload) => $reload
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->loadDeferredProps(fn (AssertableInertia $reload): AssertableInertia => $reload
                 ->where('courses.0.challengesCount', 5)
                 ->where('courses.0.freeChallengesCount', 2)
                 ->where('courses.0.missionPlan', 'pro')));
@@ -205,8 +206,8 @@ test('an unpublished mission counts towards neither total', function (): void {
     Challenge::factory()->for($course)->unpublished()->create();
 
     $this->get(route('courses.index'))
-        ->assertInertia(fn ($page) => $page
-            ->loadDeferredProps(fn ($reload) => $reload
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->loadDeferredProps(fn (AssertableInertia $reload): AssertableInertia => $reload
                 ->where('courses.0.challengesCount', 1)
                 ->where('courses.0.freeChallengesCount', 1)));
 });

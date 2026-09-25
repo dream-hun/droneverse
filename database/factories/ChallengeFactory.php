@@ -34,10 +34,12 @@ final class ChallengeFactory extends Factory
             'starter_code' => "async function main(drone) {\n  await drone.takeoff();\n  await drone.land();\n}\n",
             'solution_code' => "async function main(drone) {\n  await drone.takeoff();\n  await drone.hover(1);\n  await drone.land();\n}\n",
             'environment' => [
-                'start' => ['x' => 0, 'y' => 0.5, 'z' => 0],
+                'start' => ['x' => 0, 'y' => 0.5, 'z' => 0, 'yaw' => 0],
+                'bounds' => ['width' => 20, 'depth' => 20, 'height' => 10],
                 'obstacles' => [],
                 'gates' => [],
                 'waypoints' => [],
+                'goal' => ['x' => 0, 'z' => 0, 'radius' => 1.2],
             ],
             'success_criteria' => [
                 'type' => 'waypoints',

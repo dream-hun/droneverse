@@ -38,11 +38,11 @@ test('run submissions are throttled', function (): void {
 });
 
 test('the photo endpoint carries its own limit', function (): void {
-    $middleware = collect(Route::getRoutes()->getRoutes())
-        ->firstWhere(fn ($route): bool => $route->getName() === 'challenges.photos.store')
-        ->gatherMiddleware();
+    $route = Route::getRoutes()->getByName('challenges.photos.store');
 
-    expect('throttle:120,1')->toBeIn($middleware);
+    $this->assertNotNull($route);
+
+    expect('throttle:120,1')->toBeIn($route->gatherMiddleware());
 });
 
 test('a pilot flying a normal mission is never throttled', function (): void {

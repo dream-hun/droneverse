@@ -8,6 +8,7 @@ use App\Models\Challenge;
 use App\Models\Course;
 use App\Models\User;
 use App\Models\UserChallengeProgress;
+use Inertia\Testing\AssertableInertia;
 
 test('guests are redirected to the login page', function (): void {
     $response = $this->get(route('dashboard'));
@@ -35,12 +36,12 @@ test('dashboard reports course progress and stats', function (): void {
 
     $response = $this->actingAs($user)->get(route('dashboard'));
 
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->component('dashboard')
         ->where('stats.completed', 1)
         ->where('stats.stars', 3)
         ->missing('courses')
-        ->loadDeferredProps(fn ($reload) => $reload
+        ->loadDeferredProps(fn (AssertableInertia $reload): AssertableInertia => $reload
             ->has('courses', 1)
             ->where('courses.0.title', 'Drone Basics')
             ->where('courses.0.challengesCount', 2)
@@ -68,7 +69,7 @@ test('continue skips challenges that are no longer published', function (): void
 
     $response = $this->actingAs($user)->get(route('dashboard'));
 
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('continue.challengeSlug', $publishedChallenge->slug));
 });
 
@@ -85,7 +86,7 @@ test('continue is empty when the started challenge is no longer covered by the p
 
     $response = $this->actingAs($user)->get(route('dashboard'));
 
-    $response->assertInertia(fn ($page) => $page->where('continue', null));
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('continue', null));
 });
 
 test('continue offers a locked mission to a pilot whose plan covers it', function (): void {
@@ -101,7 +102,7 @@ test('continue offers a locked mission to a pilot whose plan covers it', functio
 
     $response = $this->actingAs($user)->get(route('dashboard'));
 
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('continue.challengeSlug', $challenge->slug));
 });
 
@@ -118,7 +119,7 @@ test('continue is empty when the started challenge is in an unpublished course',
 
     $response = $this->actingAs($user)->get(route('dashboard'));
 
-    $response->assertInertia(fn ($page) => $page->where('continue', null));
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('continue', null));
 });
 
 test('progress counts exclude unpublished challenges', function (): void {
@@ -138,10 +139,10 @@ test('progress counts exclude unpublished challenges', function (): void {
 
     $response = $this->actingAs($user)->get(route('dashboard'));
 
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('stats.completed', 1)
         ->where('stats.stars', 3)
-        ->loadDeferredProps(fn ($reload) => $reload
+        ->loadDeferredProps(fn (AssertableInertia $reload): AssertableInertia => $reload
             ->where('courses.0.challengesCount', 1)
             ->where('courses.0.completedCount', 1)));
 });
@@ -158,9 +159,9 @@ test('progress counts exclude challenges in unpublished courses', function (): v
 
     $response = $this->actingAs($user)->get(route('dashboard'));
 
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('stats.completed', 0)
         ->where('stats.stars', 0)
-        ->loadDeferredProps(fn ($reload) => $reload
+        ->loadDeferredProps(fn (AssertableInertia $reload): AssertableInertia => $reload
             ->has('courses', 0)));
 });

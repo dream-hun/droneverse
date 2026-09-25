@@ -51,7 +51,7 @@ final class DronePhoto extends Model
      */
     public static function disk(): Filesystem
     {
-        return Storage::disk((string) config('filesystems.photo_disk'));
+        return Storage::disk(config()->string('filesystems.photo_disk'));
     }
 
     /**

@@ -25,8 +25,8 @@ final class QuizAttemptFactory extends Factory
      */
     public function definition(): array
     {
-        $questionCount = $this->faker->numberBetween(4, 8);
-        $correct = $this->faker->numberBetween(0, (int) floor($questionCount / 2));
+        $questionCount = fake()->numberBetween(4, 8);
+        $correct = fake()->numberBetween(0, (int) floor($questionCount / 2));
 
         return [
             'user_id' => User::factory(),

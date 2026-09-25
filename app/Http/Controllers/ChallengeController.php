@@ -20,8 +20,8 @@ use App\Models\DroneModel;
 use App\Models\User;
 use App\Models\UserChallengeProgress;
 use App\Queries\FlightLog;
+use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -31,16 +31,15 @@ final class ChallengeController extends Controller
      * Display the simulator for a challenge.
      */
     public function show(
-        Request $request,
+        #[CurrentUser] User $user,
         Course $course,
         Challenge $challenge,
         FlightLog $flightLog,
         ResolveMissionDrone $resolveDrone,
     ): Response {
         abort_unless($challenge->isAvailableIn($course), 404);
-        abort_unless($challenge->isUnlockedFor($request->user(), $course), 403);
+        abort_unless($challenge->isUnlockedFor($user, $course), 403);
 
-        $user = $request->user();
         $progress = $this->progressFor($user, $challenge);
         $canConfigureDrone = $user->can(Feature::DroneConfigEditor->value);
 
@@ -106,6 +105,7 @@ final class ChallengeController extends Controller
      */
     public function store(
         StoreChallengeAttemptRequest $request,
+        #[CurrentUser] User $user,
         Course $course,
         Challenge $challenge,
         ReconstructRunTelemetry $reconstruct,
@@ -114,13 +114,13 @@ final class ChallengeController extends Controller
         ResolveMissionDrone $resolveDrone,
     ): JsonResponse {
         abort_unless($challenge->isAvailableIn($course), 404);
-        abort_unless($challenge->isUnlockedFor($request->user(), $course), 403);
+        abort_unless($challenge->isUnlockedFor($user, $course), 403);
 
         $run = $request->run();
         $result = $grade->handle($reconstruct->handle($challenge, $run), $challenge);
-        $drone = $resolveDrone->handle($request->user(), $challenge);
+        $drone = $resolveDrone->handle($user, $challenge);
 
-        $progress = $recordAttempt->handle($request->user(), $challenge, $result, $run['code'], $drone);
+        $progress = $recordAttempt->handle($user, $challenge, $result, $run['code'], $drone);
 
         return response()->json([
             'result' => $result,
@@ -136,9 +136,9 @@ final class ChallengeController extends Controller
     /**
      * The viewer's progress row for this mission, if they have flown it.
      */
-    private function progressFor(?User $user, Challenge $challenge): ?UserChallengeProgress
+    private function progressFor(User $user, Challenge $challenge): ?UserChallengeProgress
     {
-        return $user?->challengeProgress()
+        return $user->challengeProgress()
             ->whereBelongsTo($challenge)
             ->first();
     }

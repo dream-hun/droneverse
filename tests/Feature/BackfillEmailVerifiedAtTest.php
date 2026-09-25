@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\User;
 use Illuminate\Database\Migrations\Migration;
+use PHPUnit\Framework\Assert;
 
 /*
  * The grandfathering rule in the email-verification backfill.
@@ -72,7 +73,7 @@ test('it does not overwrite an existing verification timestamp', function (): vo
 
     runBackfill();
 
-    expect($verifiedAt->equalTo($user->refresh()->email_verified_at))->toBeTrue();
+    expect($user->refresh()->email_verified_at?->equalTo($verifiedAt))->toBeTrue();
 });
 
 function runBackfill(): void
@@ -81,7 +82,8 @@ function runBackfill(): void
         'migrations/2026_08_03_230022_backfill_email_verified_at_for_pre_verification_users.php',
     );
 
-    expect($migration)->toBeInstanceOf(Migration::class);
+    Assert::assertInstanceOf(Migration::class, $migration);
+    Assert::assertTrue(method_exists($migration, 'up'));
 
     $migration->up();
 }

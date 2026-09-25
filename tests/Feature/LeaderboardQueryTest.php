@@ -20,7 +20,7 @@ use App\Queries\Leaderboard;
  */
 
 test('it resolves from the container', function (): void {
-    expect(resolve(Leaderboard::class))->toBeInstanceOf(Leaderboard::class);
+    expect(fn (): Leaderboard => resolve(Leaderboard::class))->not->toThrow(Throwable::class);
 });
 
 test('it ranks pilots by points without a request', function (): void {
@@ -48,8 +48,8 @@ test('it reports a pilot who placed outside the listed page', function (): void 
 
     $standing = $leaderboard->standingFor($ada);
 
-    expect($standing['rank'])->toBe(2);
-    expect($standing['isYou'])->toBeTrue();
+    expect($standing['rank'] ?? null)->toBe(2);
+    expect($standing['isYou'] ?? null)->toBeTrue();
 });
 
 test('a pilot who has not flown has no standing', function (): void {
@@ -77,7 +77,7 @@ test('writing progress retires the cached board', function (): void {
     leaderboardPilot('Grace', $challenge, points: 90);
 
     expect($leaderboard->rankedPilotCount())->toBe(2);
-    expect($leaderboard->standings($ada)->first()['name'])->toBe('Grace');
+    expect($leaderboard->standings($ada)->value('name'))->toBe('Grace');
 });
 
 test('choosing an airframe retires the board it puts a pilot on', function (): void {
@@ -130,7 +130,7 @@ test('a run in one course leaves another courses board cached', function (): voi
     // And the overall board, which that run really could have moved, did
     // go: narrowing invalidation must not leave a stale slice standing.
     expect($leaderboard->rankedPilotCount())->toBe(2);
-    expect($leaderboard->standings($ada)->first()['name'])->toBe('Grace');
+    expect($leaderboard->standings($ada)->value('name'))->toBe('Grace');
 });
 
 test('it counts only playable content towards a pilots totals', function (): void {

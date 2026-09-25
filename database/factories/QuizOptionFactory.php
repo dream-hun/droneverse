@@ -26,7 +26,7 @@ final class QuizOptionFactory extends Factory
     {
         return [
             'quiz_question_id' => QuizQuestion::factory(),
-            'label' => $this->faker->sentence(4),
+            'label' => fake()->sentence(4),
             'is_correct' => false,
             'order' => 0,
         ];

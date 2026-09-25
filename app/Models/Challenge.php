@@ -20,6 +20,22 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * A flyable mission attached to a course.
  *
+ * The two JSON columns are shaped after EnvironmentConfig and SuccessCriteria
+ * in resources/js/types/simulator.ts, which is the contract the simulator
+ * flies to, and CourseSeeder is checked against these shapes. Keys the grader
+ * falls back on a default for are optional here even where the client
+ * requires them, because the server does not get to assume the client's
+ * guarantees.
+ *
+ * @phpstan-type Waypoint array{x: float|int, y: float|int, z: float|int, radius: float|int}
+ * @phpstan-type Gate array{x: float|int, y: float|int, z: float|int, width: float|int, height: float|int, rotationY: float|int}
+ * @phpstan-type Obstacle array{type: string, x: float|int, y: float|int, z: float|int, sx?: float|int, sy?: float|int, sz?: float|int, radius?: float|int, height?: float|int, rotationY?: float|int, label?: string}
+ * @phpstan-type Prop array{kind: string, x: float|int, z: float|int, rotationY?: float|int, color?: string, label?: string}
+ * @phpstan-type Carwash array{x: float|int, z: float|int, rotationY?: float|int, width?: float|int, height?: float|int, length?: float|int, label?: string}
+ * @phpstan-type PhotoTarget array{x: float|int, z: float|int, radius: float|int, label?: string}
+ * @phpstan-type Environment array{start: array{x: float|int, y: float|int, z: float|int, yaw: float|int}, bounds: array{width: float|int, depth: float|int, height: float|int}, goal: array{x: float|int, z: float|int, radius: float|int}, gates: array<int, Gate>, waypoints: array<int, Waypoint>, obstacles?: array<int, Obstacle>, props?: array<int, Prop>, carwash?: Carwash, wind?: array{speed?: float|int, directionDeg?: float|int}}
+ * @phpstan-type SuccessCriteria array{type: string, max_time_seconds: float|int, waypoints?: array<int, Waypoint>, avoid_collisions?: bool, landing_required?: bool, min_altitude?: float|int, min_photos?: int, photo_targets?: array<int, PhotoTarget>, wash_required?: bool}
+ *
  * @property int $id
  * @property int $course_id
  * @property string $title
@@ -30,10 +46,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $required_plan
  * @property string $starter_code
  * @property string|null $solution_code
- * @property array<string, mixed> $environment
- * @property array<string, mixed> $success_criteria
+ * @property Environment $environment
+ * @property SuccessCriteria $success_criteria
  * @property int $max_score
  * @property bool $is_published
+ * @property-read Course $course
  */
 #[Fillable(['course_id', 'title', 'slug', 'briefing', 'order', 'difficulty', 'required_plan', 'starter_code', 'solution_code', 'environment', 'success_criteria', 'max_score', 'is_published'])]
 #[Hidden(['solution_code'])]

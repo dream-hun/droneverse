@@ -21,13 +21,13 @@ final class QuizFactory extends Factory
      */
     public function definition(): array
     {
-        $title = sprintf('%s %s Check', ucfirst($this->faker->word()), $this->faker->unique()->word());
+        $title = sprintf('%s %s Check', ucfirst(fake()->word()), fake()->unique()->word());
 
         return [
             'course_id' => Course::factory(),
             'title' => $title,
             'slug' => (string) str($title)->slug(),
-            'description' => $this->faker->paragraph(),
+            'description' => fake()->paragraph(),
             'order' => 0,
             'required_plan' => null,
             'pass_percentage' => 70,

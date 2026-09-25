@@ -5,9 +5,17 @@ declare(strict_types=1);
 namespace Database\Seeders;
 
 use App\Enums\Plan;
+use App\Models\Challenge;
 use App\Models\Course;
 use Illuminate\Database\Seeder;
 
+/**
+ * @phpstan-import-type Environment from Challenge
+ * @phpstan-import-type SuccessCriteria from Challenge
+ *
+ * @phpstan-type ChallengeDefinition array{slug: string, title: string, difficulty: string, briefing: string, starter_code: string, solution_code: string, environment: Environment, success_criteria: SuccessCriteria}
+ * @phpstan-type CourseDefinition array{slug: string, title: string, description: string, difficulty: string, required_plan: string, challenges_required_plan: string|null, challenges: array<int, ChallengeDefinition>}
+ */
 final class CourseSeeder extends Seeder
 {
     /**
@@ -65,7 +73,7 @@ final class CourseSeeder extends Seeder
      * `required_plan` is the course's own tier; `challenges_required_plan` is
      * what its missions store, where null means "inherit the course".
      *
-     * @return array<int, array<string, mixed>>
+     * @return array<int, CourseDefinition>
      */
     private function courses(): array
     {
@@ -119,7 +127,7 @@ final class CourseSeeder extends Seeder
     }
 
     /**
-     * @return array<int, array<string, mixed>>
+     * @return array<int, ChallengeDefinition>
      */
     private function droneBasicsChallenges(): array
     {
@@ -457,7 +465,7 @@ final class CourseSeeder extends Seeder
     }
 
     /**
-     * @return array<int, array<string, mixed>>
+     * @return array<int, ChallengeDefinition>
      */
     private function precisionFlightChallenges(): array
     {
@@ -726,7 +734,7 @@ final class CourseSeeder extends Seeder
     }
 
     /**
-     * @return array<int, array<string, mixed>>
+     * @return array<int, ChallengeDefinition>
      */
     private function sensorFlightChallenges(): array
     {
@@ -936,7 +944,7 @@ final class CourseSeeder extends Seeder
     }
 
     /**
-     * @return array<int, array<string, mixed>>
+     * @return array<int, ChallengeDefinition>
      */
     private function deliveryOpsChallenges(): array
     {
@@ -1142,7 +1150,7 @@ final class CourseSeeder extends Seeder
     }
 
     /**
-     * @return array<int, array<string, mixed>>
+     * @return array<int, ChallengeDefinition>
      */
     private function cityOperationsChallenges(): array
     {

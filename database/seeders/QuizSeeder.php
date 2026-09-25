@@ -83,7 +83,7 @@ final class QuizSeeder extends Seeder
     /**
      * Each option is `[label, isCorrect]`.
      *
-     * @return array<int, array<string, mixed>>
+     * @return array<int, array{course_slug: string, slug: string, title: string, description: string, pass_percentage: int, questions: array<int, array{prompt: string, type: QuizQuestionType, explanation: string, options: array<int, array{string, bool}>}>}>
      */
     private function quizzes(): array
     {

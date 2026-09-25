@@ -8,6 +8,7 @@ use App\Models\Challenge;
 use App\Models\Course;
 use App\Models\User;
 use App\Models\UserChallengeProgress;
+use Inertia\Testing\AssertableInertia;
 
 dataset('malformed paths', [
     'a sample missing an axis' => [[
@@ -49,7 +50,7 @@ test('authenticated users can view the simulator', function (): void {
     $response = $this->actingAs($user)->get(route('challenges.show', [$course, $challenge]));
 
     $response->assertOk();
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->component('challenges/play')
         ->where('challenge.slug', $challenge->slug)
         ->where('progress.status', ChallengeStatus::NotStarted));
@@ -63,7 +64,7 @@ test('the reference solution is withheld on a first visit', function (): void {
     $response = $this->actingAs($user)->get(route('challenges.show', [$course, $challenge]));
 
     $response->assertOk();
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('solution.exists', true)
         ->where('solution.unlocked', false)
         ->where('solution.code', null)
@@ -84,7 +85,7 @@ test('the reference solution stays locked below the attempt threshold', function
     $response = $this->actingAs($user)->get(route('challenges.show', [$course, $challenge]));
 
     $response->assertOk();
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('solution.unlocked', false)
         ->where('solution.code', null));
 });
@@ -103,7 +104,7 @@ test('the reference solution unlocks once the attempt threshold is reached', fun
     $response = $this->actingAs($user)->get(route('challenges.show', [$course, $challenge]));
 
     $response->assertOk();
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('solution.unlocked', true)
         ->where('solution.code', $challenge->solution_code));
 });
@@ -122,7 +123,7 @@ test('completing a challenge unlocks the reference solution immediately', functi
     $response = $this->actingAs($user)->get(route('challenges.show', [$course, $challenge]));
 
     $response->assertOk();
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('solution.unlocked', true)
         ->where('solution.code', $challenge->solution_code));
 });
@@ -141,7 +142,7 @@ test('a challenge without a reference solution never unlocks one', function (): 
     $response = $this->actingAs($user)->get(route('challenges.show', [$course, $challenge]));
 
     $response->assertOk();
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('solution.exists', false)
         ->where('solution.unlocked', false)
         ->where('solution.code', null));

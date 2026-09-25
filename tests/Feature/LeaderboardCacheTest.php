@@ -7,6 +7,7 @@ use App\Models\Course;
 use App\Models\User;
 use App\Models\UserChallengeProgress;
 use Illuminate\Support\Facades\DB;
+use Inertia\Testing\AssertableInertia;
 
 test('a repeat view of the board does not re run the ranking', function (): void {
     $viewer = pilotWithProgress();
@@ -15,12 +16,12 @@ test('a repeat view of the board does not re run the ranking', function (): void
 
     DB::enableQueryLog();
     $this->actingAs($viewer)->get(route('leaderboard'))->assertOk();
-    $queries = DB::getRawQueryLog();
+    $queries = array_filter(array_column(DB::getRawQueryLog(), 'raw_query'), is_string(...));
     DB::disableQueryLog();
 
     $ranking = array_filter(
         $queries,
-        fn (array $query): bool => str_contains($query['raw_query'], 'rank() over'),
+        fn (string $query): bool => str_contains($query, 'rank() over'),
     );
 
     expect($ranking)->toBe([], 'the ranking aggregate ran again on a cached board');
@@ -41,7 +42,7 @@ test('recording a run puts the pilot on the board immediately', function (): voi
 
     // Warm the cache on a board that does not know about Grace yet.
     $this->actingAs($newcomer)->get(route('leaderboard'))
-        ->assertInertia(fn ($page) => $page->has('standings', 1));
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->has('standings', 1));
 
     $this->actingAs($newcomer)->postJson(
         route('challenges.attempts.store', [$course, $challenge]),
@@ -58,7 +59,7 @@ test('recording a run puts the pilot on the board immediately', function (): voi
     )->assertOk();
 
     $this->actingAs($newcomer)->get(route('leaderboard'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->has('standings', 2)
             ->where('standings.0.name', 'Grace')
             ->where('standings.0.points', 100)
@@ -81,12 +82,12 @@ test('a cached board is readable on the configured cache driver', function (): v
     // Populates the cache.
     $this->actingAs($viewer)->get(route('leaderboard'))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page->has('standings', 1));
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->has('standings', 1));
 
     // Reads it back.
     $this->actingAs($viewer)->get(route('leaderboard'))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->has('standings', 1)
             ->where('standings.0.isYou', true)
             ->where('you.isYou', true));
@@ -117,7 +118,7 @@ test('recording a run retires the board on the configured cache driver', functio
     $newcomer = User::factory()->create(['name' => 'Grace']);
 
     $this->actingAs($newcomer)->get(route('leaderboard'))
-        ->assertInertia(fn ($page) => $page->has('standings', 1));
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->has('standings', 1));
 
     $this->actingAs($newcomer)->postJson(
         route('challenges.attempts.store', [$course, $challenge]),
@@ -134,7 +135,7 @@ test('recording a run retires the board on the configured cache driver', functio
     )->assertOk();
 
     $this->actingAs($newcomer)->get(route('leaderboard'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->has('standings', 2)
             ->where('standings.0.name', 'Grace'));
 });
@@ -144,10 +145,10 @@ test('each course board is cached separately from the overall one', function ():
     $other = Course::factory()->create(['slug' => 'empty-course']);
 
     $this->actingAs($viewer)->get(route('leaderboard'))
-        ->assertInertia(fn ($page) => $page->has('standings', 1));
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->has('standings', 1));
 
     $this->actingAs($viewer)->get(route('leaderboard', ['course' => $other->slug]))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->has('standings', 0)
             ->where('pilotCount', 0));
 });

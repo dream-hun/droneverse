@@ -71,7 +71,7 @@ final readonly class RollUpCourseTotals
                 return;
             }
 
-            $row = DB::table('user_challenge_progress')
+            $row = fluent(DB::table('user_challenge_progress')
                 ->join('challenges', 'challenges.id', '=', 'user_challenge_progress.challenge_id')
                 ->where('user_challenge_progress.user_id', $userId)
                 ->where('challenges.course_id', $courseId)
@@ -84,7 +84,7 @@ final readonly class RollUpCourseTotals
                     .'max(user_challenge_progress.completed_at) as finished_at',
                     [ChallengeStatus::Completed->value],
                 )
-                ->first();
+                ->first());
 
             /*
              * No playable progress left means no place on the board. The
@@ -93,17 +93,17 @@ final readonly class RollUpCourseTotals
              * it rather than appearing on nil points — which is what a row of
              * zeroes would put them there on.
              */
-            if ((int) ($row->rows_counted ?? 0) === 0) {
+            if ($row->integer('rows_counted') === 0) {
                 $totals->delete();
                 $this->retireBoard($courseId);
 
                 return;
             }
 
-            $totals->points = (int) $row->points;
-            $totals->stars = (int) $row->stars;
-            $totals->completed = (int) $row->completed;
-            $totals->finished_at = $row->finished_at;
+            $totals->points = $row->integer('points');
+            $totals->stars = $row->integer('stars');
+            $totals->completed = $row->integer('completed');
+            $totals->finished_at = $row->date('finished_at');
             $totals->save();
 
             $this->retireBoard($courseId);

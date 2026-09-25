@@ -36,7 +36,7 @@ use App\Models\Challenge;
  */
 function scoringVectors(): array
 {
-    $path = dirname(__DIR__).'/Fixtures/scoring-vectors.json';
+    $path = __DIR__.'/../Fixtures/scoring-vectors.json';
     $contents = file_get_contents($path);
 
     throw_if($contents === false, RuntimeException::class, "the shared scoring vectors could not be read from $path");
@@ -62,9 +62,10 @@ dataset(/**
  */
 test('the server grades a run the way the contract says', function (array $vector): void {
     /** @var array{name: string, why: string, maxScore: int, criteria: array<string, mixed>, measured: array{waypointsHit: int, waypointsTotal: int, collisions: int, maxAltitude: float, landed: bool, elapsedSeconds: float, timedOut: bool, photosTaken: int, photoTargetsHit: int, photoTargetsTotal: int, photosMissing: int, washRequired: bool, washed: bool}, expected: array<string, bool|float|int>} $vector Pest datasets are dynamically invoked. */
-    $challenge = new Challenge;
-    $challenge->success_criteria = $vector['criteria'];
-    $challenge->max_score = $vector['maxScore'];
+    $challenge = new Challenge([
+        'success_criteria' => $vector['criteria'],
+        'max_score' => $vector['maxScore'],
+    ]);
 
     $measured = $vector['measured'];
 

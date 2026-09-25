@@ -76,9 +76,10 @@ jobs:
       - name: Tests
         run: php artisan test
 
-  # Vitest needs no PHP: vitest.config.ts deliberately leaves out the Vite
-  # plugins that shell out to artisan, and no test imports a generated route
-  # helper.
+  # vitest.config.ts leaves out the Vite plugins that shell out to artisan,
+  # but the components under test still import the generated route helpers
+  # (`@/routes`), which are gitignored. PHP is here to generate those and
+  # nothing else — no asset build.
   frontend:
     runs-on: ubuntu-latest
 
@@ -88,14 +89,32 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.5'
+          tools: composer:v2
+          coverage: none
+
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
           node-version: '22'
           cache: npm
 
-      - name: Install Node Dependencies
-        run: npm ci
+      - name: Install Dependencies
+        run: |
+          composer install --no-interaction --no-progress --prefer-dist
+          npm ci
+
+      - name: Prepare Environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      # The flag matches `formVariants` in vite.config.ts.
+      - name: Generate Route Helpers
+        run: php artisan wayfinder:generate --with-form
 
       - name: Frontend Tests
         run: npm run test

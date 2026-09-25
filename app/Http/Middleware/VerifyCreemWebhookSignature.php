@@ -35,6 +35,8 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 final class VerifyCreemWebhookSignature
 {
     /**
+     * @param  Closure(Request): (Response)  $next
+     *
      * @throws AccessDeniedHttpException
      */
     public function handle(Request $request, Closure $next): Response

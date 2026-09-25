@@ -9,7 +9,9 @@ use App\Enums\Plan;
 use App\Http\Resources\ChallengeSummaryResource;
 use App\Http\Resources\CourseCatalogResource;
 use App\Http\Resources\QuizSummaryResource;
+use App\Models\Challenge;
 use App\Models\Course;
+use App\Models\Quiz;
 use App\Models\User;
 use App\Models\UserChallengeProgress;
 use App\Models\UserQuizProgress;
@@ -40,7 +42,7 @@ final class CourseController extends Controller
                 // The catalog is public, so a guest has no progress to merge.
                 $completedByCourse = $user instanceof User
                     ? $leaderboard->completedCountsByCourse($user)
-                    : collect();
+                    : new Collection;
 
                 return CourseCatalogResource::collection(
                     Course::catalog()->get(),
@@ -97,7 +99,7 @@ final class CourseController extends Controller
 
                 return ChallengeSummaryResource::collection(
                     $challenges,
-                    $this->progressByChallenge($user, $challenges->pluck('id')),
+                    $this->progressByChallenge($user, $challenges->map(fn (Challenge $challenge): int => $challenge->id)),
                     $course,
                     $user?->plan() ?? Plan::Starter,
                 );
@@ -116,7 +118,7 @@ final class CourseController extends Controller
 
                 return QuizSummaryResource::collection(
                     $quizzes,
-                    $this->progressByQuiz($user, $quizzes->pluck('id')),
+                    $this->progressByQuiz($user, $quizzes->map(fn (Quiz $quiz): int => $quiz->id)),
                     $course,
                     $user?->plan() ?? Plan::Starter,
                 );
@@ -143,13 +145,13 @@ final class CourseController extends Controller
     private function progressByChallenge(?User $user, Collection $challengeIds): Collection
     {
         if (! $user instanceof User || $challengeIds->isEmpty()) {
-            return collect();
+            return new Collection;
         }
 
         return $user->challengeProgress()
             ->whereIn('challenge_id', $challengeIds)
             ->get(['challenge_id', 'status', 'best_score', 'stars'])
-            ->keyBy('challenge_id');
+            ->keyBy(fn (UserChallengeProgress $progress): int => $progress->challenge_id);
     }
 
     /**
@@ -166,12 +168,12 @@ final class CourseController extends Controller
     private function progressByQuiz(?User $user, Collection $quizIds): Collection
     {
         if (! $user instanceof User || $quizIds->isEmpty()) {
-            return collect();
+            return new Collection;
         }
 
         return $user->quizProgress()
             ->whereIn('quiz_id', $quizIds)
             ->get(['quiz_id', 'best_score', 'attempts', 'passed_at'])
-            ->keyBy('quiz_id');
+            ->keyBy(fn (UserQuizProgress $progress): int => $progress->quiz_id);
     }
 }

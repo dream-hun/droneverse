@@ -17,10 +17,21 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same pull request makes the run in flight stale. Runs on
+# the branches themselves are left to finish, so every merge keeps a verdict.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # The suite, and only the suite. Static analysis lives in the linter
+  # workflow, which runs it once rather than once per PHP version, and which
+  # cannot stop these tests from running by failing first.
   ci:
     runs-on: ubuntu-latest
     strategy:
+      # One version failing is not a reason to stop learning about the other.
+      fail-fast: false
       matrix:
         php-version: ['8.4', '8.5']
 
@@ -30,20 +41,23 @@ jobs:
         with:
           persist-credentials: false
 
+      # No coverage is collected, and Xdebug loaded for nothing slows every
+      # request the suite makes.
       - name: Setup PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: ${{ matrix.php-version }}
           tools: composer:v2
-          coverage: xdebug
+          coverage: none
 
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
           node-version: '22'
+          cache: npm
 
       - name: Install Node Dependencies
-        run: npm i
+        run: npm ci
 
       - name: Install Dependencies
         run: composer install --no-interaction --prefer-dist --optimize-autoloader
@@ -54,28 +68,56 @@ jobs:
       - name: Generate Application Key
         run: php artisan key:generate
 
+      # The Blade root view resolves the Vite manifest, so every page test
+      # needs the built assets.
       - name: Build Assets
         run: npm run build
 
-      # Advisories are published against versions already in the lock file, so
-      # this fails on a morning when nothing in the diff changed. That is the
-      # point: it is the only step here that reports on code nobody touched.
-      # The npm threshold sits at high because monaco-editor pins a dompurify
-      # range with an open moderate advisory and no non-breaking fix.
-      - name: Audit Dependencies
-        run: composer audit:check
+      - name: Tests
+        run: php artisan test
 
-      - name: Run Type Analysis
-        run: composer types:check
+  # vitest.config.ts leaves out the Vite plugins that shell out to artisan,
+  # but the components under test still import the generated route helpers
+  # (`@/routes`), which are gitignored. PHP is here to generate those and
+  # nothing else — no asset build.
+  frontend:
+    runs-on: ubuntu-latest
 
-      - name: Check Frontend Types
-        run: npm run types:check
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.5'
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install Dependencies
+        run: |
+          composer install --no-interaction --no-progress --prefer-dist
+          npm ci
+
+      - name: Prepare Environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      # The flag matches `formVariants` in vite.config.ts.
+      - name: Generate Route Helpers
+        run: php artisan wayfinder:generate --with-form
 
       - name: Frontend Tests
         run: npm run test
-
-      - name: Tests
-        run: php artisan test
 
   # The suite runs on SQLite, and the application runs on MySQL. That is
   # normally a fair trade, but not for the code that exists *because* the two
@@ -112,14 +154,16 @@ jobs:
         with:
           php-version: '8.5'
           tools: composer:v2
+          coverage: none
 
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
           node-version: '22'
+          cache: npm
 
       - name: Install Node Dependencies
-        run: npm i
+        run: npm ci
 
       - name: Install Dependencies
         run: composer install --no-interaction --prefer-dist --optimize-autoloader

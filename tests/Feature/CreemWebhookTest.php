@@ -10,8 +10,13 @@ use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Routing\Router;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
+use Pest\TestSuite;
+use PHPUnit\Framework\Assert;
+use Symfony\Component\HttpFoundation\Response;
+use Tests\TestCase;
 
 /*
  * The webhook endpoint is reachable by Creem and by nobody else.
@@ -174,7 +179,7 @@ test('a body altered after signing is rejected', function (): void {
     $payload = checkoutCompletedPayload(1);
     $signature = signature($payload);
 
-    $payload['object']['subscription']['product']['id'] = 'prod_team_monthly';
+    Arr::set($payload, 'object.subscription.product.id', 'prod_team_monthly');
 
     $this->call(
         'POST',
@@ -308,8 +313,8 @@ test('a signed payload for an unknown product grants nothing', function (): void
  */
 test('a payload naming no account here is acknowledged and creates nothing', function (): void {
     $anonymous = checkoutCompletedPayload(1);
-    unset($anonymous['object']['metadata'], $anonymous['object']['subscription']['metadata']);
-    $anonymous['object']['customer']['email'] = 'stranger@example.test';
+    Arr::forget($anonymous, ['object.metadata', 'object.subscription.metadata']);
+    Arr::set($anonymous, 'object.customer.email', 'stranger@example.test');
 
     postSigned($anonymous)->assertOk();
 
@@ -333,7 +338,7 @@ test('a payload with no metadata is placed by the customer it names', function (
     $user = User::factory()->create(['email' => 'pilot@example.test']);
 
     $payload = checkoutCompletedPayload($user->id);
-    unset($payload['object']['metadata'], $payload['object']['subscription']['metadata']);
+    Arr::forget($payload, ['object.metadata', 'object.subscription.metadata']);
 
     postSigned($payload)->assertOk();
 
@@ -356,7 +361,7 @@ test('a renewal with no metadata is placed by the subscription already recorded'
     $renewal = subscriptionEventPayload($user->id, 'subscription.paid', [
         'next_transaction_date' => '2026-10-01T00:00:00.000Z',
     ]);
-    unset($renewal['object']['metadata']);
+    Arr::forget($renewal, 'object.metadata');
 
     postSigned($renewal)->assertOk();
 
@@ -460,11 +465,16 @@ test('a signed payload for an unhandled event is acknowledged', function (): voi
 /**
  * Post a payload with the signature Creem would have sent for it.
  *
- * @param  array<string, mixed>  $payload
+ * @param  array<mixed>  $payload
+ * @return TestResponse<Response>
  */
 function postSigned(array $payload, string $secret = WEBHOOK_SECRET): TestResponse
 {
-    return test()->call(
+    $test = TestSuite::getInstance()->test;
+
+    Assert::assertInstanceOf(TestCase::class, $test);
+
+    return $test->call(
         'POST',
         route('creem.webhook'),
         server: signature($payload, $secret),
@@ -477,7 +487,7 @@ function postSigned(array $payload, string $secret = WEBHOOK_SECRET): TestRespon
  * digest in `creem-signature`. There is no timestamp and no version prefix; see
  * this file's doc-block for what that costs.
  *
- * @param  array<string, mixed>  $payload
+ * @param  array<mixed>  $payload
  * @return array<string, string>
  */
 function signature(array $payload, string $secret = WEBHOOK_SECRET): array
@@ -699,9 +709,9 @@ function gatheredMiddlewareFor(string $routeName): array
 {
     $route = Route::getRoutes()->getByName($routeName);
 
-    expect($route)->not->toBeNull(sprintf('There is no route named [%s].', $routeName));
+    Assert::assertNotNull($route, sprintf('There is no route named [%s].', $routeName));
 
-    return resolve(Router::class)->gatherRouteMiddleware($route);
+    return array_values(array_filter(resolve(Router::class)->gatherRouteMiddleware($route), is_string(...)));
 }
 
 /**

@@ -116,15 +116,15 @@ final class StoreChallengeAttemptRequest extends FormRequest
     {
         $flight = $this->flight ?? ['path' => [], 'photos' => []];
 
-        // Once, not once per field: `validated()` rebuilds the whole validated
-        // set on every call, and this one carries the path.
-        $validated = $this->validated();
+        // Once, not once per field: `safe()` rebuilds the whole validated set
+        // on every call, and this one carries the path.
+        $validated = $this->safe();
 
         return [
             'path' => $flight['path'],
-            'collisions' => (int) $validated['collisions'],
+            'collisions' => $validated->integer('collisions'),
             'photos' => $flight['photos'],
-            'code' => (string) $validated['code'],
+            'code' => $validated->string('code')->value(),
         ];
     }
 

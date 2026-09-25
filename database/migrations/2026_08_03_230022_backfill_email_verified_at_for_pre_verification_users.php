@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
@@ -53,7 +54,7 @@ return new class extends Migration
     {
         DB::table('users')
             ->whereNull('email_verified_at')
-            ->where(function ($query): void {
+            ->where(function (Builder $query): void {
                 // A row predating `timestamps()` has no created_at to compare;
                 // it is unambiguously older than the cutoff either way.
                 $query->where('created_at', '<', self::ENFORCEMENT_STARTED_AT)

@@ -25,19 +25,19 @@ final class ChallengeRunFactory extends Factory
      */
     public function definition(): array
     {
-        $total = $this->faker->numberBetween(2, 5);
+        $total = fake()->numberBetween(2, 5);
 
         return [
             'user_id' => User::factory(),
             'challenge_id' => Challenge::factory(),
-            'score' => $this->faker->numberBetween(0, 60),
+            'score' => fake()->numberBetween(0, 60),
             'stars' => 0,
             'completed' => false,
-            'objectives_hit' => $this->faker->numberBetween(0, $total - 1),
+            'objectives_hit' => fake()->numberBetween(0, $total - 1),
             'objectives_total' => $total,
-            'collisions' => $this->faker->numberBetween(0, 3),
-            'elapsed_seconds' => $this->faker->randomFloat(2, 5, 90),
-            'landed' => $this->faker->boolean(),
+            'collisions' => fake()->numberBetween(0, 3),
+            'elapsed_seconds' => fake()->randomFloat(2, 5, 90),
+            'landed' => fake()->boolean(),
             'timed_out' => false,
         ];
     }

@@ -8,7 +8,9 @@ use App\Models\Customer;
 use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
+use Inertia\Testing\AssertableInertia;
 
 const CHECKOUT_URL = 'https://www.creem.io/payment/ch_4l0N34kxo16AhRKUHFUuXr';
 const CHECKOUT_ENDPOINT = 'https://test-api.creem.io/v1/checkouts';
@@ -40,7 +42,7 @@ beforeEach(function (): void {
 test('a guest can read the pricing page', function (): void {
     $this->get(route('pricing'))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->component('pricing')
             ->has('plans', count(Plan::cases())));
 
@@ -57,7 +59,7 @@ test('a guest can read the pricing page', function (): void {
 test('the page renders where checkout cannot open at all', function (): void {
     $this->get(route('pricing'))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page->where('creem.configured', false));
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('creem.configured', false));
 });
 
 /**
@@ -71,18 +73,18 @@ test('checkout is reported as unconfigured unless the api key is set', function 
         config(['creem.api_key' => $apiKey]);
 
         $this->get(route('pricing'))
-            ->assertInertia(fn ($page) => $page->where('creem.configured', false));
+            ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('creem.configured', false));
     }
 
     config(['creem.api_key' => 'creem_test_key']);
 
     $this->get(route('pricing'))
-        ->assertInertia(fn ($page) => $page->where('creem.configured', true));
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('creem.configured', true));
 });
 
 test('a guest is sent to sign up rather than to checkout', function (): void {
     $this->get(route('pricing'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('plans.0.cta.action', 'signup')
             ->where('plans.1.cta.action', 'signup'));
 });
@@ -90,7 +92,7 @@ test('a guest is sent to sign up rather than to checkout', function (): void {
 test('a starter pilot is offered checkout on pro', function (): void {
     $this->actingAs(User::factory()->create())
         ->get(route('pricing'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('plans.0.isCurrent', true)
             ->where('plans.0.cta.action', 'current')
             ->where('plans.1.value', 'pro')
@@ -101,7 +103,7 @@ test('a starter pilot is offered checkout on pro', function (): void {
 test('a pro pilot is not sold pro again', function (): void {
     $this->actingAs(User::factory()->onPlan(Plan::Pro)->create())
         ->get(route('pricing'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('plans.1.cta.action', 'current')
             ->where('plans.1.isPopular', false)
             // Starter is beneath them, and saying so beats an upgrade
@@ -120,7 +122,7 @@ test('an unpriced tier is not for sale however confidently it is quoted', functi
 
     $this->actingAs(User::factory()->create())
         ->get(route('pricing'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('plans.1.value', 'pro')
             ->where('plans.1.cta.action', 'unavailable')
             // The copy still stands; only the button is off.
@@ -142,7 +144,7 @@ test('a billing period with no configured price is not for sale though its sibli
 
     $this->actingAs(User::factory()->create())
         ->get(route('pricing'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('plans.1.value', 'pro')
             ->where('plans.1.cta.action', 'checkout')
             ->where('plans.1.prices.monthly.purchasable', true)
@@ -163,7 +165,7 @@ test('the period the page opens on is marked unsellable when only its sibling is
 
     $this->actingAs(User::factory()->create())
         ->get(route('pricing'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('plans.1.cta.action', 'checkout')
             ->where('plans.1.prices.monthly.purchasable', false)
             ->where('plans.1.prices.yearly.purchasable', true));
@@ -178,7 +180,7 @@ test('an unpriced tier marks every period unsellable', function (): void {
 
     $this->actingAs(User::factory()->create())
         ->get(route('pricing'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('plans.1.cta.action', 'unavailable')
             ->where('plans.1.prices.monthly.purchasable', false)
             ->where('plans.1.prices.yearly.purchasable', false));
@@ -191,7 +193,7 @@ test('an unpriced tier marks every period unsellable', function (): void {
  */
 test('a guest is not told that starter is their current plan', function (): void {
     $this->get(route('pricing'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('plans.0.value', 'starter')
             ->where('plans.0.isCurrent', false)
             ->where('plans.0.cta.action', 'signup'));
@@ -204,7 +206,7 @@ test('a guest is not told that starter is their current plan', function (): void
 test('team is bought from the page like pro', function (): void {
     $this->actingAs(User::factory()->create())
         ->get(route('pricing'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('plans.2.value', 'team')
             ->where('plans.2.cta.action', 'checkout')
             ->where('plans.2.cta.label', 'Upgrade to Team')
@@ -224,7 +226,7 @@ test('a subscriber is offered a switch rather than a second checkout', function 
 
     $this->actingAs($user)
         ->get(route('pricing'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('plans.1.value', 'pro')
             ->where('plans.1.cta.action', 'current')
             ->where('plans.2.value', 'team')
@@ -243,14 +245,14 @@ test('a subscriber may switch down a tier where a comped account may not', funct
 
     $this->actingAs($subscriber)
         ->get(route('pricing'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('plans.1.value', 'pro')
             ->where('plans.1.cta.action', 'switch')
             ->where('plans.1.cta.label', 'Switch to Pro'));
 
     $this->actingAs(User::factory()->onPlan(Plan::Team)->create())
         ->get(route('pricing'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('plans.1.cta.action', 'included'));
 });
 
@@ -272,7 +274,7 @@ test('a subscription winding down is sent to billing rather than to either butto
 
     $this->actingAs($user)
         ->get(route('pricing'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('plans.2.value', 'team')
             ->where('plans.2.cta.action', 'manage')
             ->where('plans.2.cta.label', 'Manage subscription'));
@@ -311,7 +313,7 @@ test('an expired subscription is bought again rather than switched', function ()
 
     $this->actingAs($user)
         ->get(route('pricing'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('plans.1.value', 'pro')
             ->where('plans.1.cta.action', 'checkout'));
 
@@ -322,7 +324,7 @@ test('an expired subscription is bought again rather than switched', function ()
 
 test('the annual saving is computed from the prices it describes', function (): void {
     $this->get(route('pricing'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('plans.1.prices.monthly.formatted', '$19')
             ->where('plans.1.prices.yearly.formatted', '$190')
             ->where('plans.1.prices.yearly.savingPercent', 17)
@@ -331,7 +333,7 @@ test('the annual saving is computed from the prices it describes', function (): 
 
 test('the comparison grid marks unbuilt capabilities', function (): void {
     $this->get(route('pricing'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('comparison.0.value', 'mission_builder')
             ->where('comparison.0.available', false)
             // Starter, Pro, Team.
@@ -379,7 +381,7 @@ test('checkout answers with a url minted for the resolved product', function ():
      * about it afterwards, which is how a webhook arriving hours later knows
      * whose plan to grant.
      */
-    $metadata = $sent['metadata'];
+    $metadata = Arr::array($sent, 'metadata');
     ksort($metadata);
 
     expect($metadata)->toBe([
@@ -525,7 +527,7 @@ function lastRequest(): Request
 
     expect($recorded)->toHaveCount(1, 'Checkout should mint its URL with exactly one call.');
 
-    return $recorded->first()[0];
+    return $recorded->sole()[0];
 }
 
 /**

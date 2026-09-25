@@ -83,7 +83,7 @@ final class DashboardController extends Controller
 
         $challenge = $progress?->challenge;
 
-        if ($challenge === null || $challenge->course === null) {
+        if ($challenge === null) {
             return null;
         }
 

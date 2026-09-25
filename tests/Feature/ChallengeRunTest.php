@@ -55,10 +55,10 @@ test('a worse run is still recorded even though progress ignores it', function (
         ->get();
 
     expect($runs)->toHaveCount(2, 'the poorer run was dropped instead of logged');
-    expect($runs[0]->score)->toBe(100);
-    expect($runs[0]->completed)->toBeTrue();
-    expect($runs[1]->score)->toBeLessThan(100);
-    expect($runs[1]->completed)->toBeFalse();
+    expect($runs[0]?->score)->toBe(100);
+    expect($runs[0]?->completed)->toBeTrue();
+    expect($runs[1]?->score)->toBeLessThan(100);
+    expect($runs[1]?->completed)->toBeFalse();
 
     // And progress kept the better of the two, as it always has.
     $this->assertDatabaseHas('user_challenge_progress', [

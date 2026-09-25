@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Inertia\Testing\AssertableInertia;
 
 /** A real 1x1 PNG so image validation exercises actual decoding. */
 const TINY_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
@@ -169,7 +170,7 @@ test('the photo log shows only the users own photos', function (): void {
     $response = $this->actingAs($user)->get(route('photos.index'));
 
     $response->assertOk();
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->component('photos/index')
         ->count('photos', 1)
         ->where('photos.0.id', $mine->uuid)
@@ -378,7 +379,7 @@ test('the photo log serves expiring urls', function (): void {
     $response = $this->actingAs($user)->get(route('photos.index'));
 
     $response->assertOk();
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->component('photos/index')
         ->where('photos.0.url', fn (string $url): bool => str_contains($url, 'expiration=')));
 });
@@ -397,7 +398,7 @@ test('a stored photo is returned with an expiring url', function (): void {
 
     $response->assertCreated();
 
-    expect((string) $response->json('url'))->toContain('expiration=');
+    expect($response->json('url'))->toContain('expiration=');
 });
 
 test('photos are written to the configured disk', function (): void {

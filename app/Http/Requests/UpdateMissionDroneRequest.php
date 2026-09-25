@@ -61,7 +61,7 @@ final class UpdateMissionDroneRequest extends FormRequest
     public function drone(): DroneModel
     {
         return $this->resolvedDrone ??= DroneModel::query()
-            ->where('uuid', (string) $this->validated('drone'))
+            ->where('uuid', $this->safe()->string('drone')->value())
             ->firstOrFail();
     }
 }

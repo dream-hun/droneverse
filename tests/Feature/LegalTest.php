@@ -2,29 +2,31 @@
 
 declare(strict_types=1);
 
+use Inertia\Testing\AssertableInertia;
+
 test('guests can read the terms', function (): void {
     $response = $this->get(route('terms'));
 
     $response->assertOk();
-    $response->assertInertia(fn ($page) => $page->component('legal/terms'));
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->component('legal/terms'));
 });
 
 test('guests can read the privacy policy', function (): void {
     $response = $this->get(route('privacy'));
 
     $response->assertOk();
-    $response->assertInertia(fn ($page) => $page->component('legal/privacy'));
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->component('legal/privacy'));
 });
 
 test('both documents state when their wording took effect', function (): void {
     config(['legal.effective.terms' => '2026-08-12']);
     config(['legal.effective.privacy' => '2026-01-31']);
 
-    $this->get(route('terms'))->assertInertia(fn ($page) => $page
+    $this->get(route('terms'))->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('updatedAt.iso', '2026-08-12')
         ->where('updatedAt.label', '12 August 2026'));
 
-    $this->get(route('privacy'))->assertInertia(fn ($page) => $page
+    $this->get(route('privacy'))->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('updatedAt.iso', '2026-01-31')
         ->where('updatedAt.label', '31 January 2026'));
 });
@@ -38,7 +40,7 @@ test('the identity block reports the configured trader', function (): void {
         'legal.hosting_region' => 'the United States',
     ]);
 
-    $this->get(route('terms'))->assertInertia(fn ($page) => $page
+    $this->get(route('terms'))->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('identity.name', 'DroneVerse Ltd')
         ->where('identity.address', '1 Runway Road, Kigali')
         ->where('identity.country', 'Rwanda')
@@ -61,7 +63,7 @@ test('unconfigured identity details are null rather than guessed', function (): 
         'legal.hosting_region' => null,
     ]);
 
-    $this->get(route('privacy'))->assertInertia(fn ($page) => $page
+    $this->get(route('privacy'))->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('identity.name', 'DroneVerse')
         ->where('identity.address', null)
         ->where('identity.country', null)
@@ -76,7 +78,7 @@ test('a blank setting counts as unset', function (): void {
         'legal.entity.address' => '',
     ]);
 
-    $this->get(route('terms'))->assertInertia(fn ($page) => $page
+    $this->get(route('terms'))->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('identity.name', 'DroneVerse')
         ->where('identity.address', null));
 });
@@ -92,7 +94,7 @@ test('contact addresses fall back to each other', function (): void {
         'plans.sales_email' => 'sales@droneverse.test',
     ]);
 
-    $this->get(route('privacy'))->assertInertia(fn ($page) => $page
+    $this->get(route('privacy'))->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('identity.supportEmail', 'support@droneverse.test')
         ->where('identity.privacyEmail', 'support@droneverse.test'));
 });
@@ -104,7 +106,7 @@ test('contact addresses fall back to the sales inbox last', function (): void {
         'plans.sales_email' => 'sales@droneverse.test',
     ]);
 
-    $this->get(route('terms'))->assertInertia(fn ($page) => $page
+    $this->get(route('terms'))->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('identity.supportEmail', 'sales@droneverse.test')
         ->where('identity.privacyEmail', 'sales@droneverse.test'));
 });
@@ -115,7 +117,7 @@ test('each address is used when both are configured', function (): void {
         'legal.contact.privacy' => 'privacy@droneverse.test',
     ]);
 
-    $this->get(route('privacy'))->assertInertia(fn ($page) => $page
+    $this->get(route('privacy'))->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('identity.supportEmail', 'support@droneverse.test')
         ->where('identity.privacyEmail', 'privacy@droneverse.test'));
 });
@@ -127,7 +129,7 @@ test('no contact address anywhere leaves the pages saying so', function (): void
         'plans.sales_email' => null,
     ]);
 
-    $this->get(route('privacy'))->assertInertia(fn ($page) => $page
+    $this->get(route('privacy'))->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('identity.supportEmail', null)
         ->where('identity.privacyEmail', null));
 });
@@ -139,7 +141,7 @@ test('the eu representative is published once appointed', function (): void {
         'legal.eu_representative.email' => 'rep@droneverse.test',
     ]);
 
-    $this->get(route('privacy'))->assertInertia(fn ($page) => $page
+    $this->get(route('privacy'))->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('identity.euRepresentative.name', 'DroneVerse EU Rep GmbH')
         ->where('identity.euRepresentative.address', 'Hauptstrasse 1, Berlin')
         ->where('identity.euRepresentative.email', 'rep@droneverse.test'));
@@ -157,6 +159,6 @@ test('an unnamed eu representative is not published', function (): void {
         'legal.eu_representative.email' => 'rep@droneverse.test',
     ]);
 
-    $this->get(route('privacy'))->assertInertia(fn ($page) => $page
+    $this->get(route('privacy'))->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('identity.euRepresentative', null));
 });

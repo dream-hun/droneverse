@@ -67,7 +67,7 @@ test('a pilot with no standing on a mission does not re run the cohort', functio
 
     expect($flightLog->cohortFor($user, $challenge))->toBeNull();
 
-    $queries = queriesDuring(fn (): null => $flightLog->cohortFor($user, $challenge));
+    $queries = queriesDuring(fn (): ?array => $flightLog->cohortFor($user, $challenge));
 
     expect($queries)->toBe([], 'a null cohort was treated as a cache miss');
 });
@@ -164,11 +164,11 @@ test('seeding a generation asks the store for an atomic add', function (): void 
     $user = User::factory()->create();
     $challenge = Challenge::factory()->create();
 
-    Cache::spy();
+    $cache = Cache::spy();
 
     resolve(FlightLog::class)->forget($user, $challenge);
 
-    Cache::shouldHaveReceived('add')
+    $cache->shouldHaveReceived('add')
         ->withArgs(fn (string $key, int $generation, ?int $ttl): bool => $ttl !== null)
         ->times(3);
 });
@@ -257,7 +257,7 @@ test('the flight log and the leaderboard do not share a generation', function ()
  */
 function generation(string $scope): int
 {
-    return (int) Cache::get("flight-log:generation:{$scope}", 0);
+    return Cache::integer("flight-log:generation:{$scope}", 0);
 }
 
 /**
@@ -305,15 +305,12 @@ function queriesDuring(callable $callback): array
 {
     DB::enableQueryLog();
     $callback();
-    $queries = DB::getRawQueryLog();
+    $queries = array_filter(array_column(DB::getRawQueryLog(), 'raw_query'), is_string(...));
     DB::disableQueryLog();
 
-    return array_values(array_map(
-        fn (array $query): string => $query['raw_query'],
-        array_filter(
-            $queries,
-            fn (array $query): bool => str_contains($query['raw_query'], 'challenge_runs')
-                || str_contains($query['raw_query'], 'pilot_mission_stats'),
-        ),
+    return array_values(array_filter(
+        $queries,
+        fn (string $query): bool => str_contains($query, 'challenge_runs')
+            || str_contains($query, 'pilot_mission_stats'),
     ));
 }

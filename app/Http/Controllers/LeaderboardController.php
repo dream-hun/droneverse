@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Models\Course;
 use App\Models\User;
 use App\Queries\Leaderboard;
+use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
@@ -22,10 +23,8 @@ final class LeaderboardController extends Controller
     /**
      * Display the ranked pilot standings.
      */
-    public function __invoke(Request $request, Leaderboard $leaderboard): Response
+    public function __invoke(Request $request, #[CurrentUser] User $user, Leaderboard $leaderboard): Response
     {
-        $user = $request->user();
-
         $courses = Course::published()->orderBy('order')->get(['id', 'title', 'slug']);
 
         // An unknown or unpublished slug falls back to the overall board

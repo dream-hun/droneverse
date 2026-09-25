@@ -24,13 +24,13 @@ final class DronePhotoFactory extends Factory
         return [
             'user_id' => User::factory(),
             'challenge_id' => Challenge::factory(),
-            'label' => $this->faker->optional()->word(),
-            'path' => 'drone-photos/'.$this->faker->uuid().'.jpg',
+            'label' => fake()->optional()->word(),
+            'path' => 'drone-photos/'.fake()->uuid().'.jpg',
             'position' => [
-                'x' => $this->faker->randomFloat(1, -20, 20),
-                'y' => $this->faker->randomFloat(1, 1, 12),
-                'z' => $this->faker->randomFloat(1, -30, 0),
-                'headingDeg' => $this->faker->randomFloat(1, 0, 359),
+                'x' => fake()->randomFloat(1, -20, 20),
+                'y' => fake()->randomFloat(1, 1, 12),
+                'z' => fake()->randomFloat(1, -30, 0),
+                'headingDeg' => fake()->randomFloat(1, 0, 359),
             ],
         ];
     }

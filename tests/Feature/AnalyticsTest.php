@@ -8,6 +8,7 @@ use App\Models\ChallengeRun;
 use App\Models\Course;
 use App\Models\User;
 use App\Queries\FlightLog;
+use Inertia\Testing\AssertableInertia;
 
 /*
  * Advanced analytics: who may read it, and whether it reads the runs right.
@@ -29,7 +30,7 @@ test('a pro pilot may read it', function (): void {
     $this->actingAs($user)
         ->get(route('analytics'))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page->component('analytics'));
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->component('analytics'));
 });
 
 test('a pilot who has flown nothing gets an empty summary rather than an error', function (): void {
@@ -38,7 +39,7 @@ test('a pilot who has flown nothing gets an empty summary rather than an error',
     $this->actingAs($user)
         ->get(route('analytics'))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('summary.runs', 0)
             ->where('summary.meanAttemptsToClear', null)
             ->where('missions', [])
@@ -204,11 +205,12 @@ test('the cohort measures a pilot against every pilots best', function (): void 
 
     $cohort = resolve(FlightLog::class)->cohortFor($viewer, $challenge);
 
-    expect($cohort)->not->toBeNull()
-        ->and($cohort['yourBest'])->toBe(50)
-        ->and($cohort['topBest'])->toBe(90)
-        ->and($cohort['pilots'])->toBe(5)
-        ->and($cohort['percentile'])->toBe(60);
+    expect($cohort)->toBe([
+        'percentile' => 60,
+        'pilots' => 5,
+        'yourBest' => 50,
+        'topBest' => 90,
+    ]);
     // Three of five pilots sit below 50, and the viewer is not one of them.
 });
 
@@ -242,7 +244,7 @@ test('an unknown mission slug falls back to the most recently flown', function (
     $this->actingAs($user)
         ->get(route('analytics', ['mission' => 'no-such-mission']))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page->where('selected.slug', $newer->slug));
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('selected.slug', $newer->slug));
 });
 
 test('a mission the pilot has never flown cannot be selected', function (): void {
@@ -259,7 +261,7 @@ test('a mission the pilot has never flown cannot be selected', function (): void
     $this->actingAs($user)
         ->get(route('analytics', ['mission' => $unflown->slug]))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page->where('selected.slug', $flown->slug));
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('selected.slug', $flown->slug));
 });
 
 test('the play page withholds the flight log from a starter pilot', function (): void {
@@ -270,7 +272,7 @@ test('the play page withholds the flight log from a starter pilot', function ():
     $this->actingAs($user)
         ->get(route('challenges.show', [$course, $challenge]))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page->where('flightLog', null));
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('flightLog', null));
 });
 
 test('the play page offers the flight log to a pro pilot', function (): void {
@@ -286,9 +288,9 @@ test('the play page offers the flight log to a pro pilot', function (): void {
     $this->actingAs($user)
         ->get(route('challenges.show', [$course, $challenge]))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->missing('flightLog')
-            ->loadDeferredProps(fn ($reload) => $reload
+            ->loadDeferredProps(fn (AssertableInertia $reload): AssertableInertia => $reload
                 ->has('flightLog.curve', 1)
                 ->where('flightLog.curve.0.score', 45)
                 ->where('flightLog.cohort.yourBest', 45)));

@@ -23,9 +23,9 @@ final class QuizQuestionFactory extends Factory
     {
         return [
             'quiz_id' => Quiz::factory(),
-            'prompt' => mb_rtrim($this->faker->sentence(), '.').'?',
+            'prompt' => mb_rtrim(fake()->sentence(), '.').'?',
             'type' => QuizQuestionType::Single,
-            'explanation' => $this->faker->sentence(),
+            'explanation' => fake()->sentence(),
             'order' => 0,
         ];
     }

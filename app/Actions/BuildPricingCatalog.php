@@ -211,13 +211,7 @@ final readonly class BuildPricingCatalog
      */
     private function isPurchasable(Plan $plan): bool
     {
-        foreach ($plan->variants() as $variant) {
-            if ($plan->priceId($variant) !== null) {
-                return true;
-            }
-        }
-
-        return false;
+        return array_any($plan->variants(), fn (string $variant): bool => $plan->priceId($variant) !== null);
     }
 
     /**

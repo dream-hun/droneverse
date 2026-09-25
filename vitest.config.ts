@@ -19,5 +19,18 @@ export default defineConfig({
     },
     test: {
         include: ['resources/js/**/*.test.ts', 'resources/js/**/*.test.tsx'],
+        /**
+         * Node 25 ships its own `localStorage` global, which is `undefined`
+         * unless `--localstorage-file` is given. Vitest only copies a jsdom
+         * key onto the global when the global lacks it, so Node's empty
+         * getter wins and every storage-backed test fails before it starts.
+         * Switching the built-in off lets jsdom's Storage through. The flag
+         * is only passed where the global exists, because an older Node
+         * would refuse to start a worker on an option it does not know.
+         */
+        execArgv:
+            'localStorage' in globalThis
+                ? ['--no-experimental-webstorage']
+                : [],
     },
 });

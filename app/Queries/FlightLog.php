@@ -139,21 +139,23 @@ final readonly class FlightLog
                     return [];
                 }
 
-                $earlier = DB::table('challenge_runs')
+                $earlier = fluent(DB::table('challenge_runs')
                     ->where('user_id', $user->id)
                     ->where('challenge_id', $challenge->id)
                     ->where('id', '<', $window->first()->id)
                     ->selectRaw('count(*) as runs, coalesce(max(score), 0) as best')
-                    ->first();
+                    ->first());
 
-                $attempt = (int) ($earlier->runs ?? 0);
-                $best = (int) ($earlier->best ?? 0);
+                $attempt = $earlier->integer('runs');
+                $best = $earlier->integer('best');
 
-                return $window->map(function (ChallengeRun $run) use (&$attempt, &$best): array {
+                $curve = [];
+
+                foreach ($window as $run) {
                     $attempt++;
                     $best = max($best, $run->score);
 
-                    return [
+                    $curve[] = [
                         'attempt' => $attempt,
                         'score' => $run->score,
                         'best' => $best,
@@ -165,7 +167,9 @@ final readonly class FlightLog
                         'objectivesTotal' => $run->objectives_total,
                         'flownAt' => $run->created_at?->toIso8601String() ?? '',
                     ];
-                })->all();
+                }
+
+                return $curve;
             },
             // Keyed to one pilot on one mission, so the only requests that
             // can collide on it are that pilot's own.
@@ -187,7 +191,7 @@ final readonly class FlightLog
                 // One row per mission flown rather than one per run, so a
                 // pilot's two hundredth attempt costs this aggregate exactly
                 // what their second did.
-                $row = $this->playableFor($user)
+                $row = fluent($this->playableFor($user)
                     ->selectRaw(
                         'coalesce(sum(pilot_mission_stats.runs), 0) as runs, '
                         .'count(*) as missions_flown, '
@@ -199,12 +203,11 @@ final readonly class FlightLog
                         [true],
                     )
                     ->toBase()
-                    ->first();
+                    ->first());
 
-                $runs = (int) ($row->runs ?? 0);
-                $flown = (int) ($row->missions_flown ?? 0);
-                $cleared = (int) ($row->missions_cleared ?? 0);
-                $meanAttempts = $row->mean_attempts_to_clear ?? null;
+                $runs = $row->integer('runs');
+                $flown = $row->integer('missions_flown');
+                $cleared = $row->integer('missions_cleared');
 
                 return [
                     'runs' => $runs,
@@ -218,14 +221,14 @@ final readonly class FlightLog
                      * and stays null when none of them do. That is a
                      * different statement from zero.
                      */
-                    'meanAttemptsToClear' => $meanAttempts === null
+                    'meanAttemptsToClear' => $row->get('mean_attempts_to_clear') === null
                         ? null
-                        : round((float) $meanAttempts, 1),
-                    'flightSeconds' => round((float) ($row->flight_seconds ?? 0), 1),
+                        : round($row->float('mean_attempts_to_clear'), 1),
+                    'flightSeconds' => round($row->float('flight_seconds'), 1),
                     'cleanRunRate' => $runs === 0
                         ? 0.0
-                        : round(((int) ($row->clean_runs ?? 0)) / $runs, 3),
-                    'bestScore' => (int) ($row->best_score ?? 0),
+                        : round($row->integer('clean_runs') / $runs, 3),
+                    'bestScore' => $row->integer('best_score'),
                 ];
             },
             shared: false,
@@ -263,14 +266,18 @@ final readonly class FlightLog
                     ->get()
                     ->all();
 
-                return array_map(fn (stdClass $row): array => [
-                    'challengeTitle' => (string) $row->challenge_title,
-                    'challengeSlug' => (string) $row->challenge_slug,
-                    'courseTitle' => (string) $row->course_title,
-                    'courseSlug' => (string) $row->course_slug,
-                    'runs' => (int) $row->runs,
-                    'cleared' => (bool) $row->cleared,
-                ], $rows);
+                return array_map(function (stdClass $record): array {
+                    $row = fluent($record);
+
+                    return [
+                        'challengeTitle' => $row->string('challenge_title')->value(),
+                        'challengeSlug' => $row->string('challenge_slug')->value(),
+                        'courseTitle' => $row->string('course_title')->value(),
+                        'courseSlug' => $row->string('course_slug')->value(),
+                        'runs' => $row->integer('runs'),
+                        'cleared' => $row->boolean('cleared'),
+                    ];
+                }, $rows);
             },
             shared: false,
         );
@@ -316,17 +323,21 @@ final readonly class FlightLog
                     ->get()
                     ->all();
 
-                return array_map(fn (stdClass $row): array => [
-                    'challengeTitle' => (string) $row->challenge_title,
-                    'challengeSlug' => (string) $row->challenge_slug,
-                    'courseTitle' => (string) $row->course_title,
-                    'courseSlug' => (string) $row->course_slug,
-                    'runs' => (int) $row->runs,
-                    'bestScore' => (int) $row->best_score,
-                    'maxScore' => (int) $row->max_score,
-                    'cleared' => (bool) $row->cleared,
-                    'meanCollisions' => round((float) $row->mean_collisions, 2),
-                ], $rows);
+                return array_map(function (stdClass $record): array {
+                    $row = fluent($record);
+
+                    return [
+                        'challengeTitle' => $row->string('challenge_title')->value(),
+                        'challengeSlug' => $row->string('challenge_slug')->value(),
+                        'courseTitle' => $row->string('course_title')->value(),
+                        'courseSlug' => $row->string('course_slug')->value(),
+                        'runs' => $row->integer('runs'),
+                        'bestScore' => $row->integer('best_score'),
+                        'maxScore' => $row->integer('max_score'),
+                        'cleared' => $row->boolean('cleared'),
+                        'meanCollisions' => round($row->float('mean_collisions'), 2),
+                    ];
+                }, $rows);
             },
             shared: false,
         );
@@ -358,7 +369,7 @@ final readonly class FlightLog
                     ->where('challenge_id', $challenge->id)
                     ->value('best_score');
 
-                if ($yourBest === null) {
+                if (! is_numeric($yourBest)) {
                     return null;
                 }
 
@@ -370,7 +381,7 @@ final readonly class FlightLog
                  * so the grouping subquery this used to need is gone, and
                  * what is left reads a single index over one mission's rows.
                  */
-                $row = DB::table('pilot_mission_stats')
+                $row = fluent(DB::table('pilot_mission_stats')
                     ->where('challenge_id', $challenge->id)
                     ->selectRaw(
                         'count(*) as pilots, '
@@ -378,17 +389,17 @@ final readonly class FlightLog
                         .'coalesce(max(best_score), 0) as top_best',
                         [$yourBest],
                     )
-                    ->first();
+                    ->first());
 
-                $pilots = (int) ($row->pilots ?? 0);
+                $pilots = $row->integer('pilots');
 
                 return [
                     'percentile' => $pilots === 0
                         ? 0
-                        : (int) round(((int) ($row->below ?? 0)) / $pilots * 100),
+                        : (int) round($row->integer('below') / $pilots * 100),
                     'pilots' => $pilots,
                     'yourBest' => $yourBest,
-                    'topBest' => (int) ($row->top_best ?? 0),
+                    'topBest' => $row->integer('top_best'),
                 ];
             },
             shared: false,

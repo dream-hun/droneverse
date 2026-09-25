@@ -85,14 +85,23 @@ final class FortifyServiceProvider extends ServiceProvider
     {
         RateLimiter::for('two-factor', fn (Request $request) => Limit::perMinute(5)->by($request->session()->get('login.id')));
 
+        /*
+         * Limiters run before validation, so the input is whatever was posted.
+         * An array where a string belongs would otherwise reach Str::lower()
+         * and answer the throttle with a 500 instead of a 429.
+         */
         RateLimiter::for('login', function (Request $request) {
-            $throttleKey = Str::transliterate(Str::lower($request->input(Fortify::username())).'|'.$request->ip());
+            $username = $request->input(Fortify::username());
+            $throttleKey = Str::transliterate(Str::lower(is_string($username) ? $username : '').'|'.$request->ip());
 
             return Limit::perMinute(5)->by($throttleKey);
         });
 
-        RateLimiter::for('passkeys', fn (Request $request) => Limit::perMinute(10)->by(
-            ($request->input('credential.id') ?: $request->session()->getId()).'|'.$request->ip(),
-        ));
+        RateLimiter::for('passkeys', function (Request $request) {
+            $credentialId = $request->input('credential.id');
+            $subject = is_string($credentialId) && $credentialId !== '' ? $credentialId : $request->session()->getId();
+
+            return Limit::perMinute(10)->by($subject.'|'.$request->ip());
+        });
     }
 }

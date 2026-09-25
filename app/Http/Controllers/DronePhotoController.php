@@ -10,9 +10,11 @@ use App\Http\Resources\DronePhotoResource;
 use App\Models\Challenge;
 use App\Models\Course;
 use App\Models\DronePhoto;
+use App\Models\User;
+use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -25,7 +27,7 @@ final class DronePhotoController extends Controller
     /**
      * Display the pilot's photo log.
      */
-    public function index(Request $request): Response
+    public function index(#[CurrentUser] User $user): Response
     {
         /*
          * A page of the log is twenty-four photos, each naming the mission it
@@ -34,12 +36,13 @@ final class DronePhotoController extends Controller
          * solution code along with it — twenty-four times over, for four
          * strings a page.
          */
-        $photos = $request->user()
-            ->dronePhotos()
-            ->with(['challenge' => fn ($challenge) => $challenge
-                ->select(['id', 'course_id', 'title', 'slug'])
-                ->with(['course' => fn ($course) => $course->select(['id', 'slug'])]),
-            ])
+        $photos = $user->dronePhotos()
+            ->with(['challenge' => function (Relation $challenge): void {
+                $challenge->select(['id', 'course_id', 'title', 'slug']);
+                $challenge->with(['course' => function (Relation $course): void {
+                    $course->select(['id', 'slug']);
+                }]);
+            }])
             ->latest()
             ->latest('id')
             ->paginate(self::PER_PAGE);
@@ -61,14 +64,15 @@ final class DronePhotoController extends Controller
      */
     public function store(
         StoreDronePhotoRequest $request,
+        #[CurrentUser] User $user,
         Course $course,
         Challenge $challenge,
         StoreDronePhoto $storePhoto,
     ): JsonResponse {
         abort_unless($challenge->isAvailableIn($course), 404);
-        abort_unless($challenge->isUnlockedFor($request->user(), $course), 403);
+        abort_unless($challenge->isUnlockedFor($user, $course), 403);
 
-        $photo = $storePhoto->handle($request->user(), $challenge, $request->photo());
+        $photo = $storePhoto->handle($user, $challenge, $request->photo());
 
         return response()->json([
             'id' => $photo->uuid,

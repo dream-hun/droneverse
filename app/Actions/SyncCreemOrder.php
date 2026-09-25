@@ -85,7 +85,7 @@ final readonly class SyncCreemOrder
     }
 
     /**
-     * @param  array<string, mixed>  $order
+     * @param  array<mixed>  $order
      */
     private function date(array $order, string $key): ?CarbonImmutable
     {

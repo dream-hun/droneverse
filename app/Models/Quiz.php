@@ -32,6 +32,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $pass_percentage
  * @property bool $is_published
  * @property-read int|null $questions_count
+ * @property-read Course $course
  */
 #[Fillable(['course_id', 'title', 'slug', 'description', 'order', 'required_plan', 'pass_percentage', 'is_published'])]
 final class Quiz extends Model

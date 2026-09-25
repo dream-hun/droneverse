@@ -80,7 +80,7 @@ final readonly class BuildWithdrawalForm
             sprintf(
                 '<< /Title (%s) /Producer (%s) >>',
                 $this->escape('Model withdrawal form'),
-                $this->escape((string) config('app.name')),
+                $this->escape(config()->string('app.name')),
             ),
         ];
 

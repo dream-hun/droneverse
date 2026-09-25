@@ -12,6 +12,7 @@ use App\Models\DroneModel;
 use App\Models\User;
 use App\Models\UserChallengeProgress;
 use Illuminate\Support\Facades\Exceptions;
+use Inertia\Testing\AssertableInertia;
 
 /*
  * Choosing which drone to fly a mission in.
@@ -71,7 +72,7 @@ test('a starter pilot flies the default airframe and is not offered the fleet', 
     $response = $this->actingAs($user)->get(route('challenges.show', [$course, $challenge]));
 
     $response->assertOk();
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('drone.slug', defaultDrone()->slug)
         // Null rather than absent: the cockpit renders the upgrade prompt
         // where the picker would be, and it needs to be told to.
@@ -85,7 +86,7 @@ test('a pro pilot is offered the whole fleet', function (): void {
     $response = $this->actingAs($user)->get(route('challenges.show', [$course, $challenge]));
 
     $response->assertOk();
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->where('drone.slug', defaultDrone()->slug)
         ->has('fleet', DroneModel::query()->count())
         // The specs travel with the fleet: the browser is what flies the
@@ -112,7 +113,7 @@ test('a pro pilot can choose an airframe and the cockpit flies it', function ():
 
     $this->actingAs($user)
         ->get(route('challenges.show', [$course, $challenge]))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('drone.slug', 'vx-4-vector')
             ->where('drone.flight.cruiseSpeed', $vector->flight_spec['cruiseSpeed']));
 });
@@ -149,13 +150,13 @@ test('the choice is remembered per mission not across them', function (): void {
 
     $this->actingAs($user)
         ->get(route('challenges.show', [$course, $slalom]))
-        ->assertInertia(fn ($page) => $page->where('drone.slug', 'vx-4-vector'));
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('drone.slug', 'vx-4-vector'));
 
     // The other mission is untouched: an airframe chosen for a slalom is
     // not a standing preference, it is a decision about that mission.
     $this->actingAs($user)
         ->get(route('challenges.show', [$course, $survey]))
-        ->assertInertia(fn ($page) => $page->where('drone.slug', defaultDrone()->slug));
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('drone.slug', defaultDrone()->slug));
 });
 
 test('a starter pilot cannot choose an airframe even by posting directly', function (): void {
@@ -203,7 +204,7 @@ test('a lapsed pilot stops flying the airframe their plan bought', function (): 
 
     $this->actingAs($user)
         ->get(route('challenges.show', [$course, $challenge]))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('drone.slug', defaultDrone()->slug)
             ->where('fleet', null));
 });
@@ -312,13 +313,13 @@ test('retiring an airframe keeps the runs it flew', function (): void {
 
     $this->actingAs($user)
         ->get(route('challenges.show', [$course, $challenge]))
-        ->assertInertia(fn ($page) => $page->where('drone.slug', defaultDrone()->slug));
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('drone.slug', defaultDrone()->slug));
 });
 
 test('the landing page advertises the fleets actual default airframe', function (): void {
     $this->get(route('home'))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('drone.slug', defaultDrone()->slug)
             ->has('drone.airframe.rotors'));
 });
@@ -338,7 +339,7 @@ test('the landing page survives a fleet with no resolvable default', function ()
 
     $this->get(route('home'))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('drone', null)
             // The rest of the pitch is untouched — the drone is the only
             // thing the broken fleet costs the page.

@@ -11,6 +11,8 @@ use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Support\Facades\Http;
+use Inertia\Testing\AssertableInertia;
+use PHPUnit\Framework\Assert;
 
 const CREEM_API = 'https://test-api.creem.io/v1';
 
@@ -45,7 +47,7 @@ test('a starter pilot sees a page with nothing to bill', function (): void {
     $this->actingAs(User::factory()->create())
         ->get(route('billing.edit'))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->component('settings/billing')
             ->where('plan.value', 'starter')
             ->where('plan.source', 'none')
@@ -61,7 +63,7 @@ test('a starter pilot sees a page with nothing to bill', function (): void {
 test('a comped account is reported as an override', function (): void {
     $this->actingAs(User::factory()->onPlan(Plan::Pro)->create())
         ->get(route('billing.edit'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('plan.value', 'pro')
             ->where('plan.source', 'override')
             ->where('subscription', null));
@@ -73,7 +75,7 @@ test('a subscriber sees their plan and billing period', function (): void {
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('plan.value', 'pro')
             ->where('plan.source', 'subscription')
             ->where('subscription.planLabel', 'Pro')
@@ -102,7 +104,7 @@ test('the billing page reaches nobody', function (): void {
     $this->actingAs($user)
         ->get(route('billing.edit'))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('subscription.valid', true)
             ->where('orders.0.id', 'ord_900001'));
 
@@ -115,7 +117,7 @@ test('the renewal date is read from the subscription row', function (): void {
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('subscription.renewsAt', '2026-09-01T00:00:00+00:00')
             ->where('subscription.valid', true));
 });
@@ -145,7 +147,7 @@ test('a cancelled subscription reports its ending alongside its stale renewal da
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('subscription.cancelled', true)
             ->where('subscription.onGracePeriod', true)
             ->where('subscription.endsAt', '2026-08-27T00:00:00+00:00')
@@ -169,7 +171,7 @@ test('the page says nothing about the card, because nothing is published about i
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->has('subscription')
             ->missing('subscription.cardBrand')
             ->missing('subscription.cardLastFour'));
@@ -183,7 +185,7 @@ test('receipts are listed newest first', function (): void {
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('orders.0.id', 'ord_900002')
             ->where('orders.0.total', '$190.00')
             ->where('orders.0.refunded', false)
@@ -205,7 +207,7 @@ test('a partial refund reports what actually came back', function (): void {
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('orders.0.total', '$190.00')
             ->where('orders.0.refunded', true)
             ->where('orders.0.refundedTotal', '$19.00'));
@@ -223,7 +225,7 @@ test('an order carries no receipt link, because creem publishes none', function 
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('orders.0.status', 'failed')
             ->missing('orders.0.receiptUrl'));
 });
@@ -234,7 +236,7 @@ test('one pilots receipts do not leak to another', function (): void {
 
     $this->actingAs(User::factory()->create())
         ->get(route('billing.edit'))
-        ->assertInertia(fn ($page) => $page->where('orders', []));
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('orders', []));
 });
 
 test('cancelling schedules the end of the paid period', function (): void {
@@ -350,7 +352,7 @@ test('a subscriber is offered every plan and period they could move to', functio
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('switchable.0.value', 'pro')
             ->where('switchable.0.variants.0.value', 'monthly')
             ->where('switchable.0.variants.0.formatted', '$19')
@@ -377,7 +379,7 @@ test('a period with no configured price is not offered as a destination', functi
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('switchable.1.value', 'team')
             ->count('switchable.1.variants', 1)
             ->where('switchable.1.variants.0.value', 'monthly'));
@@ -391,11 +393,11 @@ test('a period with no configured price is not offered as a destination', functi
 test('an account with no subscription has nothing to switch', function (): void {
     $this->actingAs(User::factory()->onPlan(Plan::Pro)->create())
         ->get(route('billing.edit'))
-        ->assertInertia(fn ($page) => $page->where('switchable', []));
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('switchable', []));
 
     $this->actingAs(User::factory()->create())
         ->get(route('billing.edit'))
-        ->assertInertia(fn ($page) => $page->where('switchable', []));
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('switchable', []));
 });
 
 test('a subscription winding down offers nothing to switch to', function (): void {
@@ -409,7 +411,7 @@ test('a subscription winding down offers nothing to switch to', function (): voi
 
     $this->actingAs($user)
         ->get(route('billing.edit'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('switchable', [])
             // Still theirs until it runs out, and still resumable.
             ->where('subscription.onGracePeriod', true));
@@ -664,12 +666,12 @@ test('an account creem has never seen has no portal to open', function (): void 
  */
 function lastCreemRequest(): array
 {
-    $recorded = Http::recorded();
+    $last = Http::recorded()->last();
 
-    expect($recorded)->not->toBeEmpty('Expected a call to Creem.');
+    Assert::assertNotNull($last, 'Expected a call to Creem.');
 
     /** @var array<string, mixed> $data */
-    $data = $recorded->last()[0]->data();
+    $data = $last[0]->data();
 
     return $data;
 }

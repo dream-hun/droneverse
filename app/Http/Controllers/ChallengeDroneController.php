@@ -8,6 +8,8 @@ use App\Actions\SelectMissionDrone;
 use App\Http\Requests\UpdateMissionDroneRequest;
 use App\Models\Challenge;
 use App\Models\Course;
+use App\Models\User;
+use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 
@@ -33,16 +35,17 @@ final class ChallengeDroneController extends Controller
      */
     public function update(
         UpdateMissionDroneRequest $request,
+        #[CurrentUser] User $user,
         Course $course,
         Challenge $challenge,
         SelectMissionDrone $selectDrone,
     ): RedirectResponse {
         abort_unless($challenge->isAvailableIn($course), 404);
-        abort_unless($challenge->isUnlockedFor($request->user(), $course), 403);
+        abort_unless($challenge->isUnlockedFor($user, $course), 403);
 
         $drone = $request->drone();
 
-        $selectDrone->handle($request->user(), $challenge, $drone);
+        $selectDrone->handle($user, $challenge, $drone);
 
         Inertia::flash('toast', [
             'type' => 'success',

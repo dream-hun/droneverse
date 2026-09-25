@@ -27,7 +27,7 @@ final class TermsController extends Controller
      */
     public function __invoke(BuildLegalIdentity $identity): Response
     {
-        $effective = Date::parse((string) config('legal.effective.terms'));
+        $effective = Date::parse(config()->string('legal.effective.terms'));
 
         return Inertia::render('legal/terms', [
             'identity' => $identity->handle(),

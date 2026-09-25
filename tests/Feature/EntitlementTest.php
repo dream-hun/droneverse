@@ -9,8 +9,10 @@ use App\Enums\SubscriptionStatus;
 use App\Models\Customer;
 use App\Models\Subscription;
 use App\Models\User;
+use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
+use Inertia\Testing\AssertableInertia;
 
 beforeEach(function (): void {
     config(['plans.prices' => [
@@ -261,7 +263,7 @@ test('entitlements are shared with the front end', function (): void {
 
     $this->actingAs($user)
         ->get(route('dashboard'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('auth.plan.value', 'pro')
             ->where('auth.plan.label', 'Pro')
             ->where('auth.plan.isPaid', true)
@@ -271,7 +273,7 @@ test('entitlements are shared with the front end', function (): void {
 
 test('guests are shared the starter plan', function (): void {
     $this->get(route('home'))
-        ->assertInertia(fn ($page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('auth.plan.value', 'starter')
             ->where('auth.features', []));
 });
@@ -296,6 +298,10 @@ test('pre launch accounts are grandfathered to pro', function (): void {
     $comped = User::factory()->onPlan(Plan::Team)->create();
 
     $migration = require database_path('migrations/2026_07_28_092306_backfill_pre_launch_users_to_pro.php');
+
+    $this->assertInstanceOf(Migration::class, $migration);
+    $this->assertTrue(method_exists($migration, 'up'));
+
     $migration->up();
 
     expect(resolvePlanFor($preLaunch))->toBe(Plan::Pro);

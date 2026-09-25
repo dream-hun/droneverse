@@ -25,7 +25,7 @@ final class PrivacyController extends Controller
      */
     public function __invoke(BuildLegalIdentity $identity): Response
     {
-        $effective = Date::parse((string) config('legal.effective.privacy'));
+        $effective = Date::parse(config()->string('legal.effective.privacy'));
 
         return Inertia::render('legal/privacy', [
             'identity' => $identity->handle(),

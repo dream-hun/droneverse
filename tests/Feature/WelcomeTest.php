@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\Challenge;
 use App\Models\Course;
+use Inertia\Testing\AssertableInertia;
 
 test('guests can visit the landing page', function (): void {
     $response = $this->get(route('home'));
@@ -20,7 +21,7 @@ test('landing page advertises the published catalog in order', function (): void
 
     $response = $this->get(route('home'));
 
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->component('welcome')
         ->has('courses', 2)
         ->where('courses.0.title', 'Drone Basics')
@@ -40,7 +41,7 @@ test('landing page hides unpublished courses and challenges', function (): void 
 
     $response = $this->get(route('home'));
 
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->has('courses', 1)
         ->where('courses.0.challengesCount', 1)
         ->where('missionCount', 1));
@@ -50,7 +51,7 @@ test('landing page renders with an empty catalog', function (): void {
     $response = $this->get(route('home'));
 
     $response->assertOk();
-    $response->assertInertia(fn ($page) => $page
+    $response->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
         ->has('courses', 0)
         ->where('missionCount', 0));
 });

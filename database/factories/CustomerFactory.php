@@ -24,8 +24,8 @@ final class CustomerFactory extends Factory
         return [
             'billable_id' => User::factory(),
             'billable_type' => (new User)->getMorphClass(),
-            'creem_id' => 'cust_'.$this->faker->unique()->bothify('??##??##??##'),
-            'email' => $this->faker->safeEmail(),
+            'creem_id' => 'cust_'.fake()->unique()->bothify('??##??##??##'),
+            'email' => fake()->safeEmail(),
         ];
     }
 

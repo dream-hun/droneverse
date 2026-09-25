@@ -33,11 +33,11 @@ test('every cross reference offset lands on its object', function (): void {
 
     expect(preg_match('/startxref\n(\d+)\n%%EOF/', $pdf, $start))->toBe(1);
 
-    $table = mb_substr($pdf, (int) $start[1], null, '8bit');
+    $table = mb_substr($pdf, (int) ($start[1] ?? 0), null, '8bit');
 
     expect(preg_match('/^xref\n0 (\d+)\n/', $table, $header))->toBe(1);
 
-    $size = (int) $header[1];
+    $size = (int) ($header[1] ?? 0);
     $entries = preg_match_all('/^(\d{10}) \d{5} n $/m', $table, $offsets);
 
     // Every object but the mandatory free entry at index zero.

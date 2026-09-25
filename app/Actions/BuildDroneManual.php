@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Models\Course;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
@@ -43,8 +44,7 @@ final readonly class BuildDroneManual
      */
     public function handle(): array
     {
-        /** @var array<string, mixed> $manual */
-        $manual = (array) config('drone-api.manual', []);
+        $manual = config()->array('drone-api.manual', []);
 
         /*
          * The one query on the page, and it is two columns over the catalog.
@@ -52,12 +52,16 @@ final readonly class BuildDroneManual
          * of one gets a link to the course it was written for, and a course
          * that is not published gets named without being linked to a 404.
          */
-        $published = Course::query()->published()->pluck('title', 'slug');
+        $published = Course::query()->published()->get(['title', 'slug'])
+            ->mapWithKeys(fn (Course $course): array => [$course->slug => $course->title]);
 
         return [
-            'tagline' => (string) ($manual['tagline'] ?? ''),
-            'summary' => (string) ($manual['summary'] ?? ''),
-            'concepts' => array_values((array) ($manual['concepts'] ?? [])),
+            'tagline' => Arr::string($manual, 'tagline', ''),
+            'summary' => Arr::string($manual, 'summary', ''),
+            'concepts' => array_map(fn (array $concept): array => [
+                'title' => Arr::string($concept, 'title', ''),
+                'body' => Arr::string($concept, 'body', ''),
+            ], array_values(array_filter(Arr::array($manual, 'concepts', []), is_array(...)))),
             'commandGroups' => $this->commands->handle($this->commands->everyName()),
             'examples' => $this->examples($published),
             'pitfalls' => $this->pitfalls($published),
@@ -85,8 +89,8 @@ final readonly class BuildDroneManual
     {
         $groups = [];
 
-        foreach ((array) config('course-docs', []) as $slug => $doc) {
-            $items = array_values((array) ($doc['examples'] ?? []));
+        foreach (config()->array('course-docs', []) as $slug => $doc) {
+            $items = is_array($doc) ? array_values(array_filter(Arr::array($doc, 'examples', []), is_array(...))) : [];
 
             if ($items === []) {
                 continue;
@@ -95,10 +99,10 @@ final readonly class BuildDroneManual
             $groups[] = [
                 'course' => $this->course((string) $slug, $published),
                 'items' => array_map(fn (array $example): array => [
-                    'slug' => $slug.'-'.($example['slug'] ?? ''),
-                    'title' => (string) ($example['title'] ?? ''),
-                    'description' => (string) ($example['description'] ?? ''),
-                    'code' => (string) ($example['code'] ?? ''),
+                    'slug' => $slug.'-'.Arr::string($example, 'slug', ''),
+                    'title' => Arr::string($example, 'title', ''),
+                    'description' => Arr::string($example, 'description', ''),
+                    'code' => Arr::string($example, 'code', ''),
                 ], $items),
             ];
         }
@@ -120,8 +124,8 @@ final readonly class BuildDroneManual
     {
         $groups = [];
 
-        foreach ((array) config('course-docs', []) as $slug => $doc) {
-            $items = array_values((array) ($doc['pitfalls'] ?? []));
+        foreach (config()->array('course-docs', []) as $slug => $doc) {
+            $items = is_array($doc) ? array_values(array_filter(Arr::array($doc, 'pitfalls', []), is_array(...))) : [];
 
             if ($items === []) {
                 continue;
@@ -130,8 +134,8 @@ final readonly class BuildDroneManual
             $groups[] = [
                 'course' => $this->course((string) $slug, $published),
                 'items' => array_map(fn (array $pitfall): array => [
-                    'title' => (string) ($pitfall['title'] ?? ''),
-                    'body' => (string) ($pitfall['body'] ?? ''),
+                    'title' => Arr::string($pitfall, 'title', ''),
+                    'body' => Arr::string($pitfall, 'body', ''),
                 ], $items),
             ];
         }

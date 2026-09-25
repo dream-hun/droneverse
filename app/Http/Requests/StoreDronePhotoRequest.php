@@ -52,18 +52,16 @@ final class StoreDronePhotoRequest extends FormRequest
      */
     public function photo(): array
     {
-        $x = $this->validated('x');
-        $y = $this->validated('y');
-        $z = $this->validated('z');
+        $input = $this->safe();
 
         return [
-            'image' => (string) $this->validated('image'),
-            'label' => $this->validated('label') !== null ? (string) $this->validated('label') : null,
-            'position' => $x !== null && $y !== null && $z !== null ? [
-                'x' => round((float) $x, 2),
-                'y' => round((float) $y, 2),
-                'z' => round((float) $z, 2),
-                'headingDeg' => round((float) ($this->validated('heading') ?? 0), 1),
+            'image' => $input->string('image')->value(),
+            'label' => $input->filled('label') ? $input->string('label')->value() : null,
+            'position' => $input->filled(['x', 'y', 'z']) ? [
+                'x' => round($input->float('x'), 2),
+                'y' => round($input->float('y'), 2),
+                'z' => round($input->float('z'), 2),
+                'headingDeg' => round($input->float('heading'), 1),
             ] : null,
         ];
     }

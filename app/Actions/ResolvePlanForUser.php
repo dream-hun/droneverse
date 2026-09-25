@@ -70,7 +70,7 @@ final readonly class ResolvePlanForUser
         $plans = [];
 
         foreach ($this->validPriceIds($user) as $priceId) {
-            $plan = Plan::fromPriceId(is_string($priceId) ? $priceId : null);
+            $plan = Plan::fromPriceId($priceId);
 
             if ($plan instanceof Plan) {
                 $plans[] = $plan;
@@ -102,7 +102,7 @@ final readonly class ResolvePlanForUser
      * keeps resolution clear of the lazy-loading guard, which is armed
      * everywhere but production.
      *
-     * @return array<int, mixed>
+     * @return array<int, string>
      */
     private function validPriceIds(User $user): array
     {
@@ -110,7 +110,8 @@ final readonly class ResolvePlanForUser
             ->whereMorphedTo('billable', $user)
             ->get()
             ->filter(fn (Subscription $subscription): bool => $subscription->valid())
-            ->pluck('product_id')
+            ->map(fn (Subscription $subscription): string => $subscription->product_id)
+            ->values()
             ->all();
     }
 }

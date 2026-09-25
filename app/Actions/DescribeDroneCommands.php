@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use Illuminate\Support\Arr;
+
 /**
  * The named `drone.*` commands, described from the API reference and broken
  * under the reference's own headings.
@@ -29,10 +31,11 @@ final readonly class DescribeDroneCommands
      */
     public function handle(array $names): array
     {
-        $reference = (array) config('drone-api.commands', []);
+        $reference = config()->array('drone-api.commands', []);
+        $labels = config()->array('drone-api.groups', []);
         $groups = [];
 
-        foreach ((array) config('drone-api.groups', []) as $key => $label) {
+        foreach (array_keys($labels) as $key) {
             $commands = [];
 
             foreach ($names as $name) {
@@ -48,11 +51,11 @@ final readonly class DescribeDroneCommands
 
                 $commands[] = [
                     'name' => $name,
-                    'signature' => (string) ($command['signature'] ?? ''),
-                    'summary' => (string) ($command['summary'] ?? ''),
-                    'params' => array_values((array) ($command['params'] ?? [])),
+                    'signature' => Arr::string($command, 'signature', ''),
+                    'summary' => Arr::string($command, 'summary', ''),
+                    'params' => array_values(Arr::array($command, 'params', [])),
                     'returns' => $command['returns'] ?? null,
-                    'notes' => array_values((array) ($command['notes'] ?? [])),
+                    'notes' => array_values(Arr::array($command, 'notes', [])),
                 ];
             }
 
@@ -62,7 +65,7 @@ final readonly class DescribeDroneCommands
 
             $groups[] = [
                 'key' => (string) $key,
-                'label' => (string) $label,
+                'label' => Arr::string($labels, $key),
                 'commands' => $commands,
             ];
         }

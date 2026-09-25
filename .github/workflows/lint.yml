@@ -18,7 +18,17 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same pull request makes the run in flight stale. Runs on
+# the branches themselves are left to finish, so every merge keeps a verdict.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # Every check that reads the code without running it, once, on the PHP the
+  # application runs on. PHPStan and tsc used to sit at the head of the test
+  # matrix instead, where a type error stopped the job before the suite ran —
+  # so from the first red analysis on main, CI reported on no tests at all.
   quality:
     runs-on: ubuntu-latest
     steps:
@@ -29,12 +39,25 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
-          php-version: '8.4'
+          php-version: '8.5'
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: '22'
+          cache: npm
 
       - name: Install Dependencies
         run: |
-          composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist
-          npm install
+          composer install --no-interaction --no-progress --prefer-dist
+          npm ci
+
+      - name: Prepare Environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
 
       # The check-only variants, deliberately. Every step here used to run the
       # writing one — `pint --parallel`, `prettier --write`, `eslint --fix` —
@@ -44,10 +67,6 @@ jobs:
       - name: Run Pint
         run: composer lint:check
 
-      # rector.php has been in the repo all along, configured against ten
-      # Laravel sets and six prepared ones, and nothing ever ran it but a
-      # developer who thought to. Three violations reached main that way.
-      #
       # `--dry-run` exits non-zero on a pending change, so this reports
       # rather than rewrites, like everything else here.
       #
@@ -58,8 +77,29 @@ jobs:
       - name: Run Rector
         run: composer rector:check
 
+      - name: Run PHPStan
+        run: composer types:check
+
       - name: Check Frontend Formatting
         run: npm run format:check
 
       - name: Lint Frontend
         run: npm run lint:check
+
+      # The route helpers under resources/js/{actions,routes,wayfinder} are
+      # generated and gitignored, and tsc cannot check the pages that import
+      # them until they exist. The flag matches `formVariants` in
+      # vite.config.ts, so the types checked are the types the build emits.
+      - name: Generate Route Helpers
+        run: php artisan wayfinder:generate --with-form
+
+      - name: Check Frontend Types
+        run: npm run types:check
+
+      # Advisories are published against versions already in the lock file, so
+      # this fails on a morning when nothing in the diff changed. That is the
+      # point: it is the only step here that reports on code nobody touched.
+      # The npm threshold sits at high because monaco-editor pins a dompurify
+      # range with an open moderate advisory and no non-breaking fix.
+      - name: Audit Dependencies
+        run: composer audit:check

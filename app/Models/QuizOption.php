@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Database\Factories\QuizOptionFactory;
-use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -27,7 +26,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property bool $is_correct
  * @property int $order
  */
-#[Fillable(['quiz_question_id', 'label', 'is_correct', 'order'])]
 #[Hidden(['is_correct'])]
 final class QuizOption extends Model
 {

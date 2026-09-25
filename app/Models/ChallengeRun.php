@@ -7,7 +7,6 @@ namespace App\Models;
 use App\Observers\ChallengeRunObserver;
 use Carbon\CarbonInterface;
 use Database\Factories\ChallengeRunFactory;
-use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -40,20 +39,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property bool $timed_out
  * @property CarbonInterface|null $created_at
  */
-#[Fillable([
-    'user_id',
-    'challenge_id',
-    'drone_model_id',
-    'score',
-    'stars',
-    'completed',
-    'objectives_hit',
-    'objectives_total',
-    'collisions',
-    'elapsed_seconds',
-    'landed',
-    'timed_out',
-])]
 #[ObservedBy(ChallengeRunObserver::class)]
 final class ChallengeRun extends Model
 {

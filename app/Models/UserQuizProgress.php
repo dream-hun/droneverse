@@ -7,7 +7,6 @@ namespace App\Models;
 use App\Enums\QuizStatus;
 use Carbon\CarbonInterface;
 use Database\Factories\UserQuizProgressFactory;
-use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -28,7 +27,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $attempts
  * @property CarbonInterface|null $passed_at
  */
-#[Fillable(['user_id', 'quiz_id', 'best_score', 'attempts', 'passed_at'])]
 #[Table(name: 'user_quiz_progress')]
 final class UserQuizProgress extends Model
 {

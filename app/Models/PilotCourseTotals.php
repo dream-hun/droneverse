@@ -6,7 +6,6 @@ namespace App\Models;
 
 use Carbon\CarbonInterface;
 use Database\Factories\PilotCourseTotalsFactory;
-use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -35,7 +34,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property CarbonInterface|null $created_at
  * @property CarbonInterface|null $updated_at
  */
-#[Fillable(['user_id', 'course_id', 'points', 'stars', 'completed', 'finished_at'])]
 #[Table(name: 'pilot_course_totals')]
 final class PilotCourseTotals extends Model
 {

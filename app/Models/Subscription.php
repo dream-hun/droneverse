@@ -7,7 +7,6 @@ namespace App\Models;
 use App\Enums\SubscriptionStatus;
 use Carbon\CarbonInterface;
 use Database\Factories\SubscriptionFactory;
-use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -42,21 +41,6 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
  * @property CarbonInterface|null $updated_at
  * @property-read Model|null $billable
  */
-#[Fillable([
-    'billable_id',
-    'billable_type',
-    'type',
-    'creem_id',
-    'customer_id',
-    'product_id',
-    'status',
-    'units',
-    'trial_ends_at',
-    'renews_at',
-    'current_period_start_at',
-    'current_period_end_at',
-    'canceled_at',
-])]
 #[Table(name: 'creem_subscriptions')]
 final class Subscription extends Model
 {

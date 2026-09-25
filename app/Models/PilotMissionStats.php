@@ -6,7 +6,6 @@ namespace App\Models;
 
 use Carbon\CarbonInterface;
 use Database\Factories\PilotMissionStatsFactory;
-use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -42,18 +41,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property CarbonInterface|null $created_at
  * @property CarbonInterface|null $updated_at
  */
-#[Fillable([
-    'user_id',
-    'challenge_id',
-    'runs',
-    'clean_runs',
-    'cleared',
-    'best_score',
-    'collisions_total',
-    'elapsed_seconds_total',
-    'attempts_to_clear',
-    'last_run_id',
-])]
 #[Table(name: 'pilot_mission_stats')]
 final class PilotMissionStats extends Model
 {

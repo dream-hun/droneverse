@@ -8,7 +8,6 @@ use App\Concerns\Billable;
 use App\Concerns\HasPlan;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -56,7 +55,6 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property-read Collection<int, Subscription> $subscriptions
  * @property-read Collection<int, Order> $orders
  */
-#[Fillable(['name', 'email', 'password', 'created_at', 'email_verified_at'])]
 #[Hidden(['password', 'plan_override', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 final class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
 {

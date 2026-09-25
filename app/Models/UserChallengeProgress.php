@@ -8,7 +8,6 @@ use App\Enums\ChallengeStatus;
 use App\Observers\UserChallengeProgressObserver;
 use Carbon\CarbonInterface;
 use Database\Factories\UserChallengeProgressFactory;
-use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -27,7 +26,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $attempts
  * @property CarbonInterface|null $completed_at
  */
-#[Fillable(['user_id', 'challenge_id', 'drone_model_id', 'status', 'best_score', 'stars', 'last_code', 'attempts', 'completed_at'])]
 #[Table(name: 'user_challenge_progress')]
 #[ObservedBy(UserChallengeProgressObserver::class)]
 final class UserChallengeProgress extends Model

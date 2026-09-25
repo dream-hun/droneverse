@@ -6,7 +6,6 @@ namespace App\Models;
 
 use App\Enums\QuizQuestionType;
 use Database\Factories\QuizQuestionFactory;
-use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -24,7 +23,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $order
  * @property-read Collection<int, QuizOption> $options
  */
-#[Fillable(['quiz_id', 'prompt', 'type', 'explanation', 'order'])]
 final class QuizQuestion extends Model
 {
     /** @use HasFactory<QuizQuestionFactory> */

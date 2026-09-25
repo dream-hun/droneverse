@@ -6,7 +6,6 @@ namespace App\Models;
 
 use App\Concerns\CourseContent;
 use Database\Factories\QuizFactory;
-use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -34,7 +33,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read int|null $questions_count
  * @property-read Course $course
  */
-#[Fillable(['course_id', 'title', 'slug', 'description', 'order', 'required_plan', 'pass_percentage', 'is_published'])]
 final class Quiz extends Model
 {
     use CourseContent;

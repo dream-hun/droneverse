@@ -6,7 +6,6 @@ namespace App\Models;
 
 use Database\Factories\DronePhotoFactory;
 use Illuminate\Contracts\Filesystem\Filesystem;
-use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -22,7 +21,6 @@ use Illuminate\Support\Facades\Storage;
  * @property string $path
  * @property array{x: float, y: float, z: float, headingDeg: float}|null $position
  */
-#[Fillable(['user_id', 'challenge_id', 'label', 'path', 'position'])]
 final class DronePhoto extends Model
 {
     /** @use HasFactory<DronePhotoFactory> */

@@ -6,7 +6,6 @@ namespace App\Models;
 
 use Carbon\CarbonInterface;
 use Database\Factories\OrderFactory;
-use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -40,23 +39,6 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
  * @property CarbonInterface|null $updated_at
  * @property-read Model|null $billable
  */
-#[Fillable([
-    'billable_id',
-    'billable_type',
-    'creem_id',
-    'checkout_id',
-    'customer_id',
-    'product_id',
-    'subscription_id',
-    'currency',
-    'amount',
-    'status',
-    'type',
-    'refunded',
-    'refunded_amount',
-    'refunded_at',
-    'ordered_at',
-])]
 #[Table(name: 'creem_orders')]
 final class Order extends Model
 {

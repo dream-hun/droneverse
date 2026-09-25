@@ -8,7 +8,6 @@ use App\Concerns\CourseContent;
 use App\Enums\ChallengeStatus;
 use App\Observers\ChallengeObserver;
 use Database\Factories\ChallengeFactory;
-use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Attributes\Scope;
@@ -52,7 +51,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property bool $is_published
  * @property-read Course $course
  */
-#[Fillable(['course_id', 'title', 'slug', 'briefing', 'order', 'difficulty', 'required_plan', 'starter_code', 'solution_code', 'environment', 'success_criteria', 'max_score', 'is_published'])]
 #[Hidden(['solution_code'])]
 #[ObservedBy(ChallengeObserver::class)]
 final class Challenge extends Model

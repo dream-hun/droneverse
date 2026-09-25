@@ -6,7 +6,6 @@ namespace App\Models;
 
 use App\Enums\Plan;
 use Database\Factories\CourseFactory;
-use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -26,7 +25,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read int|null $free_challenges_count
  * @property-read string|null $mission_plan
  */
-#[Fillable(['title', 'slug', 'description', 'difficulty', 'required_plan', 'order', 'is_published'])]
 final class Course extends Model
 {
     /** @use HasFactory<CourseFactory> */

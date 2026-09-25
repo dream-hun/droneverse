@@ -6,7 +6,6 @@ namespace App\Models;
 
 use Carbon\CarbonInterface;
 use Database\Factories\QuizAttemptFactory;
-use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -30,7 +29,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property bool $passed
  * @property CarbonInterface|null $created_at
  */
-#[Fillable(['user_id', 'quiz_id', 'score', 'correct_count', 'question_count', 'passed'])]
 final class QuizAttempt extends Model
 {
     /** @use HasFactory<QuizAttemptFactory> */

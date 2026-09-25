@@ -6,7 +6,6 @@ namespace App\Models;
 
 use App\Enums\DroneClass;
 use Database\Factories\DroneModelFactory;
-use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -42,7 +41,6 @@ use Illuminate\Database\Eloquent\Model;
  * @property bool $is_default
  * @property int $order
  */
-#[Fillable(['slug', 'name', 'class', 'summary', 'flight_spec', 'airframe_spec', 'is_default', 'order'])]
 final class DroneModel extends Model
 {
     /** @use HasFactory<DroneModelFactory> */

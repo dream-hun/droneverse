@@ -14,7 +14,7 @@ use RuntimeException;
  *
  * Creem publishes no PHP SDK — the official clients are TypeScript, and the
  * REST API behind them is small enough that wrapping it costs less than
- * adopting a language runtime to reach it. Five endpoints, all of them POSTs,
+ * adopting a language runtime to reach it. A handful of endpoints,
  * all of them authenticated by one header.
  *
  * A class rather than a set of Actions because none of these methods decides
@@ -135,6 +135,55 @@ final readonly class Creem
             'product_id' => $productId,
             'update_behavior' => $updateBehavior,
         ]);
+    }
+
+    /**
+     * A subscription as Creem currently holds it.
+     *
+     * The same object every `subscription.*` webhook carries, which is what
+     * lets App\Actions\ReconcileCreemBilling feed it straight into
+     * App\Actions\SyncCreemSubscription when a webhook never arrived.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws RequestException|RuntimeException
+     */
+    public function retrieveSubscription(string $subscriptionId): array
+    {
+        return $this->get('/subscriptions', ['subscription_id' => $subscriptionId]);
+    }
+
+    /**
+     * One page of a customer's transactions, newest first.
+     *
+     * The only place a renewal's payment can be read from: `subscription.paid`
+     * names the transaction but does not carry it.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws RequestException|RuntimeException
+     */
+    public function searchTransactions(string $customerId, int $page = 1, int $pageSize = 50): array
+    {
+        return $this->get('/transactions/search', [
+            'customer_id' => $customerId,
+            'page_number' => $page,
+            'page_size' => $pageSize,
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $query
+     * @return array<string, mixed>
+     *
+     * @throws RequestException|RuntimeException
+     */
+    private function get(string $path, array $query): array
+    {
+        /** @var array<string, mixed> $body */
+        $body = $this->request()->get($path, $query)->throw()->json();
+
+        return $body;
     }
 
     /**

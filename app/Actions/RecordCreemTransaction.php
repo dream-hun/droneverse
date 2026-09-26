@@ -31,13 +31,6 @@ use Carbon\Exceptions\InvalidFormatException;
 final readonly class RecordCreemTransaction
 {
     /**
-     * Only money that actually landed is a receipt. A declined or pending
-     * transaction is Creem retrying a card, and the refund states are recorded
-     * against the order by App\Actions\RecordCreemRefund when they happen.
-     */
-    private const array RECORDED_STATUSES = ['paid'];
-
-    /**
      * Returns the order the transaction is recorded as, or null when it is not
      * a payment this application records.
      *
@@ -50,7 +43,12 @@ final readonly class RecordCreemTransaction
         $currency = $transaction['currency'] ?? null;
         $amount = $transaction['amount_paid'] ?? $transaction['amount'] ?? null;
 
-        if ($transactionId === null || ! in_array($status, self::RECORDED_STATUSES, true)) {
+        /*
+         * Only money that actually landed is a receipt. A declined or pending
+         * transaction is Creem retrying a card, and the refund states are
+         * recorded against the order by App\Actions\RecordCreemRefund.
+         */
+        if ($transactionId === null || $status !== 'paid') {
             return null;
         }
 

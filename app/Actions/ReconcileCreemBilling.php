@@ -103,12 +103,12 @@ final readonly class ReconcileCreemBilling
                             $result['orders']++;
                         }
                     }
-                } catch (Throwable $exception) {
+                } catch (Throwable $throwable) {
                     $result['failures']++;
 
                     Log::warning('Could not reconcile a Creem subscription.', [
                         'subscription' => $subscription->creem_id,
-                        'error' => $exception->getMessage(),
+                        'error' => $throwable->getMessage(),
                     ]);
                 }
             });
@@ -131,12 +131,12 @@ final readonly class ReconcileCreemBilling
 
                 try {
                     $result['orders'] += $this->reconcileCustomer($user, $customer->creem_id);
-                } catch (Throwable $exception) {
+                } catch (Throwable $throwable) {
                     $result['failures']++;
 
-                    Log::warning('Could not reconcile a Creem customer\'s transactions.', [
+                    Log::warning("Could not reconcile a Creem customer's transactions.", [
                         'customer' => $customer->creem_id,
-                        'error' => $exception->getMessage(),
+                        'error' => $throwable->getMessage(),
                     ]);
                 }
             });

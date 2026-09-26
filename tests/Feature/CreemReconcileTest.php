@@ -97,6 +97,7 @@ function remoteTransaction(string $id, array $overrides = []): array
 }
 
 /**
+ * @param  array<string, mixed>  $subscription
  * @param  array<int, array<string, mixed>>  $transactions
  */
 function fakeCreem(array $subscription, array $transactions): void

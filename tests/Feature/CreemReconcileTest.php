@@ -171,7 +171,7 @@ test('renewals sharing the checkout order are each recorded', function (): void 
     expect($output)->toMatch('/Paid transactions at Creem\W+3/')
         ->and($output)->toMatch('/Missing payments recorded\W+2/');
 
-    expect(Order::query()->orderBy('ordered_at')->pluck('creem_id')->all())
+    expect(Order::query()->oldest('ordered_at')->pluck('creem_id')->all())
         ->toBe(['ord_700001', 'tran_september', 'tran_october'])
         ->and(Order::query()->where('billable_id', $user->id)->sum('amount'))->toEqual(5700);
 });

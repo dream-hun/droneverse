@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Enums\AdminPermission;
 use App\Enums\Feature;
 use App\Enums\Plan;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -57,9 +59,34 @@ final class HandleInertiaRequests extends Middleware
                     'isPaid' => $plan->isPaid(),
                 ],
                 'features' => $this->grantedFeatures($plan),
+                'permissions' => $this->heldPermissions($request),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
+    }
+
+    /**
+     * The admin permissions the viewer holds, as a flat list.
+     *
+     * The same kind of rendering hint as the features below: the sidebar
+     * shows the admin sections a member of staff can open, and every admin
+     * route still asks the Gate for itself. Empty for a guest and for almost
+     * every pilot, which is the common case and costs one roles lookup.
+     *
+     * @return array<int, string>
+     */
+    private function heldPermissions(Request $request): array
+    {
+        $user = $request->user();
+
+        if (! $user instanceof User) {
+            return [];
+        }
+
+        return array_map(
+            static fn (AdminPermission $permission): string => $permission->value,
+            $user->adminPermissions(),
+        );
     }
 
     /**

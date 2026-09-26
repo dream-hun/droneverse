@@ -50,6 +50,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $max_score
  * @property bool $is_published
  * @property-read Course $course
+ * @property-read int|null $progress_count
  */
 #[Hidden(['solution_code'])]
 #[ObservedBy(ChallengeObserver::class)]

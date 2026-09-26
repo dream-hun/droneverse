@@ -100,15 +100,20 @@ final readonly class ResolvePlanForUser
      *
      * Querying Subscription directly rather than reading `$user->subscriptions`
      * keeps resolution clear of the lazy-loading guard, which is armed
-     * everywhere but production.
+     * everywhere but production. A caller that has already eager loaded the
+     * relation — the admin user list, resolving a page of plans at once — is
+     * read from instead, which is no lazy load at all and saves a query per
+     * row.
      *
      * @return array<int, string>
      */
     private function validPriceIds(User $user): array
     {
-        return Subscription::query()
-            ->whereMorphedTo('billable', $user)
-            ->get()
+        $subscriptions = $user->relationLoaded('subscriptions')
+            ? $user->subscriptions
+            : Subscription::query()->whereMorphedTo('billable', $user)->get();
+
+        return $subscriptions
             ->filter(fn (Subscription $subscription): bool => $subscription->valid())
             ->map(fn (Subscription $subscription): string => $subscription->product_id)
             ->values()

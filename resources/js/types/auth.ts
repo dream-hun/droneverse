@@ -1,5 +1,6 @@
 export type User = {
     id: number;
+    uuid: string;
     name: string;
     email: string;
     avatar?: string;
@@ -25,6 +26,15 @@ export type FeatureValue =
     | 'priority_support'
     | 'beta_access';
 
+/** Mirrors App\Enums\AdminPermission. */
+export type AdminPermissionValue =
+    | 'access_admin'
+    | 'manage_users'
+    | 'manage_roles'
+    | 'manage_courses'
+    | 'view_finance'
+    | 'view_system';
+
 export type Plan = {
     value: PlanValue;
     label: string;
@@ -41,6 +51,11 @@ export type Auth = {
      * here, so never treat its presence as authorisation.
      */
     features: FeatureValue[];
+    /**
+     * The admin permissions the viewer holds. Like `features`, a rendering
+     * hint for navigation — every admin route asks the Gate for itself.
+     */
+    permissions: AdminPermissionValue[];
 };
 
 /* @chisel-passkeys */

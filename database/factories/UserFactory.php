@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
+use App\Enums\AdminPermission;
 use App\Enums\Plan;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Spatie\Permission\Models\Permission;
 
 /**
  * @extends Factory<User>
@@ -48,6 +51,42 @@ final class UserFactory extends Factory
         return $this->state(fn (array $attributes): array => [
             'plan_override' => $plan->value,
         ]);
+    }
+
+    /**
+     * Hold the `admin` role, which carries every admin permission.
+     */
+    public function admin(): static
+    {
+        return $this->afterCreating(function (User $user): void {
+            $user->assignRole(Role::findOrCreate(Role::ADMIN));
+        });
+    }
+
+    /**
+     * Hold a staff role granting exactly the given admin permissions.
+     *
+     * The role is found or created by name, so two accounts given the same
+     * name share one role rather than colliding on it.
+     *
+     * @param  array<int, AdminPermission>  $permissions
+     */
+    public function withPermissions(array $permissions, string $role = 'staff'): static
+    {
+        return $this->afterCreating(function (User $user) use ($permissions, $role): void {
+            $staff = Role::findOrCreate($role);
+
+            foreach ($permissions as $permission) {
+                Permission::findOrCreate($permission->value);
+            }
+
+            $staff->syncPermissions(array_map(
+                static fn (AdminPermission $permission): string => $permission->value,
+                $permissions,
+            ));
+
+            $user->assignRole($staff);
+        });
     }
 
     /**

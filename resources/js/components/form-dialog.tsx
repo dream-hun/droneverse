@@ -42,6 +42,12 @@ type FormDialogProps<TForm extends object> = Omit<
     cancelLabel?: string;
     destructive?: boolean;
     /**
+     * Classes for the dialog panel. A long form — a mission, with its code
+     * and its world — wants a wider panel that scrolls rather than the
+     * default one that grows off the screen.
+     */
+    contentClassName?: string;
+    /**
      * Forwarded to the submit button. Mostly an escape hatch for end-to-end
      * test hooks: `submitProps={{ 'data-test': 'confirm-delete' }}`.
      */
@@ -75,6 +81,7 @@ export function FormDialog<TForm extends object = Record<string, any>>({
     pendingLabel,
     cancelLabel = 'Cancel',
     destructive = false,
+    contentClassName,
     submitProps,
     children,
     onSuccess,
@@ -97,7 +104,7 @@ export function FormDialog<TForm extends object = Record<string, any>>({
     return (
         <Dialog open={isOpen} onOpenChange={setOpen}>
             {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-            <DialogContent>
+            <DialogContent className={contentClassName}>
                 <DialogHeader>
                     <DialogTitle>{title}</DialogTitle>
                     {description && (

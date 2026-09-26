@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Enums\AdminPermission;
 use App\Enums\Feature;
+use App\Models\Role;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
@@ -23,7 +25,35 @@ final class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
         $this->registerFeatureGates();
+        $this->registerAdminGate();
         $this->registerLogViewerGate();
+    }
+
+    /**
+     * The `admin` role holds every admin permission, rows or no rows.
+     *
+     * Everything else is spatie/laravel-permission as it ships: a role is
+     * granted permissions, and the package's own Gate hook answers
+     * `can:manage_users` from them. This covers the one role that is not
+     * edited that way. A permission added to App\Enums\AdminPermission
+     * reaches the admins who have to hand it out the moment it is deployed,
+     * rather than after somebody remembers to tick it for them — and there is
+     * no save of the role form that can lock the last admin out.
+     *
+     * Scoped to admin permissions on purpose. A blanket `before` returning
+     * true would also answer every plan Feature gate, handing staff a Pro
+     * subscription they never bought and muddying every question about what
+     * a pilot's plan unlocks.
+     */
+    private function registerAdminGate(): void
+    {
+        Gate::before(static function (User $user, string $ability): ?bool {
+            if (! AdminPermission::tryFrom($ability) instanceof AdminPermission) {
+                return null;
+            }
+
+            return $user->hasRole(Role::ADMIN) ? true : null;
+        });
     }
 
     private function registerLogViewerGate(): void

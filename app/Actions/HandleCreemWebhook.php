@@ -33,6 +33,7 @@ final readonly class HandleCreemWebhook
         private SyncCreemSubscription $subscriptions,
         private SyncCreemOrder $orders,
         private RecordCreemRefund $refunds,
+        private RecordCreemTransaction $transactions,
     ) {
         //
     }
@@ -109,6 +110,18 @@ final readonly class HandleCreemWebhook
         }
 
         $this->subscriptions->handle($user, $subscription);
+
+        /*
+         * A renewal's payment, when Creem sends the transaction expanded. It
+         * usually sends only its ID, and then the payment is picked up from
+         * Creem's side by App\Actions\ReconcileCreemBilling instead.
+         */
+        $transaction = $subscription['last_transaction'] ?? null;
+
+        if (is_array($transaction)) {
+            /** @var array<string, mixed> $transaction */
+            $this->transactions->handle($user, $transaction);
+        }
     }
 
     /**

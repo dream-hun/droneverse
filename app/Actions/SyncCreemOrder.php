@@ -58,6 +58,7 @@ final readonly class SyncCreemOrder
 
         $status = $order['status'] ?? null;
         $type = $order['type'] ?? null;
+        $transactionId = ResolveCreemBillable::id($order, 'transaction');
 
         return Order::query()->updateOrCreate(
             ['creem_id' => $creemId],
@@ -65,6 +66,12 @@ final readonly class SyncCreemOrder
                 'billable_id' => $user->getKey(),
                 'billable_type' => $user->getMorphClass(),
                 'checkout_id' => ResolveCreemBillable::id($checkout, 'id'),
+                /*
+                 * Only when the order names it: a redelivered checkout must not
+                 * blank a transaction App\Actions\RecordCreemTransaction has
+                 * since matched to this row.
+                 */
+                ...($transactionId !== null ? ['transaction_id' => $transactionId] : []),
                 'customer_id' => $customerId,
                 'product_id' => $productId,
                 'subscription_id' => ResolveCreemBillable::id($checkout, 'subscription'),

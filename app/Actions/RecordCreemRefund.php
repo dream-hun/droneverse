@@ -26,13 +26,7 @@ final readonly class RecordCreemRefund
      */
     public function handle(array $refund): ?Order
     {
-        $orderId = ResolveCreemBillable::id($refund, 'order');
-
-        if ($orderId === null) {
-            return null;
-        }
-
-        $order = Order::query()->where('creem_id', $orderId)->first();
+        $order = $this->refundedOrder($refund);
 
         if (! $order instanceof Order) {
             return null;
@@ -47,5 +41,33 @@ final readonly class RecordCreemRefund
         ])->save();
 
         return $order;
+    }
+
+    /**
+     * The receipt a refund was issued against.
+     *
+     * By transaction first, because that names the one payment refunded: a
+     * subscription's renewals all share the checkout's order, so the order
+     * alone would mark the first payment refunded whichever month came back.
+     * By order after that, for a checkout written before its transaction was
+     * known.
+     *
+     * @param  array<string, mixed>  $refund
+     */
+    private function refundedOrder(array $refund): ?Order
+    {
+        $transactionId = ResolveCreemBillable::id($refund, 'transaction');
+
+        if ($transactionId !== null) {
+            $order = Order::query()->where('transaction_id', $transactionId)->first();
+
+            if ($order instanceof Order) {
+                return $order;
+            }
+        }
+
+        $orderId = ResolveCreemBillable::id($refund, 'order');
+
+        return $orderId === null ? null : Order::query()->where('creem_id', $orderId)->first();
     }
 }

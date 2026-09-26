@@ -17,7 +17,8 @@
         "laravel/tinker": "^3.0.2",
         "laravel/wayfinder": "^0.1.21",
         "league/flysystem-aws-s3-v3": "^3.35.3",
-        "opcodesio/log-viewer": "^3.24.2"
+        "opcodesio/log-viewer": "^3.24.2",
+        "spatie/laravel-permission": "^8.3"
     },
     "require-dev": {
         "driftingly/rector-laravel": "^2.5",

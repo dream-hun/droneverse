@@ -37,9 +37,11 @@ final class DatabaseSeeder extends Seeder
      * Somebody who wants a local account registers through the form, or makes
      * one in tinker where the intent is visible.
      *
-     * All three seeders below write every row with `updateOrCreate`, so this is
-     * safe to run on each release: the catalogue is brought up to date rather
-     * than duplicated.
+     * All three content seeders below write every row with `updateOrCreate`,
+     * so this is safe to run on each release: the catalogue is brought up to
+     * date rather than duplicated. RoleSeeder is safe for the opposite reason
+     * — it only ever adds a role that is missing, and never rewrites one staff
+     * have since edited.
      */
     public function run(): void
     {
@@ -48,5 +50,6 @@ final class DatabaseSeeder extends Seeder
         // After CourseSeeder: every quiz attaches to a course by slug, and
         // skips itself if that course is not there yet.
         $this->call(QuizSeeder::class);
+        $this->call(RoleSeeder::class);
     }
 }

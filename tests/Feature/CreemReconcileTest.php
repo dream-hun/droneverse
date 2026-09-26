@@ -8,7 +8,9 @@ use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Subscription;
 use App\Models\User;
+use Illuminate\Console\Command;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Http;
 
 /*
@@ -116,7 +118,7 @@ test('a missed renewal moves the subscription on and records the payment', funct
 
     fakeCreem(remoteSubscription(), [remoteTransaction('tran_renewal')]);
 
-    $this->artisan('creem:reconcile')->assertSuccessful();
+    expect(Artisan::call('creem:reconcile'))->toBe(Command::SUCCESS);
 
     expect($subscription->refresh()->current_period_end_at?->toDateString())->toBe('2026-09-01')
         ->and($subscription->renews_at?->toDateString())->toBe('2026-09-01')
@@ -137,8 +139,8 @@ test('running it twice records each payment once', function (): void {
 
     fakeCreem(remoteSubscription(), [remoteTransaction('tran_renewal')]);
 
-    $this->artisan('creem:reconcile')->assertSuccessful();
-    $this->artisan('creem:reconcile')->assertSuccessful();
+    expect(Artisan::call('creem:reconcile'))->toBe(Command::SUCCESS);
+    expect(Artisan::call('creem:reconcile'))->toBe(Command::SUCCESS);
 
     expect(Order::query()->count())->toBe(2);
 });
@@ -153,7 +155,7 @@ test('the first payment is not counted beside the checkout that recorded it', fu
         remoteTransaction('tran_first_no_order', ['created_at' => '2026-07-01T00:00:03Z']),
     ]);
 
-    $this->artisan('creem:reconcile')->assertSuccessful();
+    expect(Artisan::call('creem:reconcile'))->toBe(Command::SUCCESS);
 
     expect(Order::query()->pluck('creem_id')->all())->toBe(['ord_700001']);
 });
@@ -166,7 +168,7 @@ test('only money that landed is recorded', function (): void {
         remoteTransaction('tran_pending', ['status' => 'pending']),
     ]);
 
-    $this->artisan('creem:reconcile')->assertSuccessful();
+    expect(Artisan::call('creem:reconcile'))->toBe(Command::SUCCESS);
 
     expect(Order::query()->count())->toBe(1);
 });
@@ -179,7 +181,7 @@ test('a cancellation that was never delivered takes the plan away', function ():
         'current_period_end_date' => '2026-08-01T00:00:00.000Z',
     ]), []);
 
-    $this->artisan('creem:reconcile')->assertSuccessful();
+    expect(Artisan::call('creem:reconcile'))->toBe(Command::SUCCESS);
 
     expect(Subscription::query()->sole()->status)->toBe(SubscriptionStatus::Expired->value)
         ->and($user->fresh()?->plan())->toBe(Plan::Starter);
@@ -190,7 +192,7 @@ test('finished subscriptions are not asked about again', function (): void {
 
     fakeCreem(remoteSubscription(), []);
 
-    $this->artisan('creem:reconcile')->assertSuccessful();
+    expect(Artisan::call('creem:reconcile'))->toBe(Command::SUCCESS);
 
     Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), '/subscriptions?'));
 });
@@ -206,7 +208,7 @@ test('one failure is reported without stopping the rest', function (): void {
         ]),
     ]);
 
-    $this->artisan('creem:reconcile')->assertFailed();
+    expect(Artisan::call('creem:reconcile'))->toBe(Command::FAILURE);
 
     $this->assertDatabaseHas('creem_orders', ['creem_id' => 'tran_renewal']);
 });
@@ -215,13 +217,12 @@ test('an environment without creem does nothing', function (): void {
     config(['creem.api_key' => null]);
     Http::fake();
 
-    $this->artisan('creem:reconcile')->assertSuccessful();
+    expect(Artisan::call('creem:reconcile'))->toBe(Command::SUCCESS);
 
     Http::assertNothingSent();
 });
 
 test('it is scheduled', function (): void {
-    $this->artisan('schedule:list')
-        ->expectsOutputToContain('creem:reconcile')
-        ->assertSuccessful();
+    expect(Artisan::call('schedule:list'))->toBe(Command::SUCCESS)
+        ->and(Artisan::output())->toContain('creem:reconcile');
 });

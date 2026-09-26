@@ -16,17 +16,22 @@ use Carbon\Exceptions\InvalidFormatException;
  * This is how a renewal becomes revenue. `checkout.completed` carries the order
  * for the first payment and App\Actions\SyncCreemOrder writes it, but every
  * payment after that arrives as `subscription.paid`, which names the
- * transaction and does not carry it — so before this, a renewal moved the
- * subscription's dates and left nothing on the finance pages. The transaction
- * is read back from Creem instead, by App\Actions\ReconcileCreemBilling.
+ * transaction and does not carry it — so the transaction is read back from
+ * Creem instead, by App\Actions\ReconcileCreemBilling.
  *
- * Keyed on the transaction's order where it has one, so the first payment of a
- * subscription lands on the row `checkout.completed` already wrote rather than
- * beside it, and a refund — which names the order — still finds it. A renewal
- * with no order is keyed on the transaction itself.
+ * One row per transaction, keyed on the transaction. Not on the order: a Creem
+ * subscription has one order, the checkout's, and every renewal is a further
+ * transaction against it. Keying on the order made each renewal look like the
+ * checkout arriving again, and every one of them was dropped.
  *
- * Never overwrites. The row the checkout wrote is the better record of that
- * payment, and a transaction seen twice is the same payment seen twice.
+ * The first payment is the one transaction that is already on the books,
+ * written by the checkout under the order's ID. It is recognised and the
+ * transaction attached to that row rather than written beside it, so the same
+ * money is never counted twice.
+ *
+ * Never overwrites the money on a row. The checkout's order is the better
+ * record of that payment, and a transaction seen twice is the same payment
+ * seen twice.
  */
 final readonly class RecordCreemTransaction
 {
@@ -41,7 +46,7 @@ final readonly class RecordCreemTransaction
         $transactionId = ResolveCreemBillable::id($transaction, 'id');
         $status = $transaction['status'] ?? null;
         $currency = $transaction['currency'] ?? null;
-        $amount = $transaction['amount_paid'] ?? $transaction['amount'] ?? null;
+        $amount = $this->cents($transaction['amount_paid'] ?? null) ?? $this->cents($transaction['amount'] ?? null);
 
         /*
          * Only money that actually landed is a receipt. A declined or pending
@@ -52,20 +57,28 @@ final readonly class RecordCreemTransaction
             return null;
         }
 
-        if (! is_string($currency) || $currency === '' || ! is_int($amount)) {
+        if (! is_string($currency) || $currency === '' || $amount === null) {
             return null;
         }
 
-        $orderId = ResolveCreemBillable::id($transaction, 'order');
-        $key = $orderId ?? $transactionId;
+        $recorded = Order::query()->where('transaction_id', $transactionId)->first();
 
-        $existing = Order::query()->where('creem_id', $key)->first();
-
-        if ($existing instanceof Order) {
-            return $existing;
+        if ($recorded instanceof Order) {
+            return $recorded;
         }
 
+        $orderId = ResolveCreemBillable::id($transaction, 'order');
         $subscriptionId = ResolveCreemBillable::id($transaction, 'subscription');
+        $orderedAt = $this->date($transaction['created_at'] ?? null) ?? CarbonImmutable::now();
+
+        $checkout = $this->checkoutPaidBy($orderId, $subscriptionId, $orderedAt);
+
+        if ($checkout instanceof Order) {
+            $checkout->forceFill(['transaction_id' => $transactionId])->save();
+
+            return $checkout;
+        }
+
         $subscription = $subscriptionId === null
             ? null
             : Subscription::query()->where('creem_id', $subscriptionId)->first();
@@ -77,16 +90,11 @@ final readonly class RecordCreemTransaction
             return null;
         }
 
-        $orderedAt = $this->date($transaction['created_at'] ?? null) ?? CarbonImmutable::now();
-
-        if ($orderId === null && $this->alreadyRecordedByCheckout($subscriptionId, $orderedAt)) {
-            return null;
-        }
-
         $type = $transaction['type'] ?? null;
 
         return Order::query()->create([
-            'creem_id' => $key,
+            'creem_id' => $transactionId,
+            'transaction_id' => $transactionId,
             'billable_id' => $user->getKey(),
             'billable_type' => $user->getMorphClass(),
             'checkout_id' => null,
@@ -102,36 +110,62 @@ final readonly class RecordCreemTransaction
     }
 
     /**
-     * Whether a transaction with no order is the first payment of a
-     * subscription whose checkout was already recorded.
+     * The checkout's order, when this transaction is the payment it recorded.
      *
-     * The one way the keying above could count a payment twice: Creem is not
-     * documented to put the order on the first transaction, and if it does not,
-     * that transaction and the checkout's order are the same money under two
-     * IDs. They are told apart by time — a renewal is a billing period after
-     * the checkout, the first payment is within moments of it.
+     * Only a row not yet matched to a transaction can be, and only one written
+     * within a day of it: the first payment lands moments after the checkout
+     * completes, a renewal a whole billing period later. Matched by the order
+     * the transaction names where it names one, and by the subscription where
+     * it does not.
      */
-    private function alreadyRecordedByCheckout(?string $subscriptionId, CarbonImmutable $orderedAt): bool
+    private function checkoutPaidBy(?string $orderId, ?string $subscriptionId, CarbonImmutable $paidAt): ?Order
     {
-        if ($subscriptionId === null) {
-            return false;
+        if ($orderId === null && $subscriptionId === null) {
+            return null;
         }
 
-        return Order::query()
-            ->where('subscription_id', $subscriptionId)
+        $orders = Order::query()
+            ->whereNull('transaction_id')
             ->whereNotNull('checkout_id')
-            ->whereBetween('ordered_at', [$orderedAt->subDay(), $orderedAt->addDay()])
-            ->exists();
+            ->whereBetween('ordered_at', [$paidAt->subDay(), $paidAt->addDay()]);
+
+        if ($orderId !== null) {
+            $orders->where('creem_id', $orderId);
+        } else {
+            $orders->where('subscription_id', $subscriptionId);
+        }
+
+        return $orders->first();
     }
 
     /**
-     * Creem's timestamps are ISO strings on most objects and epoch milliseconds
-     * on some; both are accepted.
+     * Creem's amounts are integer cents, which JSON may still decode as a
+     * float with nothing after the point.
+     */
+    private function cents(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_float($value) && floor($value) === $value) {
+            return (int) $value;
+        }
+
+        return null;
+    }
+
+    /**
+     * Creem's timestamps are ISO strings on most objects and epoch numbers on
+     * transactions — milliseconds in every example, but a value too small to
+     * be milliseconds after 1973 is read as seconds rather than as 1970.
      */
     private function date(mixed $value): ?CarbonImmutable
     {
-        if (is_int($value) && $value > 0) {
-            return CarbonImmutable::createFromTimestampMs($value);
+        if ((is_int($value) || is_float($value)) && $value > 0) {
+            return $value >= 100_000_000_000
+                ? CarbonImmutable::createFromTimestampMs($value)
+                : CarbonImmutable::createFromTimestamp($value);
         }
 
         if (! is_string($value) || $value === '') {

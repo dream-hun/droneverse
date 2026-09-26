@@ -52,11 +52,11 @@ final readonly class ReconcileCreemBilling
     }
 
     /**
-     * @return array{subscriptions: int, orders: int, failures: int}
+     * @return array{subscriptions: int, transactions: int, orders: int, failures: int}
      */
     public function handle(): array
     {
-        $result = ['subscriptions' => 0, 'orders' => 0, 'failures' => 0];
+        $result = ['subscriptions' => 0, 'transactions' => 0, 'orders' => 0, 'failures' => 0];
 
         $this->reconcileSubscriptions($result);
         $this->reconcileTransactions($result);
@@ -65,7 +65,7 @@ final readonly class ReconcileCreemBilling
     }
 
     /**
-     * @param  array{subscriptions: int, orders: int, failures: int}  $result
+     * @param  array{subscriptions: int, transactions: int, orders: int, failures: int}  $result
      */
     private function reconcileSubscriptions(array &$result): void
     {
@@ -115,7 +115,7 @@ final readonly class ReconcileCreemBilling
     }
 
     /**
-     * @param  array{subscriptions: int, orders: int, failures: int}  $result
+     * @param  array{subscriptions: int, transactions: int, orders: int, failures: int}  $result
      */
     private function reconcileTransactions(array &$result): void
     {
@@ -130,7 +130,7 @@ final readonly class ReconcileCreemBilling
                 }
 
                 try {
-                    $result['orders'] += $this->reconcileCustomer($user, $customer->creem_id);
+                    $this->reconcileCustomer($user, $customer->creem_id, $result);
                 } catch (Throwable $throwable) {
                     $result['failures']++;
 
@@ -143,12 +143,14 @@ final readonly class ReconcileCreemBilling
     }
 
     /**
-     * Returns how many orders were written that did not exist before.
+     * Counts the paid transactions Creem returned as well as the orders
+     * written for them, so a run that finds payments and records none of them
+     * says so rather than looking like a run that found nothing.
+     *
+     * @param  array{subscriptions: int, transactions: int, orders: int, failures: int}  $result
      */
-    private function reconcileCustomer(User $user, string $customerId): int
+    private function reconcileCustomer(User $user, string $customerId, array &$result): void
     {
-        $created = 0;
-
         for ($page = 1; $page <= self::MAX_TRANSACTION_PAGES; $page++) {
             $response = $this->creem->searchTransactions($customerId, $page, self::PAGE_SIZE);
             $items = $response['items'] ?? null;
@@ -163,10 +165,14 @@ final readonly class ReconcileCreemBilling
                 }
 
                 /** @var array<string, mixed> $transaction */
+                if (($transaction['status'] ?? null) === 'paid') {
+                    $result['transactions']++;
+                }
+
                 $order = $this->transactions->handle($user, $transaction);
 
                 if ($order?->wasRecentlyCreated === true) {
-                    $created++;
+                    $result['orders']++;
                 }
             }
 
@@ -176,7 +182,5 @@ final readonly class ReconcileCreemBilling
                 break;
             }
         }
-
-        return $created;
     }
 }

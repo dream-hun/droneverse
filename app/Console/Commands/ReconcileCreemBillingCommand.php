@@ -32,6 +32,7 @@ final class ReconcileCreemBillingCommand extends Command
         $result = $reconcile->handle();
 
         $this->components->twoColumnDetail('Subscriptions synced', (string) $result['subscriptions']);
+        $this->components->twoColumnDetail('Paid transactions at Creem', (string) $result['transactions']);
         $this->components->twoColumnDetail('Missing payments recorded', (string) $result['orders']);
         $this->components->twoColumnDetail('Failures (see log)', (string) $result['failures']);
 

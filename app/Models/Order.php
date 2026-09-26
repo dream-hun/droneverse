@@ -14,7 +14,8 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 /**
  * One completed Creem order, which is to say one receipt.
  *
- * Written by `checkout.completed` and amended by `refund.created`. Creem
+ * Written by `checkout.completed`, by each renewal a subscription pays (see
+ * App\Actions\RecordCreemTransaction), and amended by `refund.created`. Creem
  * publishes no per-order receipt URL — invoices are behind the customer portal,
  * reached by a magic link minted per request — so the billing page renders the
  * money from these columns and links to the portal once for the documents.
@@ -24,6 +25,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
  * @property string $billable_type
  * @property string $creem_id
  * @property string|null $checkout_id
+ * @property string|null $transaction_id
  * @property string $customer_id
  * @property string $product_id
  * @property string|null $subscription_id

@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Actions\RecordCreemRefund;
+use App\Actions\SyncCreemOrder;
 use App\Enums\Plan;
 use App\Enums\SubscriptionStatus;
 use App\Models\Customer;
@@ -77,6 +79,13 @@ function remoteSubscription(array $overrides = []): array
 }
 
 /**
+ * A transaction as `GET /v1/transactions/search` returns it.
+ *
+ * `order` is the checkout's, because that is how Creem sends a renewal: a
+ * subscription has one order and every payment on it is a transaction against
+ * that order. The first version of this fixture sent `null` there, and so
+ * never saw every real renewal being dropped as the checkout arriving again.
+ *
  * @param  array<string, mixed>  $overrides
  * @return array<string, mixed>
  */
@@ -90,7 +99,7 @@ function remoteTransaction(string $id, array $overrides = []): array
         'currency' => 'USD',
         'type' => 'invoice',
         'status' => 'paid',
-        'order' => null,
+        'order' => 'ord_700001',
         'subscription' => 'sub_900001',
         'customer' => 'cust_800001',
         'created_at' => 1_788_220_800_000, // 2026-09-01T00:00:00Z
@@ -145,19 +154,84 @@ test('running it twice records each payment once', function (): void {
     expect(Order::query()->count())->toBe(2);
 });
 
-test('the first payment is not counted beside the checkout that recorded it', function (): void {
-    reconcileSubscriber();
+test('renewals sharing the checkout order are each recorded', function (): void {
+    [$user] = reconcileSubscriber();
 
     fakeCreem(remoteSubscription(), [
-        // Carries the checkout's order: the same row.
-        remoteTransaction('tran_first_with_order', ['order' => 'ord_700001', 'created_at' => '2026-07-01T00:00:03Z']),
-        // Carries no order, but lands moments after the checkout: the same money.
-        remoteTransaction('tran_first_no_order', ['created_at' => '2026-07-01T00:00:03Z']),
+        remoteTransaction('tran_october', ['created_at' => 1_790_812_800_000]), // 2026-10-01
+        remoteTransaction('tran_september'),
+        remoteTransaction('tran_first', ['created_at' => '2026-07-01T00:00:03Z']),
     ]);
 
     expect(Artisan::call('creem:reconcile'))->toBe(Command::SUCCESS);
 
-    expect(Order::query()->pluck('creem_id')->all())->toBe(['ord_700001']);
+    // Read once: fetching the buffered output empties it.
+    $output = Artisan::output();
+
+    expect($output)->toMatch('/Paid transactions at Creem\W+3/')
+        ->and($output)->toMatch('/Missing payments recorded\W+2/');
+
+    expect(Order::query()->oldest('ordered_at')->pluck('creem_id')->all())
+        ->toBe(['ord_700001', 'tran_september', 'tran_october'])
+        ->and(Order::query()->where('billable_id', $user->id)->sum('amount'))->toEqual(5700);
+});
+
+test('the first payment is matched to the checkout rather than counted beside it', function (): void {
+    reconcileSubscriber();
+
+    fakeCreem(remoteSubscription(), [
+        remoteTransaction('tran_first', ['created_at' => '2026-07-01T00:00:03Z']),
+    ]);
+
+    expect(Artisan::call('creem:reconcile'))->toBe(Command::SUCCESS);
+
+    expect(Order::query()->sole()->only(['creem_id', 'transaction_id']))
+        ->toBe(['creem_id' => 'ord_700001', 'transaction_id' => 'tran_first']);
+});
+
+test('a first payment naming no order is matched by its subscription', function (): void {
+    reconcileSubscriber();
+
+    fakeCreem(remoteSubscription(), [
+        remoteTransaction('tran_first', ['order' => null, 'created_at' => '2026-07-01T00:00:03Z']),
+    ]);
+
+    expect(Artisan::call('creem:reconcile'))->toBe(Command::SUCCESS);
+
+    expect(Order::query()->sole()->transaction_id)->toBe('tran_first');
+});
+
+test('a refund of one renewal marks that renewal and not the checkout', function (): void {
+    reconcileSubscriber();
+
+    fakeCreem(remoteSubscription(), [remoteTransaction('tran_september')]);
+    Artisan::call('creem:reconcile');
+
+    resolve(RecordCreemRefund::class)->handle([
+        'id' => 'ref_1',
+        'object' => 'refund',
+        'refund_amount' => 1900,
+        'order' => 'ord_700001',
+        'transaction' => remoteTransaction('tran_september', ['status' => 'refunded']),
+    ]);
+
+    expect(Order::query()->where('creem_id', 'tran_september')->firstOrFail()->refunded)->toBeTrue()
+        ->and(Order::query()->where('creem_id', 'ord_700001')->firstOrFail()->refunded)->toBeFalse();
+});
+
+test('a redelivered checkout keeps the transaction matched to it', function (): void {
+    [$user] = reconcileSubscriber();
+
+    Order::query()->where('creem_id', 'ord_700001')->update(['transaction_id' => 'tran_first']);
+
+    resolve(SyncCreemOrder::class)->handle($user, [
+        'id' => 'ch_1',
+        'customer' => 'cust_800001',
+        'product' => 'prod_pro_monthly',
+        'order' => ['id' => 'ord_700001', 'amount' => 1900, 'currency' => 'USD', 'status' => 'paid'],
+    ]);
+
+    expect(Order::query()->sole()->transaction_id)->toBe('tran_first');
 });
 
 test('only money that landed is recorded', function (): void {

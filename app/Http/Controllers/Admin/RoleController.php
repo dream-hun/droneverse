@@ -12,7 +12,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\SaveRoleRequest;
 use App\Http\Resources\Admin\AdminRoleResource;
 use App\Models\Role;
+use App\Models\User;
+use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 use Throwable;
@@ -22,7 +25,7 @@ final class RoleController extends Controller
     /**
      * Every staff role, `admin` first, and the permissions a role can hold.
      */
-    public function index(): Response
+    public function index(#[CurrentUser] User $viewer): Response
     {
         $roles = Role::query()
             ->with('permissions')
@@ -32,7 +35,16 @@ final class RoleController extends Controller
             ->get();
 
         return Inertia::render('admin/roles/index', [
-            'roles' => AdminRoleResource::collection($roles),
+            'roles' => AdminRoleResource::collection($roles, $viewer),
+            /*
+             * The permissions this viewer may tick on a role — the ones they
+             * hold. The form shows the rest disabled rather than hiding them,
+             * so a role that already carries one still reads truthfully.
+             */
+            'grantable' => array_map(
+                static fn (AdminPermission $permission): string => $permission->value,
+                $viewer->adminPermissions(),
+            ),
             'permissions' => array_map(
                 static fn (AdminPermission $permission): array => [
                     'value' => $permission->value,
@@ -61,6 +73,8 @@ final class RoleController extends Controller
      */
     public function update(SaveRoleRequest $request, Role $role, UpdateRole $update): RedirectResponse
     {
+        Gate::authorize('update', $role);
+
         $updated = $update->handle($role, $request->string('name')->value(), $request->permissions());
 
         Inertia::flash('toast', $updated
@@ -72,6 +86,8 @@ final class RoleController extends Controller
 
     public function destroy(Role $role, DeleteRole $delete): RedirectResponse
     {
+        Gate::authorize('delete', $role);
+
         $deleted = $delete->handle($role);
 
         Inertia::flash('toast', $deleted

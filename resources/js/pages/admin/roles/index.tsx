@@ -19,15 +19,19 @@ import type { RowAction } from '@/lib/row-actions';
 import { dashboard } from '@/routes/admin';
 import { destroy, index, store, update } from '@/routes/admin/roles';
 import type { AdminRole, PermissionOption } from '@/types/admin';
+import type { AdminPermissionValue } from '@/types/auth';
 
 type RolesIndexProps = {
     roles: AdminRole[];
     permissions: PermissionOption[];
+    /** The permissions the viewer holds, and so may grant. */
+    grantable: AdminPermissionValue[];
 };
 
 type RoleFormDialogProps = {
     role?: AdminRole;
     permissions: PermissionOption[];
+    grantable: AdminPermissionValue[];
     trigger?: ReactNode;
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
@@ -37,11 +41,13 @@ type RoleFormDialogProps = {
  * Create a role or edit one: a name and a set of permissions.
  *
  * Unticking every box is sent as an empty list rather than as nothing, so a
- * role can be emptied as well as filled.
+ * role can be emptied as well as filled. A permission the viewer does not hold
+ * is shown but cannot be ticked — the server refuses it either way.
  */
 function RoleFormDialog({
     role,
     permissions,
+    grantable,
     trigger,
     open,
     onOpenChange,
@@ -84,32 +90,44 @@ function RoleFormDialog({
                         <legend className="mb-1 text-sm font-medium">
                             Permissions
                         </legend>
-                        {permissions.map((permission) => (
-                            <div
-                                key={permission.value}
-                                className="flex items-start gap-2"
-                            >
-                                <Checkbox
-                                    id={`permission-${permission.value}`}
-                                    name="permissions[]"
-                                    value={permission.value}
-                                    defaultChecked={role?.permissions.includes(
-                                        permission.value,
-                                    )}
-                                    className="mt-0.5"
-                                />
-                                <div className="grid gap-0.5">
-                                    <Label
-                                        htmlFor={`permission-${permission.value}`}
+                        {permissions.map((permission) => {
+                            const held = grantable.includes(permission.value);
+
+                            return (
+                                <div
+                                    key={permission.value}
+                                    className="flex items-start gap-2"
+                                >
+                                    <Checkbox
+                                        id={`permission-${permission.value}`}
+                                        name="permissions[]"
+                                        value={permission.value}
+                                        defaultChecked={role?.permissions.includes(
+                                            permission.value,
+                                        )}
+                                        disabled={!held}
+                                        className="mt-0.5"
+                                    />
+                                    <div
+                                        className={
+                                            held
+                                                ? 'grid gap-0.5'
+                                                : 'grid gap-0.5 opacity-60'
+                                        }
                                     >
-                                        {permission.label}
-                                    </Label>
-                                    <p className="text-xs text-muted-foreground">
-                                        {permission.description}
-                                    </p>
+                                        <Label
+                                            htmlFor={`permission-${permission.value}`}
+                                        >
+                                            {permission.label}
+                                            {!held && ' (you do not hold this)'}
+                                        </Label>
+                                        <p className="text-xs text-muted-foreground">
+                                            {permission.description}
+                                        </p>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                         <InputError message={errors.permissions} />
                     </fieldset>
                 </div>
@@ -118,7 +136,11 @@ function RoleFormDialog({
     );
 }
 
-export default function RolesIndex({ roles, permissions }: RolesIndexProps) {
+export default function RolesIndex({
+    roles,
+    permissions,
+    grantable,
+}: RolesIndexProps) {
     const [editing, setEditing] = useState<AdminRole | null>(null);
     const [deleting, setDeleting] = useState<AdminRole | null>(null);
 
@@ -166,23 +188,27 @@ export default function RolesIndex({ roles, permissions }: RolesIndexProps) {
     ];
 
     function actionsFor(role: AdminRole): RowAction[] {
-        if (role.isAdmin) {
-            return [];
-        }
-
         return [
-            {
-                label: 'Edit',
-                icon: <Pencil />,
-                onSelect: () => setEditing(role),
-            },
-            {
-                label: 'Delete role',
-                icon: <Trash2 />,
-                variant: 'destructive',
-                group: 'danger',
-                onSelect: () => setDeleting(role),
-            },
+            ...(role.can.update
+                ? [
+                      {
+                          label: 'Edit',
+                          icon: <Pencil />,
+                          onSelect: () => setEditing(role),
+                      },
+                  ]
+                : []),
+            ...(role.can.delete
+                ? [
+                      {
+                          label: 'Delete role',
+                          icon: <Trash2 />,
+                          variant: 'destructive' as const,
+                          group: 'danger',
+                          onSelect: () => setDeleting(role),
+                      },
+                  ]
+                : []),
         ];
     }
 
@@ -197,6 +223,7 @@ export default function RolesIndex({ roles, permissions }: RolesIndexProps) {
                     actions={
                         <RoleFormDialog
                             permissions={permissions}
+                            grantable={grantable}
                             trigger={
                                 <Button>
                                     <Plus />
@@ -213,9 +240,10 @@ export default function RolesIndex({ roles, permissions }: RolesIndexProps) {
                         className="mt-0.5 size-4 shrink-0"
                     />
                     <p>
-                        Anyone who can manage roles can give themselves any
-                        permission except admin. Hand that one out as carefully
-                        as admin itself.
+                        You can only grant permissions you hold yourself, and
+                        only edit or hand out roles that grant nothing beyond
+                        them. Managing roles shares what you have; it never gets
+                        you more.
                     </p>
                 </div>
 
@@ -232,6 +260,7 @@ export default function RolesIndex({ roles, permissions }: RolesIndexProps) {
             {editing && (
                 <RoleFormDialog
                     role={editing}
+                    grantable={grantable}
                     permissions={permissions}
                     open
                     onOpenChange={(open) => !open && setEditing(null)}

@@ -43,7 +43,12 @@ export type AdminUser = {
     can: { update: boolean; delete: boolean };
 };
 
-export type RoleOption = { name: string; isAdmin: boolean };
+export type RoleOption = {
+    name: string;
+    isAdmin: boolean;
+    /** Whether the viewer may hand this role out: they hold all it grants. */
+    assignable: boolean;
+};
 
 /** What the user forms offer and what the viewer may change on them. */
 export type UserFormOptions = {
@@ -60,6 +65,8 @@ export type AdminRole = {
     isAdmin: boolean;
     permissions: AdminPermissionValue[];
     users: number;
+    /** From App\Policies\RolePolicy: only roles within the viewer's reach. */
+    can: { update: boolean; delete: boolean };
 };
 
 export type PermissionOption = {
@@ -259,4 +266,37 @@ export type SystemReport = {
     failedJobs: FailedJob[];
     tables: { name: string; rows: number | null; size: number | null }[];
     sessions: { last5Minutes: number | null; last60Minutes: number | null };
+};
+
+/** Mirrors App\Http\Resources\Admin\AdminQuizResource. */
+export type AdminQuiz = {
+    slug: string;
+    title: string;
+    description: string;
+    order: number;
+    /** Null inherits the course's tier. */
+    requiredPlan: PlanValue | null;
+    /** Whole percentage of questions a pilot must get right. */
+    passPercentage: number;
+    isPublished: boolean;
+    questions: number;
+    /** Pilots holding progress on the quiz. */
+    pilots: number;
+};
+
+export type AdminQuizOption = {
+    id: number;
+    label: string;
+    isCorrect: boolean;
+};
+
+/** Mirrors App\Http\Resources\Admin\AdminQuizQuestionResource. */
+export type AdminQuizQuestion = {
+    uuid: string;
+    prompt: string;
+    explanation: string | null;
+    order: number;
+    /** Derived on save from how many answers are marked correct. */
+    type: 'single' | 'multiple';
+    options: AdminQuizOption[];
 };

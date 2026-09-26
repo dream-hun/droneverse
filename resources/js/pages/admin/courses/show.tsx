@@ -3,6 +3,7 @@ import { ExternalLink, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { ChallengeFormDialog } from '@/components/admin/challenge-form-dialog';
 import { CourseFormDialog } from '@/components/admin/course-form-dialog';
+import { CourseQuizzes } from '@/components/admin/course-quizzes';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { PageHeader } from '@/components/page-header';
@@ -23,18 +24,25 @@ import { destroy as destroyCourse, index, show } from '@/routes/admin/courses';
 import { destroy as destroyChallenge } from '@/routes/admin/courses/challenges';
 import { show as playChallenge } from '@/routes/challenges';
 import { show as publicCourse } from '@/routes/courses';
-import type { AdminChallenge, AdminCourse, Option } from '@/types/admin';
+import type {
+    AdminChallenge,
+    AdminCourse,
+    AdminQuiz,
+    Option,
+} from '@/types/admin';
 import type { PlanValue } from '@/types/auth';
 
 type CourseShowProps = {
     course: AdminCourse;
     challenges: AdminChallenge[];
+    quizzes: AdminQuiz[];
     plans: Option<PlanValue>[];
 };
 
 export default function CourseShow({
     course,
     challenges,
+    quizzes,
     plans,
 }: CourseShowProps) {
     setLayoutProps({
@@ -222,25 +230,36 @@ export default function CourseShow({
                     }
                 />
 
-                <DataTable
-                    caption={`Missions in ${course.title}`}
-                    columns={columns}
-                    rows={challenges}
-                    rowKey={(challenge) => challenge.slug}
-                    actions={actionsFor}
-                    actionsLabel={(challenge) =>
-                        `Actions for ${challenge.title}`
-                    }
-                    empty={
-                        <EmptyState className="rounded-none border-0">
-                            <EmptyStateTitle>No missions yet</EmptyStateTitle>
-                            <EmptyStateDescription>
-                                A new mission starts from a flyable take-off,
-                                hover and land, so it can be tried before it is
-                                published.
-                            </EmptyStateDescription>
-                        </EmptyState>
-                    }
+                <section className="space-y-3">
+                    <h2 className="text-base font-semibold">Missions</h2>
+                    <DataTable
+                        caption={`Missions in ${course.title}`}
+                        columns={columns}
+                        rows={challenges}
+                        rowKey={(challenge) => challenge.slug}
+                        actions={actionsFor}
+                        actionsLabel={(challenge) =>
+                            `Actions for ${challenge.title}`
+                        }
+                        empty={
+                            <EmptyState className="rounded-none border-0">
+                                <EmptyStateTitle>
+                                    No missions yet
+                                </EmptyStateTitle>
+                                <EmptyStateDescription>
+                                    A new mission starts from a flyable
+                                    take-off, hover and land, so it can be tried
+                                    before it is published.
+                                </EmptyStateDescription>
+                            </EmptyState>
+                        }
+                    />
+                </section>
+
+                <CourseQuizzes
+                    course={course}
+                    quizzes={quizzes}
+                    plans={plans}
                 />
             </div>
 

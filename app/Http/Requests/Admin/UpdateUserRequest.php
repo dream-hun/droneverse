@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Admin;
 
+use App\Concerns\AssignsRoles;
 use App\Concerns\ProfileValidationRules;
 use App\Enums\Plan;
 use App\Models\Role;
@@ -15,6 +16,7 @@ use Illuminate\Validation\Validator;
 
 final class UpdateUserRequest extends FormRequest
 {
+    use AssignsRoles;
     use ProfileValidationRules;
 
     /**
@@ -75,6 +77,18 @@ final class UpdateUserRequest extends FormRequest
                     $validator->errors()->add('roles', __('You cannot remove the admin role from your own account.'));
                 }
             },
+            function (Validator $validator): void {
+                if (! $this->has('roles')) {
+                    return;
+                }
+
+                // Only roles being added are checked. A role the account
+                // already holds is not being handed out by this save.
+                $this->checkReach($validator, array_values(array_diff(
+                    $this->roleNames(),
+                    $this->account()->roles->map(fn (Role $role): string => $role->name)->all(),
+                )));
+            },
         ];
     }
 
@@ -93,21 +107,6 @@ final class UpdateUserRequest extends FormRequest
         ];
     }
 
-    /**
-     * @return array<int, string>
-     */
-    private function roleNames(): array
-    {
-        $roles = $this->input('roles', []);
-
-        return is_array($roles) ? array_values(array_filter($roles, is_string(...))) : [];
-    }
-
-    private function canAssignRoles(): bool
-    {
-        return $this->viewer()->can('assignRoles', User::class);
-    }
-
     private function account(): User
     {
         $account = $this->route('user');
@@ -115,14 +114,5 @@ final class UpdateUserRequest extends FormRequest
         abort_unless($account instanceof User, 404);
 
         return $account;
-    }
-
-    private function viewer(): User
-    {
-        $user = $this->user();
-
-        abort_unless($user instanceof User, 403);
-
-        return $user;
     }
 }

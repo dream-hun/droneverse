@@ -20,9 +20,11 @@ use App\Models\User;
  * own, reset the password, and be the admin — the edit form is a takeover
  * form when it is pointed at someone more trusted than the person using it.
  *
- * Handing out roles needs `manage_roles` as well, and handing out `admin`
- * needs the actor to be an admin. Otherwise the users screen would be a quieter
- * route to exactly what the roles screen guards.
+ * Handing out roles needs `manage_roles` as well, and a role can only be
+ * handed out by somebody who already holds everything it grants — the rule
+ * App\Policies\RolePolicy applies to editing one. Otherwise the users screen
+ * would be a quieter route to exactly what the roles screen guards. `admin`
+ * grants everything, so in practice only an admin can hand that one out.
  *
  * Nobody deletes their own account from here, and an admin cannot take their
  * own admin role away. Settings is where an account deletes itself, with its
@@ -49,6 +51,11 @@ final class UserPolicy
     public function assignAdminRole(User $actor): bool
     {
         return $this->isAdmin($actor);
+    }
+
+    public function assignRole(User $actor, Role $role): bool
+    {
+        return $this->assignRoles($actor) && $role->isWithinReachOf($actor);
     }
 
     private function isAdmin(User $user): bool

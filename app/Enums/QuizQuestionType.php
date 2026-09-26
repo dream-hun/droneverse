@@ -23,6 +23,21 @@ enum QuizQuestionType: string
     case Multiple = 'multiple';
 
     /**
+     * The type a question has when this many of its options are correct.
+     *
+     * The admin editor derives the type rather than asking for it, because the
+     * two can only ever disagree in one direction and both are wrong: a single
+     * question with two right answers renders radio buttons and cannot be
+     * passed, and a multiple question with one right answer tells the pilot
+     * there is more than one. The answer key is the authority, so the type
+     * follows it.
+     */
+    public static function forCorrectAnswers(int $count): self
+    {
+        return $count > 1 ? self::Multiple : self::Single;
+    }
+
+    /**
      * Whether more than one option may be selected.
      */
     public function allowsMultipleAnswers(): bool

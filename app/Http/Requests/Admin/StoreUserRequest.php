@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Admin;
 
+use App\Concerns\AssignsRoles;
 use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
 use App\Enums\Plan;
@@ -16,6 +17,7 @@ use Illuminate\Validation\Validator;
 
 final class StoreUserRequest extends FormRequest
 {
+    use AssignsRoles;
     use PasswordValidationRules;
     use ProfileValidationRules;
 
@@ -52,6 +54,7 @@ final class StoreUserRequest extends FormRequest
                     $validator->errors()->add('roles', __('Only an admin can make somebody an admin.'));
                 }
             },
+            fn (Validator $validator) => $this->checkReach($validator, $this->roleNames()),
         ];
     }
 
@@ -72,29 +75,5 @@ final class StoreUserRequest extends FormRequest
             'email_verified' => $input->boolean('email_verified'),
             ...($this->canAssignRoles() && $input->has('roles') ? ['roles' => $this->roleNames()] : []),
         ];
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private function roleNames(): array
-    {
-        $roles = $this->input('roles', []);
-
-        return is_array($roles) ? array_values(array_filter($roles, is_string(...))) : [];
-    }
-
-    private function canAssignRoles(): bool
-    {
-        return $this->viewer()->can('assignRoles', User::class);
-    }
-
-    private function viewer(): User
-    {
-        $user = $this->user();
-
-        abort_unless($user instanceof User, 403);
-
-        return $user;
     }
 }

@@ -9,10 +9,13 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\FailedJobController;
 use App\Http\Controllers\Admin\FinanceController;
 use App\Http\Controllers\Admin\OrderController;
+use App\Http\Controllers\Admin\QuizController;
+use App\Http\Controllers\Admin\QuizQuestionController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\SubscriptionController;
 use App\Http\Controllers\Admin\SystemController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\UserSubscriptionController;
 use App\Http\Controllers\Admin\UserVerificationController;
 use Illuminate\Support\Facades\Route;
 
@@ -44,6 +47,11 @@ Route::middleware(['auth', 'verified', 'can:access_admin'])
 
             Route::post('users/{user}/verification', [UserVerificationController::class, 'store'])
                 ->name('users.verification.store');
+
+            // A live call to Creem, throttled the way checkout is.
+            Route::delete('users/{user}/subscription', [UserSubscriptionController::class, 'destroy'])
+                ->middleware(['can:view_finance', 'throttle:20,1'])
+                ->name('users.subscription.destroy');
         });
 
         Route::middleware('can:manage_roles')->group(function (): void {
@@ -54,11 +62,12 @@ Route::middleware(['auth', 'verified', 'can:access_admin'])
         });
 
         /*
-         * Courses and their missions are addressed by slug here as they are
-         * on the public side, so an admin URL and the page it edits name the
-         * same thing. A mission's slug is unique only within its course,
-         * which is what the scoped bindings are for: a real mission under the
-         * wrong course is a 404, not somebody else's mission.
+         * Courses, their missions and their quizzes are addressed by slug
+         * here as they are on the public side, so an admin URL and the page
+         * it edits name the same thing. A mission's or quiz's slug is unique
+         * only within its course, which is what the scoped bindings are for:
+         * a real mission under the wrong course is a 404, not somebody else's
+         * mission.
          */
         Route::middleware('can:manage_courses')->group(function (): void {
             Route::get('courses', [CourseController::class, 'index'])->name('courses.index');
@@ -74,6 +83,23 @@ Route::middleware(['auth', 'verified', 'can:access_admin'])
                     ->name('courses.challenges.update');
                 Route::delete('courses/{course:slug}/challenges/{challenge:slug}', [ChallengeController::class, 'destroy'])
                     ->name('courses.challenges.destroy');
+
+                Route::post('courses/{course:slug}/quizzes', [QuizController::class, 'store'])
+                    ->name('courses.quizzes.store');
+                Route::get('courses/{course:slug}/quizzes/{quiz:slug}', [QuizController::class, 'show'])
+                    ->name('courses.quizzes.show');
+                Route::put('courses/{course:slug}/quizzes/{quiz:slug}', [QuizController::class, 'update'])
+                    ->name('courses.quizzes.update');
+                Route::delete('courses/{course:slug}/quizzes/{quiz:slug}', [QuizController::class, 'destroy'])
+                    ->name('courses.quizzes.destroy');
+
+                // A question has no slug, so it is addressed by its uuid.
+                Route::post('courses/{course:slug}/quizzes/{quiz:slug}/questions', [QuizQuestionController::class, 'store'])
+                    ->name('courses.quizzes.questions.store');
+                Route::put('courses/{course:slug}/quizzes/{quiz:slug}/questions/{question}', [QuizQuestionController::class, 'update'])
+                    ->name('courses.quizzes.questions.update');
+                Route::delete('courses/{course:slug}/quizzes/{quiz:slug}/questions/{question}', [QuizQuestionController::class, 'destroy'])
+                    ->name('courses.quizzes.questions.destroy');
             });
         });
 

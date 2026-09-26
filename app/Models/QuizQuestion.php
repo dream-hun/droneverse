@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Enums\QuizQuestionType;
 use Database\Factories\QuizQuestionFactory;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -16,17 +17,40 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * One question on a quiz, and the authority on what answers it.
  *
  * @property int $id
+ * @property string $uuid
  * @property int $quiz_id
  * @property string $prompt
  * @property QuizQuestionType $type
  * @property string|null $explanation
  * @property int $order
  * @property-read Collection<int, QuizOption> $options
+ * @property-read int|null $options_count
  */
 final class QuizQuestion extends Model
 {
     /** @use HasFactory<QuizQuestionFactory> */
     use HasFactory;
+
+    use HasUuids;
+
+    /**
+     * Addressed by uuid in the admin editor; see the migration that added it.
+     */
+    public function getRouteKeyName(): string
+    {
+        return 'uuid';
+    }
+
+    /**
+     * Overridden because HasUuids assumes the uuid *is* the primary key; the
+     * options and the grader are keyed on the integer id.
+     *
+     * @return array<int, string>
+     */
+    public function uniqueIds(): array
+    {
+        return ['uuid'];
+    }
 
     /**
      * The ids of the options that make this question correct.

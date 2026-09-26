@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 use App\Enums\AdminPermission;
 use App\Enums\Plan;
+use App\Enums\SubscriptionStatus;
 use App\Models\DronePhoto;
 use App\Models\Role;
 use App\Models\Subscription;
 use App\Models\User;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia;
 
@@ -199,4 +201,77 @@ test('the account page leaves billing out for staff without view_finance', funct
             ->where('account.uuid', $pilot->uuid)
             ->where('subscriptions', null)
             ->where('orders', null));
+});
+
+describe('cancelling a subscription', function (): void {
+    test('schedules the end at Creem, after which the account can be deleted', function (): void {
+        config(['creem.api_key' => 'creem_test_key']);
+
+        $admin = User::factory()->admin()->create();
+        $subscriber = User::factory()->create();
+        $subscription = Subscription::factory()->billable($subscriber)->create();
+
+        Http::fake(['*/subscriptions/'.$subscription->creem_id.'/cancel' => Http::response([
+            'id' => $subscription->creem_id,
+            'object' => 'subscription',
+            'product' => $subscription->product_id,
+            'customer' => $subscription->customer_id,
+            'status' => SubscriptionStatus::ScheduledCancel->value,
+        ])]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.users.show', $subscriber))
+            ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('canCancelSubscription', true));
+
+        $this->actingAs($admin)
+            ->delete(route('admin.users.subscription.destroy', $subscriber))
+            ->assertInertiaFlash('toast.type', 'success');
+
+        expect($subscription->refresh()->cancelled())->toBeTrue();
+
+        $this->actingAs($admin)
+            ->delete(route('admin.users.destroy', $subscriber))
+            ->assertRedirect(route('admin.users.index'));
+
+        $this->assertModelMissing($subscriber);
+    });
+
+    test('reports a Creem failure and leaves the subscription billing', function (): void {
+        config(['creem.api_key' => 'creem_test_key']);
+        Http::fake(['*' => Http::response(['error' => 'unavailable'], 503)]);
+
+        $admin = User::factory()->admin()->create();
+        $subscriber = User::factory()->create();
+        $subscription = Subscription::factory()->billable($subscriber)->create();
+
+        $this->actingAs($admin)
+            ->delete(route('admin.users.subscription.destroy', $subscriber))
+            ->assertInertiaFlash('toast.message', 'Creem could not cancel the subscription. Please try again.');
+
+        expect($subscription->refresh()->cancelled())->toBeFalse();
+    });
+
+    test('is not offered for a subscription already winding down', function (): void {
+        $admin = User::factory()->admin()->create();
+        $subscriber = User::factory()->create();
+        Subscription::factory()->billable($subscriber)->scheduledCancel()->create();
+
+        $this->actingAs($admin)
+            ->get(route('admin.users.show', $subscriber))
+            ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('canCancelSubscription', false));
+
+        $this->actingAs($admin)
+            ->delete(route('admin.users.subscription.destroy', $subscriber))
+            ->assertInertiaFlash('toast.type', 'error');
+    });
+
+    test('needs view_finance as well as manage_users', function (): void {
+        $support = User::factory()->withPermissions([AdminPermission::AccessAdmin, AdminPermission::ManageUsers])->create();
+        $subscriber = User::factory()->create();
+        Subscription::factory()->billable($subscriber)->create();
+
+        $this->actingAs($support)
+            ->delete(route('admin.users.subscription.destroy', $subscriber))
+            ->assertForbidden();
+    });
 });

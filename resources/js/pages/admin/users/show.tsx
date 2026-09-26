@@ -1,10 +1,18 @@
-import { Head, setLayoutProps } from '@inertiajs/react';
-import { Camera, CheckCircle2, ListChecks, Target } from 'lucide-react';
+import { Head, router, setLayoutProps } from '@inertiajs/react';
+import {
+    Camera,
+    CheckCircle2,
+    CircleSlash,
+    ListChecks,
+    Target,
+} from 'lucide-react';
+import { useState } from 'react';
 import {
     orderColumns,
     subscriptionColumns,
 } from '@/components/admin/finance-columns';
 import { useUserActions } from '@/components/admin/user-actions';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { PageHeader } from '@/components/page-header';
 import { RowActions } from '@/components/row-actions';
@@ -23,8 +31,11 @@ import {
     formatRelative,
 } from '@/lib/admin-format';
 import type { ColumnDef } from '@/lib/data-table';
+import { visitAsPromise } from '@/lib/inertia-promise';
+import type { RowAction } from '@/lib/row-actions';
 import { dashboard } from '@/routes/admin';
 import { index, show } from '@/routes/admin/users';
+import { destroy as cancelSubscription } from '@/routes/admin/users/subscription';
 import type {
     AdminOrder,
     AdminSubscription,
@@ -55,6 +66,11 @@ type UserShowProps = UserFormOptions & {
     recentRuns: RecentRun[];
     /** Null for staff without `view_finance`. */
     subscriptions: AdminSubscription[] | null;
+    /**
+     * Whether the viewer can cancel a subscription that is still billing —
+     * the step that has to come before deleting a paying account.
+     */
+    canCancelSubscription: boolean;
     orders: AdminOrder[] | null;
 };
 
@@ -143,6 +159,7 @@ export default function UserShow({
     stats,
     recentRuns,
     subscriptions,
+    canCancelSubscription,
     orders,
     roles,
     plans,
@@ -157,7 +174,24 @@ export default function UserShow({
     });
 
     const { actionsFor, dialogs } = useUserActions({ roles, plans, can });
-    const actions = actionsFor(account, { includeView: false });
+    const [cancelling, setCancelling] = useState(false);
+
+    const accountActions = actionsFor(account, { includeView: false });
+    const cancelAction: RowAction = {
+        label: 'Cancel subscription',
+        icon: <CircleSlash />,
+        group: 'billing',
+        onSelect: () => setCancelling(true),
+    };
+
+    // Billing sits between the edits and the delete, which stays last.
+    const actions = canCancelSubscription
+        ? [
+              ...accountActions.filter((action) => action.group !== 'danger'),
+              cancelAction,
+              ...accountActions.filter((action) => action.group === 'danger'),
+          ]
+        : accountActions;
 
     return (
         <>
@@ -284,6 +318,28 @@ export default function UserShow({
             </div>
 
             {dialogs}
+
+            <ConfirmDialog
+                open={cancelling}
+                onOpenChange={setCancelling}
+                destructive
+                title={`Cancel ${account.name}'s subscription?`}
+                description="Creem stops the next charge. They keep everything until the end of the period they have paid for, and the account can then be deleted."
+                confirmLabel="Cancel subscription"
+                cancelLabel="Keep it"
+                pendingLabel="Cancelling…"
+                onConfirm={() =>
+                    visitAsPromise(
+                        (options) =>
+                            router.delete(
+                                cancelSubscription.url(account.uuid),
+                                options,
+                            ),
+                        {},
+                        'The subscription was not cancelled',
+                    )
+                }
+            />
         </>
     );
 }

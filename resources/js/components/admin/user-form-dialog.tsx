@@ -176,39 +176,36 @@ export function UserFormDialog({
                             <legend className="mb-1 text-sm font-medium">
                                 Staff roles
                             </legend>
-                            {options.roles.map((role) => {
-                                const locked =
-                                    role.isAdmin &&
-                                    !options.can.assignAdminRole;
-
-                                return (
-                                    <div
-                                        key={role.name}
-                                        className="flex items-center gap-2"
+                            {options.roles.map((role) => (
+                                <div
+                                    key={role.name}
+                                    className="flex items-center gap-2"
+                                >
+                                    <Checkbox
+                                        id={`user-role-${role.name}`}
+                                        name="roles[]"
+                                        value={role.name}
+                                        defaultChecked={user?.roles.includes(
+                                            role.name,
+                                        )}
+                                        disabled={!role.assignable}
+                                    />
+                                    <Label
+                                        htmlFor={`user-role-${role.name}`}
+                                        className={
+                                            role.assignable
+                                                ? undefined
+                                                : 'opacity-60'
+                                        }
                                     >
-                                        <Checkbox
-                                            id={`user-role-${role.name}`}
-                                            name="roles[]"
-                                            value={role.name}
-                                            defaultChecked={user?.roles.includes(
-                                                role.name,
-                                            )}
-                                            disabled={locked}
-                                        />
-                                        <Label
-                                            htmlFor={`user-role-${role.name}`}
-                                            className={
-                                                locked
-                                                    ? 'opacity-60'
-                                                    : undefined
-                                            }
-                                        >
-                                            {role.name}
-                                            {locked && ' (admins only)'}
-                                        </Label>
-                                    </div>
-                                );
-                            })}
+                                        {role.name}
+                                        {!role.assignable &&
+                                            (role.isAdmin
+                                                ? ' (admins only)'
+                                                : ' (grants more than you hold)')}
+                                    </Label>
+                                </div>
+                            ))}
                             <InputError message={errors.roles} />
                         </fieldset>
                     )}

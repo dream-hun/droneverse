@@ -21,6 +21,7 @@ use App\Models\Order;
 use App\Models\Role;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Queries\DefaultSubscription;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -87,7 +88,7 @@ final class UserController extends Controller
     /**
      * One account: who they are, what they pay for, and what they have flown.
      */
-    public function show(User $user, #[CurrentUser] User $viewer): Response
+    public function show(User $user, #[CurrentUser] User $viewer, DefaultSubscription $defaultSubscription): Response
     {
         $user->load(['roles', 'subscriptions'])->loadCount('challengeRuns');
 
@@ -127,6 +128,14 @@ final class UserController extends Controller
                     Subscription::query()->whereMorphedTo('billable', $user)->with('billable')->latest('id')->limit(self::RECENT_LIMIT)->get(),
                 )
                 : null,
+            /*
+             * Offered only where cancelling would do something: a subscription
+             * still billing, on an account this viewer may edit, to somebody
+             * trusted with the money.
+             */
+            'canCancelSubscription' => $viewer->can('view_finance')
+                && $viewer->can('update', $user)
+                && $defaultSubscription->isSwitchable($defaultSubscription->for($user)),
             'orders' => $viewer->can('view_finance')
                 ? AdminOrderResource::collection(
                     Order::query()->whereMorphedTo('billable', $user)->with('billable')->latest('ordered_at')->latest('id')->limit(self::RECENT_LIMIT)->get(),
@@ -158,7 +167,7 @@ final class UserController extends Controller
         if (! $delete->handle($user)) {
             Inertia::flash('toast', [
                 'type' => 'error',
-                'message' => __('This account still has a subscription Creem is billing. Cancel it before deleting the account.'),
+                'message' => __('This account still has a subscription Creem is billing. Cancel it from the account page first, then delete the account.'),
             ]);
 
             return back();
@@ -172,16 +181,24 @@ final class UserController extends Controller
     /**
      * What the create and edit forms offer, and what the viewer may change.
      *
-     * @return array{roles: array<int, array{name: string, isAdmin: bool}>, plans: array<int, array{value: string, label: string}>, can: array{assignRoles: bool, assignAdminRole: bool}}
+     * `assignable` is App\Policies\UserPolicy::assignRole()'s answer per role,
+     * so the form disables what the server would refuse.
+     *
+     * @return array{roles: array<int, array{name: string, isAdmin: bool, assignable: bool}>, plans: array<int, array{value: string, label: string}>, can: array{assignRoles: bool, assignAdminRole: bool}}
      */
     private function formOptions(User $viewer): array
     {
         return [
             'roles' => Role::query()
+                ->with('permissions')
                 ->orderByRaw('name = ? desc', [Role::ADMIN])
                 ->orderBy('name')
-                ->get(['id', 'name'])
-                ->map(fn (Role $role): array => ['name' => $role->name, 'isAdmin' => $role->isAdmin()])
+                ->get()
+                ->map(fn (Role $role): array => [
+                    'name' => $role->name,
+                    'isAdmin' => $role->isAdmin(),
+                    'assignable' => $viewer->can('assignRole', [User::class, $role]),
+                ])
                 ->all(),
             'plans' => array_map(
                 static fn (Plan $plan): array => ['value' => $plan->value, 'label' => $plan->label()],

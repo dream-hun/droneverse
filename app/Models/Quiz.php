@@ -31,6 +31,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $pass_percentage
  * @property bool $is_published
  * @property-read int|null $questions_count
+ * @property-read int|null $progress_count
  * @property-read Course $course
  */
 final class Quiz extends Model

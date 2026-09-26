@@ -12,6 +12,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\SaveCourseRequest;
 use App\Http\Resources\Admin\AdminChallengeResource;
 use App\Http\Resources\Admin\AdminCourseResource;
+use App\Http\Resources\Admin\AdminQuizResource;
 use App\Models\Course;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -47,7 +48,7 @@ final class CourseController extends Controller
     }
 
     /**
-     * A course and every mission in it, complete, for editing.
+     * A course, every mission in it complete, and its quizzes, for editing.
      *
      * Every mission is sent whole — code, world, grading rules — because the
      * edit form opens in place over this page. A course holds a handful of
@@ -65,6 +66,9 @@ final class CourseController extends Controller
         return Inertia::render('admin/courses/show', [
             'course' => AdminCourseResource::one($course),
             'challenges' => AdminChallengeResource::collection($challenges),
+            'quizzes' => AdminQuizResource::collection(
+                $course->quizzes()->withCount(['questions', 'progress'])->get(),
+            ),
             'plans' => $this->plans(),
         ]);
     }

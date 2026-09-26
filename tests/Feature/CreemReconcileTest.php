@@ -163,9 +163,13 @@ test('renewals sharing the checkout order are each recorded', function (): void 
         remoteTransaction('tran_first', ['created_at' => '2026-07-01T00:00:03Z']),
     ]);
 
-    expect(Artisan::call('creem:reconcile'))->toBe(Command::SUCCESS)
-        ->and(Artisan::output())->toMatch('/Paid transactions at Creem\W+3/')
-        ->and(Artisan::output())->toMatch('/Missing payments recorded\W+2/');
+    expect(Artisan::call('creem:reconcile'))->toBe(Command::SUCCESS);
+
+    // Read once: fetching the buffered output empties it.
+    $output = Artisan::output();
+
+    expect($output)->toMatch('/Paid transactions at Creem\W+3/')
+        ->and($output)->toMatch('/Missing payments recorded\W+2/');
 
     expect(Order::query()->orderBy('ordered_at')->pluck('creem_id')->all())
         ->toBe(['ord_700001', 'tran_september', 'tran_october'])

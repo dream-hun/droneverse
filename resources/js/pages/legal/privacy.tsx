@@ -171,9 +171,8 @@ export default function Privacy({ identity, updatedAt }: Props) {
                         Kelviq what your plan includes, and remember its answer
                         for a short time.{' '}
                         <strong>
-                            We receive nothing at all about the card itself:
-                            not the number, not the brand, not the last four
-                            digits.
+                            We receive nothing at all about the card itself: not
+                            the number, not the brand, not the last four digits.
                         </strong>{' '}
                         Kelviq holds those, and its billing portal is the only
                         place they are shown to you.
@@ -182,10 +181,10 @@ export default function Privacy({ identity, updatedAt }: Props) {
                     <p>
                         The leaderboard shows your display name alongside your
                         points, stars and completed missions to other signed-in
-                        pilots. Nothing else on your account (your email,
-                        your code, your photos or your billing details) is
-                        shown to anyone else. If you would rather not be
-                        identifiable there, change your display name in your{' '}
+                        pilots. Nothing else on your account (your email, your
+                        code, your photos or your billing details) is shown to
+                        anyone else. If you would rather not be identifiable
+                        there, change your display name in your{' '}
                         <a href={editProfile.url()}>profile settings</a>.
                     </p>
                 </>
@@ -319,9 +318,9 @@ export default function Privacy({ identity, updatedAt }: Props) {
                             It is a notice and not a consent request, and it has
                             no accept or reject button
                         </strong>{' '}
-                        because every cookie listed above is set whether or
-                        not you click anything, so asking your permission for
-                        them would be asking for something we do not need and
+                        because every cookie listed above is set whether or not
+                        you click anything, so asking your permission for them
+                        would be asking for something we do not need and
                         offering a refusal we could not honour. Dismissing it
                         stores a single flag in your browser's own local
                         storage, which is never sent to us. If we ever add
@@ -415,8 +414,8 @@ export default function Privacy({ identity, updatedAt }: Props) {
                     <ul>
                         <li>
                             <strong>Your account and everything on it:</strong>{' '}
-                            your code, runs, quiz attempts and photo log are kept
-                            for as long as the account exists. Deleting the
+                            your code, runs, quiz attempts and photo log are
+                            kept for as long as the account exists. Deleting the
                             account deletes them.
                         </li>
                         <li>
@@ -424,8 +423,7 @@ export default function Privacy({ identity, updatedAt }: Props) {
                             hours of inactivity and cleared on sign-out.
                         </li>
                         <li>
-                            <strong>Server logs:</strong> 14 days, then
-                            deleted.
+                            <strong>Server logs:</strong> 14 days, then deleted.
                         </li>
                         <li>
                             <strong>Billing and tax records:</strong> kept for
@@ -565,8 +563,8 @@ export default function Privacy({ identity, updatedAt }: Props) {
             body: (
                 <>
                     <p>
-                        Come to us first at <MailLink email={privacyEmail} />. It
-                        is usually the quickest way to fix something.
+                        Come to us first at <MailLink email={privacyEmail} />.
+                        It is usually the quickest way to fix something.
                     </p>
                     <p>
                         You also have the right to lodge a complaint with a data

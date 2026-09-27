@@ -139,8 +139,8 @@ export function CookieNotice() {
                         </p>
 
                         <p className="text-sm text-pretty text-muted-foreground">
-                            That means there is nothing here to consent to.
-                            This is a notice, not a request. The{' '}
+                            That means there is nothing here to consent to. This
+                            is a notice, not a request. The{' '}
                             <Link
                                 href={`${privacy.url()}#cookies`}
                                 className="text-foreground underline underline-offset-4 hover:text-primary"

@@ -33,7 +33,7 @@ export function PlanLockBadge({
     return (
         <Link
             href={pricing()}
-            aria-label={`Locked — included with ${planLabel(plan)}. See plans.`}
+            aria-label={`Locked. Included with ${planLabel(plan)}. See plans.`}
             className="rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
         >
             {badge}

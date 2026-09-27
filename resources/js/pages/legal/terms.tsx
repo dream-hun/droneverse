@@ -116,9 +116,9 @@ export default function Terms({ identity, updatedAt }: Props) {
                     <p>
                         You need an account to fly. You must give us a real name
                         and a working email address, keep them up to date, and
-                        keep your credentials to yourself. Accounts are personal.
-                        Do not share one, and do not let anyone else use
-                        yours.
+                        keep your credentials to yourself. Accounts are
+                        personal. Do not share one, and do not let anyone else
+                        use yours.
                     </p>
                     <p>
                         You must be at least 16 years old to open an account. If
@@ -175,11 +175,11 @@ export default function Terms({ identity, updatedAt }: Props) {
                         already paid for.
                     </p>
                     <p>
-                        Changing plan (upgrading, downgrading, or moving
-                        between monthly and yearly) adjusts the subscription
-                        you already hold rather than starting a second one, and
-                        the difference is settled on your next renewal. You can
-                        see and manage all of this from your{' '}
+                        Changing plan (upgrading, downgrading, or moving between
+                        monthly and yearly) adjusts the subscription you already
+                        hold rather than starting a second one, and the
+                        difference is settled on your next renewal. You can see
+                        and manage all of this from your{' '}
                         <a href={editBilling.url()}>billing settings</a>.
                     </p>
                 </>
@@ -220,13 +220,13 @@ export default function Terms({ identity, updatedAt }: Props) {
                             There is no form to fill in and no template to
                             follow.
                         </strong>{' '}
-                        Say it in your own words, in any way that is clear,
-                        and a person will read it and deal with it. We do not
-                        ask you for a reason, we do not put you through a
-                        retention flow, and we will not send you back to a
-                        screen to do it yourself. Sending your notice before the
-                        14 days are up is all that is required; we acknowledge
-                        it without delay and confirm when it is done.
+                        Say it in your own words, in any way that is clear, and
+                        a person will read it and deal with it. We do not ask
+                        you for a reason, we do not put you through a retention
+                        flow, and we will not send you back to a screen to do it
+                        yourself. Sending your notice before the 14 days are up
+                        is all that is required; we acknowledge it without delay
+                        and confirm when it is done.
                     </p>
                     <p>
                         <strong>What you get back.</strong> We refund every
@@ -309,8 +309,8 @@ export default function Terms({ identity, updatedAt }: Props) {
                     <ul>
                         <li>
                             Attack the service or the sandbox your code runs in
-                            by probing for vulnerabilities, escaping the sandbox,
-                            attempting to reach other pilots' data, or
+                            by probing for vulnerabilities, escaping the
+                            sandbox, attempting to reach other pilots' data, or
                             interfering with anyone else's use of it.
                         </li>
                         <li>
@@ -431,8 +431,8 @@ export default function Terms({ identity, updatedAt }: Props) {
                         <strong>We never exclude or limit</strong> liability for
                         death or personal injury caused by our negligence, for
                         fraud or fraudulent misrepresentation, or for anything
-                        else the law does not permit us to limit, including
-                        your rights as a consumer under the Consumer Rights
+                        else the law does not permit us to limit, including your
+                        rights as a consumer under the Consumer Rights
                         Directive, the Digital Content Directive and your
                         national law implementing them.
                     </p>

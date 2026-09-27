@@ -247,8 +247,8 @@ export default function Welcome({
                                     Every mission hands you a starter script and
                                     the full drone API. Your code runs in a
                                     sandboxed worker driving a real physics sim,
-                                    so a loop that reads a sensor and reacts
-                                    to it does exactly what it would on an
+                                    so a loop that reads a sensor and reacts to
+                                    it does exactly what it would on an
                                     airframe.
                                 </p>
 

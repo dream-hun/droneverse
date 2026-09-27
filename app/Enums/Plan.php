@@ -66,8 +66,8 @@ enum Plan: string
             ],
             self::Pro => [
                 'Every course and every mission',
-                'Pick your airframe on any mission — five drones, five envelopes',
-                'Mission Builder — coming soon',
+                'Pick your airframe on any mission: five drones, five envelopes',
+                'Mission Builder (coming soon)',
                 /*
                  * Analytics and certificates were one bullet until analytics
                  * shipped. Leaving them paired would have made the built half
@@ -76,7 +76,7 @@ enum Plan: string
                  * only one of them promises anything.
                  */
                 'Advanced analytics on every run you fly',
-                'Premium certificates — coming soon',
+                'Premium certificates (coming soon)',
                 'Priority support and beta access',
             ],
         };

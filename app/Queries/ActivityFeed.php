@@ -42,8 +42,8 @@ final readonly class ActivityFeed
     /**
      * Every source the feed can read.
      *
-     * Payments are not among them: Kelviq is the only record of those, and its
-     * dashboard is where they are read.
+     * Payments are not among them: they are recorded in `payments`, but
+     * Kelviq's dashboard is still where money is read.
      */
     public const array KINDS = ['signup', 'run', 'quiz'];
 

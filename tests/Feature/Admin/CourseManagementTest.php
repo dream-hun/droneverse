@@ -65,7 +65,7 @@ function missionPayload(array $overrides = []): array
 }
 
 test('staff without manage_courses cannot reach the catalogue', function (): void {
-    $finance = User::factory()->withPermissions([AdminPermission::AccessAdmin, AdminPermission::ViewFinance])->create();
+    $finance = User::factory()->withPermissions([AdminPermission::AccessAdmin, AdminPermission::ViewSystem])->create();
 
     $this->actingAs($finance)->get(route('admin.courses.index'))->assertForbidden();
 });

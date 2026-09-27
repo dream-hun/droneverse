@@ -7,11 +7,9 @@ import { dashboard, home } from '@/routes';
 import { edit as editBilling } from '@/routes/billing';
 import { index as coursesIndex } from '@/routes/courses';
 import type { PlanValue } from '@/types/auth';
-import type { PlanVariant, SubscriptionConfirmation } from '@/types/billing';
 
 type Props = {
     plan: { value: PlanValue; label: string; isPaid: boolean };
-    subscription: SubscriptionConfirmation | null;
     highlights: string[];
     /**
      * Paid, and not granted yet. The page polls on this and on nothing else —
@@ -22,46 +20,12 @@ type Props = {
 };
 
 /**
- * What the page is saying, in the order a buyer meets them: waiting on the
- * webhook, waiting on it for longer than the poll will, and done.
+ * What the page is saying, in the order a buyer meets them: waiting on Kelviq
+ * to grant the plan, waiting on it for longer than the poll will, and done.
  */
 type ConfirmationState = 'waiting' | 'stalled' | 'confirmed';
 
-const VARIANT_LABELS: Record<PlanVariant, string> = {
-    monthly: 'Billed monthly',
-    yearly: 'Billed yearly',
-};
-
-/**
- * The billing period, named, or nothing.
- *
- * The server sends whatever period the subscription's variant maps to, which
- * is a string rather than one of ours: a subscription sold on a launch variant
- * or on a period we no longer list resolves to a name this page has no words
- * for. Better to leave the row out than to print a raw config key at somebody
- * who has just paid.
- */
-function variantLabel(variant: string | null | undefined): string | null {
-    return variant !== null &&
-        variant !== undefined &&
-        variant in VARIANT_LABELS
-        ? VARIANT_LABELS[variant as PlanVariant]
-        : null;
-}
-
-const DATE_FORMAT: Intl.DateTimeFormatOptions = {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-};
-
-function formatDate(value: string | null): string | null {
-    return value
-        ? new Date(value).toLocaleDateString(undefined, DATE_FORMAT)
-        : null;
-}
-
-/** How often the page asks whether the webhook has landed, and for how long. */
+/** How often the page asks whether the plan has landed, and for how long. */
 const POLL_INTERVAL = 2500;
 const POLL_LIMIT = 24;
 
@@ -74,11 +38,12 @@ const SECONDARY_ACTION =
 /**
  * Watch for the entitlement the buyer has already paid for.
  *
- * Polling rather than pushing, because the event this page is waiting for
- * arrives at the server from Creem and there is no channel between the two. It stops the moment the plan lands and gives up after POLL_LIMIT ticks:
- * a webhook that has not arrived in a minute is not going to be waited out by
- * a browser, and a spinner that never resolves is a worse answer than a page
- * that admits it is still waiting and says where to look.
+ * Polling rather than pushing: each tick asks Kelviq afresh whether the
+ * entitlements have been granted, and there is no channel from Kelviq to the
+ * browser. It stops the moment the plan lands and gives up after POLL_LIMIT
+ * ticks: a grant that has not arrived in a minute is not going to be waited
+ * out by a browser, and a spinner that never resolves is a worse answer than a
+ * page that admits it is still waiting and says where to look.
  *
  * `only` keeps each tick to the props that can change. The plan is one of them
  * — it is what the whole page is waiting on — and `auth` travels with it so the
@@ -92,7 +57,7 @@ function useEntitlementWatch(pending: boolean) {
     const { start, stop } = usePoll(
         POLL_INTERVAL,
         {
-            only: ['plan', 'subscription', 'highlights', 'pending', 'auth'],
+            only: ['plan', 'highlights', 'pending', 'auth'],
             onFinish: () => {
                 ticks.current += 1;
 
@@ -119,22 +84,8 @@ function useEntitlementWatch(pending: boolean) {
     return gaveUp;
 }
 
-/** One labelled fact in the receipt block. */
-function Detail({ label, value }: { label: string; value: string }) {
-    return (
-        <div className="border border-border p-5">
-            <dt className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
-                {label}
-            </dt>
-            <dd className="mt-2 text-sm font-bold tracking-tight text-foreground">
-                {value}
-            </dd>
-        </div>
-    );
-}
-
 /**
- * The confirmation a buyer lands on the moment Creem reports the checkout done.
+ * The confirmation a buyer lands on when Kelviq's checkout sends them back.
  *
  * It wears neither the app shell nor the auth layout, and that is the point:
  * this is the end of a purchase rather than a screen in the product, so it
@@ -149,29 +100,19 @@ function Detail({ label, value }: { label: string; value: string }) {
  * signed-in page on both lists.
  *
  * There are three states, and the first two both begin with a buyer who has
- * paid. `waiting` is the gap between the money leaving and the webhook
- * landing, which is where most buyers arrive. `stalled` is that gap outlasting
+ * paid. `waiting` is the gap between the money leaving and Kelviq granting
+ * the plan, which is where most buyers arrive. `stalled` is that gap outlasting
  * the poll. Neither may claim a plan, because no plan is known yet — and
  * neither may imply the payment did not go through, because it did. Only
- * `confirmed` names a tier, and only once there is a subscription row saying
- * so.
+ * `confirmed` names a tier, and only once Kelviq's entitlements say so.
  */
-export default function ThankYou({
-    plan,
-    subscription,
-    highlights,
-    pending,
-}: Props) {
+export default function ThankYou({ plan, highlights, pending }: Props) {
     const gaveUp = useEntitlementWatch(pending);
     const state: ConfirmationState = pending
         ? gaveUp
             ? 'stalled'
             : 'waiting'
         : 'confirmed';
-
-    const renewsAt = formatDate(subscription?.renewsAt ?? null);
-    const trialEndsAt = formatDate(subscription?.trialEndsAt ?? null);
-    const billing = variantLabel(subscription?.variant);
 
     return (
         <div className="theme-droneverse dark flex min-h-screen flex-col bg-background font-sans text-foreground selection:bg-primary selection:text-primary-foreground">
@@ -225,8 +166,7 @@ export default function ThankYou({
                     </p>
 
                     <h1 className="mt-4 text-4xl font-bold tracking-tighter text-balance text-foreground uppercase sm:text-5xl">
-                        {state === 'confirmed' &&
-                            `Welcome to ${subscription?.planLabel ?? plan.label}`}
+                        {state === 'confirmed' && `Welcome to ${plan.label}`}
                         {state === 'stalled' && 'Still activating your plan'}
                         {state === 'waiting' && 'Activating your plan'}
                     </h1>
@@ -261,36 +201,6 @@ export default function ThankYou({
                             </>
                         )}
                     </p>
-
-                    {state === 'confirmed' && subscription !== null && (
-                        <dl className="mt-12 grid gap-px sm:grid-cols-2 lg:grid-cols-3">
-                            <Detail
-                                label="Plan"
-                                value={subscription.planLabel ?? plan.label}
-                            />
-
-                            {billing !== null && (
-                                <Detail label="Billing" value={billing} />
-                            )}
-
-                            {subscription.onTrial && trialEndsAt !== null && (
-                                <Detail
-                                    label="Trial ends"
-                                    value={trialEndsAt}
-                                />
-                            )}
-
-                            {/*
-                             * No "paid with" line: Creem publishes no card
-                             * brand or last four on any payload, so the card
-                             * a buyer just used is something only the billing
-                             * portal can show them.
-                             */}
-                            {renewsAt !== null && (
-                                <Detail label="Renews" value={renewsAt} />
-                            )}
-                        </dl>
-                    )}
 
                     {highlights.length > 0 && (
                         <section className="mt-12">
@@ -336,8 +246,9 @@ export default function ThankYou({
 
             <footer className="border-t border-border">
                 <div className="mx-auto max-w-3xl px-6 py-8 font-mono text-[10px] leading-relaxed tracking-widest text-muted-foreground uppercase">
-                    Cancel any time from billing settings. Cancelling ends the
-                    plan when the period you have paid for runs out.
+                    A subscription can be cancelled any time from Manage billing
+                    in your settings, and ends when the period you have paid for
+                    runs out.
                 </div>
             </footer>
         </div>

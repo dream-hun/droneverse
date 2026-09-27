@@ -1,411 +1,136 @@
-import { Form, Head, Link } from '@inertiajs/react';
-import { ExternalLink, Receipt } from 'lucide-react';
+import { Head, Link, router } from '@inertiajs/react';
+import { ExternalLink } from 'lucide-react';
 import { useState } from 'react';
-import SubscriptionController from '@/actions/App/Http/Controllers/Settings/SubscriptionController';
-import { DataTable } from '@/components/data-table';
-import { FormDialog } from '@/components/form-dialog';
+import CheckoutController from '@/actions/App/Http/Controllers/CheckoutController';
+import {
+    BillingPeriodToggle,
+    periodSuffix,
+} from '@/components/billing-period-toggle';
 import Heading from '@/components/heading';
-import InputError from '@/components/input-error';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogClose,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogTitle,
-    DialogTrigger,
-} from '@/components/ui/dialog';
-import {
-    EmptyState,
-    EmptyStateDescription,
-    EmptyStateIcon,
-    EmptyStateTitle,
-} from '@/components/ui/empty-state';
-import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
-import type { ColumnDef } from '@/lib/data-table';
 import { pricing } from '@/routes';
 import { edit as editBilling } from '@/routes/billing';
 import { edit as editBillingPortal } from '@/routes/billing-portal';
-import type { PlanValue } from '@/types/auth';
-import type {
-    BillingOrder,
-    BillingPlan,
-    BillingSubscription,
-    PlanVariant,
-    SwitchablePlan,
-} from '@/types/billing';
+import type { BillingPlan, BillingUpgrade, PlanVariant } from '@/types/billing';
 
 type BillingProps = {
     plan: BillingPlan;
-    subscription: BillingSubscription | null;
-    switchable: SwitchablePlan[];
-    orders: BillingOrder[];
+    /** The plan a pilot on Starter can move up to; null for everyone else. */
+    upgrade: BillingUpgrade | null;
+    /** Whether Kelviq bills this pilot, and so has a portal to open. */
+    canManageBilling: boolean;
 };
-
-const VARIANT_LABELS: Record<PlanVariant, string> = {
-    monthly: 'Monthly',
-    yearly: 'Yearly',
-};
-
-const DATE_FORMAT: Intl.DateTimeFormatOptions = {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-};
-
-function formatDate(value: string | null): string | null {
-    return value
-        ? new Date(value).toLocaleDateString(undefined, DATE_FORMAT)
-        : null;
-}
-
-/**
- * `total` carries no `sortValue` on purpose: it arrives pre-formatted
- * ("$12.00"), and sorting that as text puts $9 after $10. Sorting it properly
- * needs a raw minor-unit amount on the payload, which is a backend change.
- *
- * There is no invoice column either. Creem publishes no per-order receipt URL —
- * invoices live behind the customer portal, reached by a link minted per
- * request — so the "Manage billing" button above this table is where every
- * document is, and a column here would have nothing to put in it.
- */
-const ORDER_COLUMNS: ColumnDef<BillingOrder>[] = [
-    {
-        id: 'orderedAt',
-        header: 'Date',
-        className: 'whitespace-nowrap',
-        sortValue: (order) =>
-            order.orderedAt ? new Date(order.orderedAt) : null,
-        cell: (order) => formatDate(order.orderedAt) ?? '—',
-    },
-    {
-        /*
-         * Creem's own ID, shown in full because it is what support asks for and
-         * a truncated one cannot be pasted into a reply.
-         */
-        id: 'id',
-        header: 'Order',
-        className: 'font-mono text-xs whitespace-nowrap',
-        sortValue: (order) => order.id,
-        cell: (order) => order.id,
-    },
-    {
-        id: 'status',
-        header: 'Status',
-        className: 'capitalize',
-        sortValue: (order) => order.status,
-        cell: (order) => (
-            <span className="flex items-center gap-2">
-                <span>{order.status.replace('_', ' ')}</span>
-                {order.refunded && (
-                    /*
-                     * The amount rather than the word alone, because Creem
-                     * allows partial refunds and "Refunded" beside a year's
-                     * total would read as the whole year coming back.
-                     */
-                    <Badge variant="secondary">
-                        {order.refundedTotal
-                            ? `${order.refundedTotal} refunded`
-                            : 'Refunded'}
-                    </Badge>
-                )}
-            </span>
-        ),
-    },
-    {
-        id: 'total',
-        header: 'Total',
-        align: 'end',
-        className: 'whitespace-nowrap',
-        cell: (order) => order.total,
-    },
-];
 
 /**
  * The one line at the top that says where the pilot stands.
  *
- * Deliberately phrased from `source` rather than from the subscription: a
- * comped account holds a plan with no subscription behind it, and telling those
- * pilots "no active subscription" would be alarming and wrong.
+ * Phrased from `source` rather than from a subscription: a comped account holds
+ * a plan with no subscription behind it, and telling those pilots "no active
+ * subscription" would be alarming and wrong.
  */
-function PlanSummary({
-    plan,
-    subscription,
-}: {
-    plan: BillingPlan;
-    subscription: BillingSubscription | null;
-}) {
-    const endsAt = formatDate(subscription?.endsAt ?? null);
-    const renewsAt = formatDate(subscription?.renewsAt ?? null);
-
-    const detail = (() => {
-        switch (plan.source) {
-            case 'override':
-                return 'Granted directly on your account. There is nothing to bill.';
-            case 'subscription':
-                if (subscription?.onGracePeriod) {
-                    return endsAt
-                        ? `Cancelled. You keep everything until ${endsAt}.`
-                        : 'Cancelled. You keep everything until the end of the period you have paid for.';
-                }
-
-                if (subscription?.pastDue) {
-                    return 'Your last payment did not go through. Update your card in the billing portal to keep flying.';
-                }
-
-                if (subscription?.paused) {
-                    return 'Paused.';
-                }
-
-                if (subscription?.onTrial) {
-                    const trialEnds = formatDate(subscription.trialEndsAt);
-
-                    return trialEnds
-                        ? `On trial until ${trialEnds}.`
-                        : 'On trial.';
-                }
-
-                /*
-                 * The date and nothing more. Creem sends the next transaction
-                 * date on every subscription event but publishes no forthcoming
-                 * amount, and quoting the last order's total as the next one
-                 * would be wrong the first time a price or a seat count
-                 * changed.
-                 */
-                return renewsAt ? `Renews ${renewsAt}.` : 'Active.';
-            default:
-                return 'The free tier: three beginner courses and five missions, for as long as you like.';
-        }
-    })();
+function PlanSummary({ plan }: { plan: BillingPlan }) {
+    const detail = {
+        override: 'Granted directly on your account. There is nothing to bill.',
+        kelviq: 'Paid through Kelviq. Your invoices, card and subscription all live in the billing portal.',
+        none: 'The free tier: three beginner courses and five missions, for as long as you like.',
+    }[plan.source];
 
     return (
         <div className="rounded-lg border border-border p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                    <p className="font-medium">{plan.label}</p>
-                    {subscription?.onGracePeriod && (
-                        <Badge variant="secondary">Ending</Badge>
-                    )}
-                    {subscription?.pastDue && (
-                        <Badge variant="destructive">Past due</Badge>
-                    )}
-                </div>
-
-                {!plan.isPaid && (
-                    <Button asChild size="sm">
-                        <Link href={pricing()}>See plans</Link>
-                    </Button>
-                )}
-            </div>
-
+            <p className="font-medium">{plan.label}</p>
             <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
         </div>
     );
 }
 
 /**
- * Move the subscription onto another plan or billing period.
+ * The upgrade to Pro, priced under a monthly / yearly / lifetime toggle.
  *
- * Both directions and both periods through one control, because to the pilot
- * they are one decision: an upgrade, a downgrade and a move to annual billing
- * differ only in which way Creem prorates them.
- *
- * The selects are controlled but the values they submit are the plain `plan`
- * and `variant` fields the server validates — Radix renders a hidden input per
- * `name`, so Inertia's `<Form>` serializes them like any other field and this
- * component never assembles a request of its own.
+ * Posts a tier and a period and nothing else, and follows the server to
+ * Kelviq's hosted checkout. A refusal comes back as a flashed toast.
  */
-function ChangePlanDialog({ plans }: { plans: SwitchablePlan[] }) {
-    const current = plans.find((plan) =>
-        plan.variants.some((variant) => variant.isCurrent),
-    );
+function UpgradeCard({ upgrade }: { upgrade: BillingUpgrade }) {
+    const [variant, setVariant] = useState<PlanVariant>('monthly');
+    const [processing, setProcessing] = useState(false);
 
-    const [planValue, setPlanValue] = useState(
-        current?.value ?? plans[0]?.value,
-    );
-    const [variantValue, setVariantValue] = useState<PlanVariant | undefined>(
-        current?.variants.find((variant) => variant.isCurrent)?.value,
-    );
+    const price = upgrade.prices[variant];
+    const saving = upgrade.prices.yearly?.savingPercent ?? null;
+    const purchasable = price?.purchasable === true;
 
-    /*
-     * Derived rather than stored, so switching to a plan that does not sell the
-     * period currently picked cannot leave the form holding one that is not on
-     * offer. There is always something selected: a plan reaches this list only
-     * with at least one switchable period on it.
-     */
-    const plan = plans.find((option) => option.value === planValue) ?? plans[0];
-    const variant =
-        plan.variants.find((option) => option.value === variantValue) ??
-        plan.variants[0];
+    const startCheckout = () => {
+        router.post(
+            CheckoutController.store.url(),
+            { plan: upgrade.value, variant },
+            {
+                preserveScroll: true,
+                onStart: () => setProcessing(true),
+                onFinish: () => setProcessing(false),
+            },
+        );
+    };
 
     return (
-        <FormDialog
-            {...SubscriptionController.swap.form()}
-            trigger={
+        <div className="space-y-4 rounded-lg border border-primary/40 p-4">
+            <div>
+                <p className="font-medium">Upgrade to {upgrade.label}</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                    {upgrade.tagline}
+                </p>
+            </div>
+
+            <ul className="space-y-1 text-sm text-muted-foreground">
+                {upgrade.highlights.map((highlight) => (
+                    <li key={highlight} className="flex gap-2">
+                        <span aria-hidden className="text-primary">
+                            ✓
+                        </span>
+                        <span>{highlight}</span>
+                    </li>
+                ))}
+            </ul>
+
+            <BillingPeriodToggle
+                variant={variant}
+                onChange={setVariant}
+                saving={saving}
+            />
+
+            <div className="flex flex-wrap items-center gap-4">
+                {price && (
+                    <p className="text-2xl font-bold tracking-tight">
+                        {price.formatted}
+                        <span className="text-sm font-normal text-muted-foreground">
+                            {periodSuffix(variant)}
+                        </span>
+                    </p>
+                )}
+
                 <Button
-                    variant="outline"
-                    size="sm"
-                    data-test="change-plan-button"
+                    onClick={startCheckout}
+                    disabled={!purchasable || processing}
+                    data-test="upgrade-button"
                 >
-                    Change plan
+                    {purchasable
+                        ? `Upgrade to ${upgrade.label}`
+                        : 'Not yet available'}
                 </Button>
-            }
-            title="Change your plan"
-            description="Creem works out what the rest of your current period is worth and settles the difference now — charging you on an upgrade, refunding you on a downgrade. Your renewal date does not move."
-            submitLabel="Change plan"
-            pendingLabel="Changing…"
-            submitProps={{
-                'data-test': 'confirm-change-plan-button',
-                // The one selection that cannot go anywhere. Submitting it is
-                // harmless — the server answers "you are already on that plan"
-                // — but a button that does nothing is worse than one that is
-                // visibly unavailable.
-                disabled: variant.isCurrent,
-            }}
-        >
-            {({ errors }) => (
-                <div className="grid gap-4">
-                    <div className="grid gap-2">
-                        <Label htmlFor="plan">Plan</Label>
-                        <Select
-                            name="plan"
-                            value={plan.value}
-                            onValueChange={(value) =>
-                                setPlanValue(value as PlanValue)
-                            }
-                        >
-                            <SelectTrigger id="plan" className="w-full">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {plans.map((option) => (
-                                    <SelectItem
-                                        key={option.value}
-                                        value={option.value}
-                                    >
-                                        {option.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <p className="text-sm text-muted-foreground">
-                            {plan.tagline}
-                        </p>
-                        <InputError message={errors.plan} />
-                    </div>
 
-                    <div className="grid gap-2">
-                        <Label htmlFor="variant">Billing period</Label>
-                        <Select
-                            name="variant"
-                            value={variant.value}
-                            onValueChange={(value) =>
-                                setVariantValue(value as PlanVariant)
-                            }
-                        >
-                            <SelectTrigger id="variant" className="w-full">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {plan.variants.map((option) => (
-                                    <SelectItem
-                                        key={option.value}
-                                        value={option.value}
-                                    >
-                                        {VARIANT_LABELS[option.value]} —{' '}
-                                        {option.formatted}
-                                        {option.value === 'yearly'
-                                            ? '/year'
-                                            : '/month'}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <InputError message={errors.variant} />
-                    </div>
-
-                    {variant.isCurrent && (
-                        <p className="text-sm text-muted-foreground">
-                            This is the plan you are on already.
-                        </p>
-                    )}
-                </div>
-            )}
-        </FormDialog>
-    );
-}
-
-function CancelSubscriptionDialog() {
-    return (
-        <Dialog>
-            <DialogTrigger asChild>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    data-test="cancel-subscription-button"
+                <Link
+                    href={pricing()}
+                    className="text-sm text-muted-foreground underline-offset-4 hover:underline"
                 >
-                    Cancel subscription
-                </Button>
-            </DialogTrigger>
-            <DialogContent>
-                <DialogTitle>Cancel your subscription?</DialogTitle>
-                <DialogDescription>
-                    Nothing changes today. You keep every course, mission and
-                    tool until the end of the period you have already paid for,
-                    and you can call this off any time before then.
-                </DialogDescription>
-
-                <Form
-                    {...SubscriptionController.destroy.form()}
-                    options={{ preserveScroll: true }}
-                >
-                    {({ processing }) => (
-                        <DialogFooter className="gap-2">
-                            <DialogClose asChild>
-                                <Button variant="secondary">Keep flying</Button>
-                            </DialogClose>
-
-                            <Button
-                                variant="destructive"
-                                disabled={processing}
-                                asChild
-                            >
-                                <button
-                                    type="submit"
-                                    data-test="confirm-cancel-subscription-button"
-                                >
-                                    Cancel subscription
-                                </button>
-                            </Button>
-                        </DialogFooter>
-                    )}
-                </Form>
-            </DialogContent>
-        </Dialog>
+                    Compare plans
+                </Link>
+            </div>
+        </div>
     );
 }
 
 export default function Billing({
     plan,
-    subscription,
-    switchable,
-    orders,
+    upgrade,
+    canManageBilling,
 }: BillingProps) {
-    const canCancel = Boolean(
-        subscription && subscription.valid && !subscription.cancelled,
-    );
-    const canResume = Boolean(subscription?.onGracePeriod);
-    const hasSubscription = plan.source === 'subscription';
-
     return (
         <>
             <Head title="Billing settings" />
@@ -416,92 +141,32 @@ export default function Billing({
                 <Heading
                     variant="small"
                     title="Billing"
-                    description="Your plan, your next bill and your receipts"
+                    description="Your plan, and where to change it"
                 />
 
-                <PlanSummary plan={plan} subscription={subscription} />
+                <PlanSummary plan={plan} />
 
-                {hasSubscription && (
+                {upgrade && <UpgradeCard upgrade={upgrade} />}
+
+                {canManageBilling && (
                     <div className="flex flex-wrap items-center gap-2">
                         {/*
-                         * One button for the card, the invoices and Creem's
-                         * own support. Creem publishes no card brand or last
-                         * four anywhere, so this page cannot name the card
-                         * being charged the way the Lemon Squeezy one did —
-                         * the portal behind this link is where a pilot sees
-                         * it, and it is a link out rather than a screen we
-                         * render because card details should never touch a
-                         * page of ours.
+                         * One button for the card, the invoices, the billing
+                         * period and cancelling. A link out rather than a
+                         * screen we render, because card details should never
+                         * touch a page of ours.
                          */}
                         <Button asChild variant="outline" size="sm">
-                            <Link href={editBillingPortal()}>
+                            <Link
+                                href={editBillingPortal()}
+                                data-test="manage-billing-button"
+                            >
                                 Manage billing
                                 <ExternalLink aria-hidden />
                             </Link>
                         </Button>
-
-                        {/*
-                         * Absent while there is nothing to move — a cancelled
-                         * subscription is resumed before it is repriced, and the
-                         * server says so by sending an empty list.
-                         */}
-                        {switchable.length > 0 && (
-                            <ChangePlanDialog plans={switchable} />
-                        )}
-
-                        {canResume && (
-                            <Form
-                                {...SubscriptionController.update.form()}
-                                options={{ preserveScroll: true }}
-                            >
-                                {({ processing }) => (
-                                    <Button
-                                        size="sm"
-                                        disabled={processing}
-                                        asChild
-                                    >
-                                        <button
-                                            type="submit"
-                                            data-test="resume-subscription-button"
-                                        >
-                                            Resume subscription
-                                        </button>
-                                    </Button>
-                                )}
-                            </Form>
-                        )}
-
-                        {canCancel && <CancelSubscriptionDialog />}
                     </div>
                 )}
-            </div>
-
-            <div className="space-y-6">
-                <Heading
-                    variant="small"
-                    title="Receipts"
-                    description="Every payment DroneVerse has taken from this account"
-                />
-
-                <DataTable
-                    columns={ORDER_COLUMNS}
-                    rows={orders}
-                    rowKey={(order) => order.id}
-                    caption="Your payment history"
-                    defaultSort={{ columnId: 'orderedAt', direction: 'desc' }}
-                    empty={
-                        <EmptyState className="rounded-none border-0">
-                            <EmptyStateIcon>
-                                <Receipt />
-                            </EmptyStateIcon>
-                            <EmptyStateTitle>No receipts yet</EmptyStateTitle>
-                            <EmptyStateDescription>
-                                Receipts appear here the moment a payment
-                                clears.
-                            </EmptyStateDescription>
-                        </EmptyState>
-                    }
-                />
             </div>
         </>
     );

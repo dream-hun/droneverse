@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 use App\Enums\AdminPermission;
 use App\Enums\Plan;
-use App\Enums\SubscriptionStatus;
 use App\Models\Challenge;
 use App\Models\ChallengeRun;
 use App\Models\Course;
 use App\Models\DronePhoto;
 use App\Models\Role;
-use App\Models\Subscription;
 use App\Models\User;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia;
@@ -64,7 +63,7 @@ describe('store', function (): void {
                 'email' => 'new@example.com',
                 'password' => 'password-123',
                 'password_confirmation' => 'password-123',
-                'plan_override' => 'team',
+                'plan_override' => 'pro',
             ])
             ->assertRedirect()
             ->assertInertiaFlash('toast.type', 'success');
@@ -72,7 +71,7 @@ describe('store', function (): void {
         $user = User::query()->where('email', 'new@example.com')->sole();
 
         expect($user->email_verified_at)->toBeNull()
-            ->and($user->plan())->toBe(Plan::Team);
+            ->and($user->plan())->toBe(Plan::Pro);
     });
 
     test('rejects an address already in use', function (): void {
@@ -180,23 +179,30 @@ describe('update', function (): void {
 });
 
 describe('destroy', function (): void {
-    test('refuses an account Creem is still billing', function (): void {
+    test('refuses an account Kelviq is still billing', function (string $status): void {
         $admin = User::factory()->admin()->create();
         $subscriber = User::factory()->create();
-        Subscription::factory()->billable($subscriber)->create();
+        fakeSubscriptions([['id' => 'sub_1', 'status' => $status, 'endDate' => null]]);
 
         $this->actingAs($admin)
             ->delete(route('admin.users.destroy', $subscriber))
             ->assertRedirect()
-            ->assertInertiaFlash('toast.type', 'error');
+            ->assertInertiaFlash('toast.message', 'This account still has a subscription Kelviq is billing. Cancel it in the Kelviq dashboard first, then delete the account.');
 
         $this->assertModelExists($subscriber);
-    });
 
-    test('allows an account whose subscription is winding down', function (): void {
+        Http::assertSent(fn (Request $request): bool => $request['customer_id'] === $subscriber->uuid);
+    })->with(['active', 'TRIALING', 'past_due']);
+
+    test('allows an account whose subscriptions are winding down, over, or paid for once', function (): void {
         $admin = User::factory()->admin()->create();
         $subscriber = User::factory()->create();
-        Subscription::factory()->billable($subscriber)->scheduledCancel()->create();
+        fakeSubscriptions([
+            ['id' => 'sub_1', 'status' => 'active', 'endDate' => '2026-10-27'],
+            ['id' => 'sub_2', 'status' => 'cancelled', 'endDate' => null],
+            ['id' => 'sub_3', 'endDate' => null],
+            ['id' => 'lifetime_1', 'status' => 'active', 'endDate' => null, 'billingType' => 'ONE_TIME'],
+        ]);
 
         $this->actingAs($admin)
             ->delete(route('admin.users.destroy', $subscriber))
@@ -204,6 +210,34 @@ describe('destroy', function (): void {
 
         $this->assertModelMissing($subscriber);
     });
+
+    test('allows an account kelviq has never heard of', function (): void {
+        $admin = User::factory()->admin()->create();
+        $pilot = User::factory()->create();
+        fakeKelviq(responses: ['sandboxapi.kelviq.com/api/v1/subscriptions/*' => Http::response(['detail' => 'Not found.'], 404)]);
+
+        $this->actingAs($admin)
+            ->delete(route('admin.users.destroy', $pilot))
+            ->assertRedirect(route('admin.users.index'));
+
+        $this->assertModelMissing($pilot);
+    });
+
+    test('keeps an account whose billing kelviq cannot answer for', function (mixed $response): void {
+        $admin = User::factory()->admin()->create();
+        $pilot = User::factory()->create();
+        fakeKelviq(responses: ['sandboxapi.kelviq.com/api/v1/subscriptions/*' => $response]);
+
+        $this->actingAs($admin)
+            ->delete(route('admin.users.destroy', $pilot))
+            ->assertRedirect()
+            ->assertInertiaFlash('toast.message', "Kelviq could not be reached to check this account's subscription, so nothing was deleted. Please try again.");
+
+        $this->assertModelExists($pilot);
+    })->with([
+        'a server error' => fn () => Http::response('down', 503),
+        'no connection' => fn () => Http::failedConnection(),
+    ]);
 
     test('removes the photo files the rows pointed at', function (): void {
         Storage::fake('photos');
@@ -258,7 +292,7 @@ test("the account page lists the pilot's recent runs by mission and course", fun
             ->where('recentRuns.0.courseTitle', 'Night Ops'));
 });
 
-test('the account page leaves billing out for staff without view_finance', function (): void {
+test('the account page shows the plan and nothing about money', function (): void {
     $support = User::factory()->withPermissions([AdminPermission::AccessAdmin, AdminPermission::ManageUsers])->create();
     $pilot = User::factory()->create();
 
@@ -268,79 +302,18 @@ test('the account page leaves billing out for staff without view_finance', funct
         ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->component('admin/users/show')
             ->where('account.uuid', $pilot->uuid)
-            ->where('subscriptions', null)
-            ->where('orders', null));
+            ->where('account.plan.value', 'starter')
+            ->missing('subscriptions')
+            ->missing('orders'));
 });
 
-describe('cancelling a subscription', function (): void {
-    test('schedules the end at Creem, after which the account can be deleted', function (): void {
-        config(['creem.api_key' => 'creem_test_key']);
-
-        $admin = User::factory()->admin()->create();
-        $subscriber = User::factory()->create();
-        $subscription = Subscription::factory()->billable($subscriber)->create();
-
-        Http::fake(['*/subscriptions/'.$subscription->creem_id.'/cancel' => Http::response([
-            'id' => $subscription->creem_id,
-            'object' => 'subscription',
-            'product' => $subscription->product_id,
-            'customer' => $subscription->customer_id,
-            'status' => SubscriptionStatus::ScheduledCancel->value,
-        ])]);
-
-        $this->actingAs($admin)
-            ->get(route('admin.users.show', $subscriber))
-            ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('canCancelSubscription', true));
-
-        $this->actingAs($admin)
-            ->delete(route('admin.users.subscription.destroy', $subscriber))
-            ->assertInertiaFlash('toast.type', 'success');
-
-        expect($subscription->refresh()->cancelled())->toBeTrue();
-
-        $this->actingAs($admin)
-            ->delete(route('admin.users.destroy', $subscriber))
-            ->assertRedirect(route('admin.users.index'));
-
-        $this->assertModelMissing($subscriber);
-    });
-
-    test('reports a Creem failure and leaves the subscription billing', function (): void {
-        config(['creem.api_key' => 'creem_test_key']);
-        Http::fake(['*' => Http::response(['error' => 'unavailable'], 503)]);
-
-        $admin = User::factory()->admin()->create();
-        $subscriber = User::factory()->create();
-        $subscription = Subscription::factory()->billable($subscriber)->create();
-
-        $this->actingAs($admin)
-            ->delete(route('admin.users.subscription.destroy', $subscriber))
-            ->assertInertiaFlash('toast.message', 'Creem could not cancel the subscription. Please try again.');
-
-        expect($subscription->refresh()->cancelled())->toBeFalse();
-    });
-
-    test('is not offered for a subscription already winding down', function (): void {
-        $admin = User::factory()->admin()->create();
-        $subscriber = User::factory()->create();
-        Subscription::factory()->billable($subscriber)->scheduledCancel()->create();
-
-        $this->actingAs($admin)
-            ->get(route('admin.users.show', $subscriber))
-            ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('canCancelSubscription', false));
-
-        $this->actingAs($admin)
-            ->delete(route('admin.users.subscription.destroy', $subscriber))
-            ->assertInertiaFlash('toast.type', 'error');
-    });
-
-    test('needs view_finance as well as manage_users', function (): void {
-        $support = User::factory()->withPermissions([AdminPermission::AccessAdmin, AdminPermission::ManageUsers])->create();
-        $subscriber = User::factory()->create();
-        Subscription::factory()->billable($subscriber)->create();
-
-        $this->actingAs($support)
-            ->delete(route('admin.users.subscription.destroy', $subscriber))
-            ->assertForbidden();
-    });
-});
+/**
+ * @param  array<int, array<string, mixed>>  $subscriptions
+ */
+function fakeSubscriptions(array $subscriptions): void
+{
+    fakeKelviq(responses: ['sandboxapi.kelviq.com/api/v1/subscriptions/*' => Http::response([
+        'count' => count($subscriptions),
+        'results' => $subscriptions,
+    ])]);
+}

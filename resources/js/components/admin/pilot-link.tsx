@@ -7,8 +7,9 @@ import type { PilotRef } from '@/types/admin';
  * A pilot's name and address, linked to their admin page for staff who can
  * open it.
  *
- * Finance staff see who paid without holding `manage_users`, and a link that
- * only ever 403s teaches them the screen lies, so for them it is plain text.
+ * Staff who can read the activity feed without holding `manage_users` would
+ * only ever get a 403 from the link, which teaches them the screen lies, so
+ * for them it is plain text.
  */
 export function PilotLink({ pilot }: { pilot: PilotRef | null }) {
     const { can } = usePermissions();

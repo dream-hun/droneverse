@@ -4,17 +4,10 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
-use App\Actions\DescribeCreemProduct;
-use App\Actions\FormatMoney;
-use App\Enums\AdminPermission;
 use App\Models\ChallengeRun;
-use App\Models\Order;
 use App\Models\QuizAttempt;
-use App\Models\Subscription;
 use App\Models\User;
 use Carbon\CarbonInterface;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
 
@@ -23,11 +16,11 @@ use InvalidArgumentException;
  *
  * There is no events table behind this, and deliberately so. Each thing worth
  * seeing already leaves a row somewhere — an account, a graded run, a quiz
- * attempt, an order, a subscription — and a second copy written alongside it
+ * attempt — and a second copy written alongside it
  * would be a second record of the same fact, free to disagree with the first.
  * The feed is read from the records themselves.
  *
- * Paging a merge of seven tables is done without a union. For page n of size
+ * Paging a merge of several tables is done without a union. For page n of size
  * k, the newest n·k + 1 rows of each source are enough to contain the newest
  * n·k + 1 of all of them together, so each source is asked for that many —
  * by primary key, or by an indexed date — and the merge, sort and slice
@@ -46,34 +39,16 @@ final readonly class ActivityFeed
 
     public const int MAX_PAGE = 20;
 
-    public const array PLATFORM_KINDS = ['signup', 'run', 'quiz'];
-
-    public const array FINANCE_KINDS = ['order', 'refund', 'subscription', 'cancellation'];
-
-    public function __construct(
-        private FormatMoney $money,
-        private DescribeCreemProduct $products,
-    ) {}
-
     /**
-     * The sources a member of staff may read.
+     * Every source the feed can read.
      *
-     * The feed is on the overview, which every member of staff can open, and
-     * money is not something every member of staff is trusted with — so the
-     * billing sources are left out entirely for anyone without
-     * `view_finance`, rather than shown with the amounts blanked.
-     *
-     * @return array<int, string>
+     * Payments are not among them: Kelviq is the only record of those, and its
+     * dashboard is where they are read.
      */
-    public function kindsVisibleTo(User $viewer): array
-    {
-        return $viewer->can(AdminPermission::ViewFinance->value)
-            ? [...self::PLATFORM_KINDS, ...self::FINANCE_KINDS]
-            : self::PLATFORM_KINDS;
-    }
+    public const array KINDS = ['signup', 'run', 'quiz'];
 
     /**
-     * @param  array<int, string>  $kinds  Which sources to read; see kindsVisibleTo().
+     * @param  array<int, string>  $kinds  Which of KINDS to read.
      * @return array{items: array<int, Item>, hasMore: bool, page: int}
      */
     public function page(array $kinds, int $page = 1, int $perPage = self::PER_PAGE): array
@@ -106,10 +81,6 @@ final readonly class ActivityFeed
             'signup' => $this->signups($limit),
             'run' => $this->runs($limit),
             'quiz' => $this->quizzes($limit),
-            'order' => $this->orders($limit),
-            'refund' => $this->refunds($limit),
-            'subscription' => $this->subscriptions($limit),
-            'cancellation' => $this->cancellations($limit),
             default => throw new InvalidArgumentException(sprintf('No activity source is called [%s].', $kind)),
         };
     }
@@ -192,112 +163,6 @@ final readonly class ActivityFeed
     }
 
     /**
-     * @return Collection<int, array{at: int, item: Item}>
-     */
-    private function orders(int $limit): Collection
-    {
-        return $this->billed(Order::query())
-            ->latest('ordered_at')
-            ->latest('id')
-            ->limit($limit)
-            ->get()
-            ->map(fn (Order $order): array => $this->entry(
-                'order',
-                $order->id,
-                $order->ordered_at,
-                $this->pilot($order->billable),
-                sprintf('Paid %s', $this->money->handle($order->amount, $order->currency)),
-                sprintf('%s · %s', $this->products->handle($order->product_id), $order->status),
-            ));
-    }
-
-    /**
-     * @return Collection<int, array{at: int, item: Item}>
-     */
-    private function refunds(int $limit): Collection
-    {
-        return $this->billed(Order::query())
-            ->whereNotNull('refunded_at')
-            ->latest('refunded_at')
-            ->latest('id')
-            ->limit($limit)
-            ->get()
-            ->map(fn (Order $order): array => $this->entry(
-                'refund',
-                $order->id,
-                $order->refunded_at,
-                $this->pilot($order->billable),
-                sprintf('Refunded %s', $this->money->handle($order->refunded_amount ?? $order->amount, $order->currency)),
-                $this->products->handle($order->product_id),
-            ));
-    }
-
-    /**
-     * @return Collection<int, array{at: int, item: Item}>
-     */
-    private function subscriptions(int $limit): Collection
-    {
-        return $this->billed(Subscription::query())
-            ->latest('id')
-            ->limit($limit)
-            ->get()
-            ->map(fn (Subscription $subscription): array => $this->entry(
-                'subscription',
-                $subscription->id,
-                $subscription->created_at,
-                $this->pilot($subscription->billable),
-                sprintf('Subscribed to %s', $this->products->handle($subscription->product_id)),
-                sprintf('Now %s', str_replace('_', ' ', $subscription->status)),
-            ));
-    }
-
-    /**
-     * @return Collection<int, array{at: int, item: Item}>
-     */
-    private function cancellations(int $limit): Collection
-    {
-        return $this->billed(Subscription::query())
-            ->whereNotNull('canceled_at')
-            ->latest('canceled_at')
-            ->latest('id')
-            ->limit($limit)
-            ->get()
-            ->map(fn (Subscription $subscription): array => $this->entry(
-                'cancellation',
-                $subscription->id,
-                $subscription->canceled_at,
-                $this->pilot($subscription->billable),
-                sprintf('Cancelled %s', $this->products->handle($subscription->product_id)),
-                $subscription->endsAt() instanceof CarbonInterface
-                    ? sprintf('Access ends %s', $subscription->endsAt()->toFormattedDateString())
-                    : null,
-            ));
-    }
-
-    /**
-     * Billing rows that belong to a pilot, with that pilot loaded.
-     *
-     * @template TModel of Order|Subscription
-     *
-     * @param  Builder<TModel>  $query
-     * @return Builder<TModel>
-     */
-    private function billed(Builder $query): Builder
-    {
-        return $query
-            ->where('billable_type', (new User)->getMorphClass())
-            ->with('billable');
-    }
-
-    /**
-     * @return Pilot|null
-     */
-    private function pilot(?Model $billable): ?array
-    {
-        return $billable instanceof User ? $this->pilotFor($billable) : null;
-    }
-
-    /**
      * @return Pilot
      */
     private function pilotFor(User $user): array
@@ -308,10 +173,9 @@ final readonly class ActivityFeed
     /**
      * One row of the feed, with the timestamp it sorts by kept beside it.
      *
-     * @param  User|Pilot|null  $pilot
      * @return array{at: int, item: Item}
      */
-    private function entry(string $kind, int $id, ?CarbonInterface $at, User|array|null $pilot, string $title, ?string $meta): array
+    private function entry(string $kind, int $id, ?CarbonInterface $at, ?User $pilot, string $title, ?string $meta): array
     {
         return [
             'at' => $at?->getTimestamp() ?? 0,
@@ -319,7 +183,7 @@ final readonly class ActivityFeed
                 'key' => sprintf('%s:%d', $kind, $id),
                 'kind' => $kind,
                 'occurredAt' => $at?->toIso8601String() ?? '',
-                'pilot' => $pilot instanceof User ? $this->pilotFor($pilot) : $pilot,
+                'pilot' => $pilot instanceof User ? $this->pilotFor($pilot) : null,
                 'title' => $title,
                 'meta' => $meta,
             ],

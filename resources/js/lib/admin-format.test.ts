@@ -6,7 +6,6 @@ import {
     formatDuration,
     formatPercent,
     formatRelative,
-    humanizeStatus,
     slugify,
 } from '@/lib/admin-format';
 
@@ -70,13 +69,6 @@ describe('formatRelative', () => {
         expect(formatRelative('2026-09-22T12:00:00Z', now)).toMatch(
             /3 days ago/,
         );
-    });
-});
-
-describe('humanizeStatus', () => {
-    it("spells Creem's wire strings for a person", () => {
-        expect(humanizeStatus('scheduled_cancel')).toBe('Scheduled cancel');
-        expect(humanizeStatus('active')).toBe('Active');
     });
 });
 

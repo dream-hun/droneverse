@@ -16,23 +16,15 @@ test('starter grants no gated features', function (): void {
     }
 });
 
-test('pro grants every feature the comparison table sells', function (): void {
-    $expected = [
-        Feature::MissionBuilder,
-        Feature::DroneConfigEditor,
-        Feature::PremiumCertificates,
-        Feature::AdvancedAnalytics,
-        Feature::DownloadableProjects,
-        Feature::PrioritySupport,
-        Feature::BetaAccess,
-    ];
-
-    foreach ($expected as $feature) {
-        expect(Plan::Pro->hasFeature($feature))->toBeTrue($feature->value);
-    }
-
-    expect(Plan::Pro->hasFeature(Feature::TeamManagement))->toBeFalse()
-        ->and(Plan::Pro->hasFeature(Feature::ClassroomTools))->toBeFalse();
+/**
+ * Pro is the top tier, so it grants the lot — and this is the assertion that
+ * says so for every case at once. A Feature nobody grants is a row in the
+ * pricing page's comparison grid that no plan can tick, which advertises a
+ * capability nobody is able to buy; adding a case without listing it on a plan
+ * fails here.
+ */
+test('the top tier grants every feature', function (): void {
+    expect(Plan::Pro->features())->toEqualCanonicalizing(Feature::cases());
 });
 
 /**
@@ -64,159 +56,56 @@ test('no plan sells a language the simulator cannot run', function (): void {
         );
 });
 
-test('team adds classroom features on top of pro', function (): void {
-    expect(Plan::Team->hasFeature(Feature::TeamManagement))->toBeTrue()
-        ->and(Plan::Team->hasFeature(Feature::ClassroomTools))->toBeTrue()
-        ->and(Plan::Team->hasFeature(Feature::MissionBuilder))->toBeTrue();
-});
-
-/**
- * Team is the top tier, so it grants the lot — and this is the assertion that
- * says so for every case at once. A Feature nobody grants is a row in the
- * pricing page's comparison grid that no plan can tick, which advertises a
- * capability nobody is able to buy; adding a case without listing it on a plan
- * fails here.
- */
-test('the top tier grants every feature', function (): void {
-    expect(Plan::Team->features())->toEqualCanonicalizing(Feature::cases());
-});
-
-test('catalog coverage ranks the paid tiers above starter', function (): void {
+test('catalog coverage ranks pro above starter', function (): void {
     expect(Plan::Starter->covers(Plan::Starter))->toBeTrue()
         ->and(Plan::Starter->covers(Plan::Pro))->toBeFalse()
         ->and(Plan::Pro->covers(Plan::Starter))->toBeTrue()
-        ->and(Plan::Team->covers(Plan::Pro))->toBeTrue()
-        ->and(Plan::Pro->covers(Plan::Team))->toBeFalse();
-
+        ->and(Plan::Pro->covers(Plan::Pro))->toBeTrue();
 });
 
-test('only starter is free', function (): void {
-    expect(Plan::Starter->isPaid())->toBeFalse();
-
-    foreach ([Plan::Pro, Plan::Team] as $plan) {
-        expect($plan->isPaid())->toBeTrue($plan->value);
-    }
-});
-
-/**
- * A classroom of ten is a card payment, so Team sells itself alongside Pro.
- * Starter is the only answer of no: it is an account rather than a purchase,
- * and there is no price for a card form to charge.
- */
-test('every paid tier sells itself and the free one does not', function (): void {
-    expect(Plan::Pro->isSelfServe())->toBeTrue()
-        ->and(Plan::Team->isSelfServe())->toBeTrue()
+test('only starter is free, and only pro is sold', function (): void {
+    expect(Plan::Starter->isPaid())->toBeFalse()
+        ->and(Plan::Pro->isPaid())->toBeTrue()
+        ->and(Plan::Pro->isSelfServe())->toBeTrue()
         ->and(Plan::Starter->isSelfServe())->toBeFalse();
-
 });
 
-test('price ids are read from configuration', function (): void {
-    config(['plans.prices.pro' => [
-        'monthly' => 'prod_pro_monthly',
-        'yearly' => 'prod_pro_yearly',
-        'monthly_launch' => null,
-        'yearly_launch' => '',
-    ]]);
-
-    expect(Plan::Pro->priceId('monthly'))->toBe('prod_pro_monthly')
-        ->and(Plan::Pro->priceIds())->toBe(['monthly' => 'prod_pro_monthly', 'yearly' => 'prod_pro_yearly']);
-});
-
-test('unconfigured variants resolve to null rather than a default', function (): void {
-    config(['plans.prices.pro' => ['monthly' => null, 'yearly' => '']]);
-
-    expect(Plan::Pro->priceId('monthly'))->toBeNull()
-        ->and(Plan::Pro->priceId('yearly'))->toBeNull()
-        ->and(Plan::Pro->priceId('does_not_exist'))->toBeNull()
-        ->and(Plan::Starter->priceId('monthly'))->toBeNull();
-});
-
-test('a price id maps back to the plan that sells it', function (): void {
-    config(['plans.prices' => [
-        'pro' => ['monthly' => 'prod_pro_monthly', 'monthly_launch' => 'prod_pro_monthly_launch'],
-        'team' => ['monthly' => 'prod_team_monthly'],
-    ]]);
-
-    expect(Plan::fromPriceId('prod_pro_monthly'))->toBe(Plan::Pro)
-        ->and(Plan::fromPriceId('prod_pro_monthly_launch'))->toBe(Plan::Pro)
-        ->and(Plan::fromPriceId('prod_team_monthly'))->toBe(Plan::Team);
-});
-
-test('an unrecognised price id grants nothing', function (): void {
-    config(['plans.prices' => ['pro' => ['monthly' => 'prod_pro_monthly']]]);
-
-    expect(Plan::fromPriceId('prod_retired_beta_plan'))->toBeNull()
-        ->and(Plan::fromPriceId(null))->toBeNull()
-        ->and(Plan::fromPriceId(''))->toBeNull();
-});
-
-/**
- * config/plans.php requires price IDs to be unique across plans and nothing
- * enforces it, so the same product ID under two tiers is one paste into one
- * `.env`. Answering with the first match would decide it by the order the
- * cases are declared in — Pro before Team, for no reason anybody chose — and
- * hand Pro to every Team subscriber without a word. There is no honest
- * answer to which of two plans one ID sells, so it grants neither.
- */
-test('a price id claimed by two plans grants neither', function (): void {
-    config(['plans.prices' => [
-        'pro' => ['monthly' => 'prod_shared_by_mistake'],
-        'team' => ['monthly' => 'prod_shared_by_mistake', 'yearly' => 'prod_team_yearly'],
-    ]]);
-
-    expect(Plan::fromPriceId('prod_shared_by_mistake'))->toBeNull()
-        ->and(Plan::fromPriceId('prod_team_yearly'))->toBe(Plan::Team);
-
-    // The slip is contained: every other ID still resolves.
-});
-
-/**
- * The same ID twice within one plan is not ambiguous — both periods sell the
- * same tier, so the tier is still the answer. Only variantFor() has to pick,
- * and it says so itself.
- */
-test('a price id repeated within one plan still grants that plan', function (): void {
-    config(['plans.prices.pro' => [
-        'monthly' => 'prod_pro_everything',
-        'yearly' => 'prod_pro_everything',
-    ]]);
-
-    expect(Plan::fromPriceId('prod_pro_everything'))->toBe(Plan::Pro);
-});
-
-test('unconfigured price ids do not collide on null', function (): void {
-    config(['plans.prices' => [
-        'pro' => ['monthly' => null],
-        'team' => ['monthly' => null],
-    ]]);
-
-    expect(Plan::fromPriceId(null))->toBeNull()
-        ->and(Plan::fromPriceId('prod_anything'))->toBeNull();
-});
-
-test('a price id maps back to the billing period it sells', function (): void {
-    config(['plans.prices.pro' => [
-        'monthly' => 'prod_pro_monthly',
-        'yearly' => 'prod_pro_yearly',
-    ]]);
-
-    expect(Plan::Pro->variantFor('prod_pro_yearly'))->toBe('yearly')
-        ->and(Plan::Pro->variantFor('prod_team_monthly'))->toBeNull()
-        ->and(Plan::Pro->variantFor(null))->toBeNull()
-        ->and(Plan::Pro->variantFor(''))->toBeNull();
-});
-
-/**
- * Which periods a plan offers is a fact about the plan, not about whether
- * this environment happens to have priced it — an un-priced Pro still sells
- * monthly and yearly, it just cannot be bought.
- */
-test('only the subscription tiers offer a billing period', function (): void {
-    config(['plans.prices' => []]);
-
-    expect(Plan::Pro->variants())->toBe(['monthly', 'yearly'])
-        ->and(Plan::Team->variants())->toBe(['monthly', 'yearly'])
+test('only the paid tier can be bought, monthly, yearly or once', function (): void {
+    expect(Plan::Pro->variants())->toBe(['monthly', 'yearly', 'lifetime'])
         ->and(Plan::Starter->variants())->toBe([]);
+});
+
+/**
+ * Lifetime is its own Kelviq plan so a code scoped to the subscription never
+ * discounts it, and both grant the catalogue feature that means Pro.
+ */
+test('pro is sold from two kelviq plans that grant the same catalogue feature', function (): void {
+    expect(Plan::Pro->kelviqPlan('monthly'))->toBe('pro')
+        ->and(Plan::Pro->kelviqPlan('yearly'))->toBe('pro')
+        ->and(Plan::Pro->kelviqPlan('lifetime'))->toBe('pro-lifetime')
+        ->and(Plan::Pro->kelviqPlan('weekly'))->toBeNull()
+        ->and(Plan::Pro->catalogFeature())->toBe('full-catalog')
+        ->and(Plan::Starter->kelviqPlan('monthly'))->toBeNull()
+        ->and(Plan::Starter->catalogFeature())->toBeNull();
+});
+
+test('a variant maps onto the kelviq charge period that sells it', function (): void {
+    expect(Plan::Pro->chargePeriod('monthly'))->toBe('MONTHLY')
+        ->and(Plan::Pro->chargePeriod('yearly'))->toBe('YEARLY')
+        ->and(Plan::Pro->chargePeriod('lifetime'))->toBe('ONE_TIME')
+        ->and(Plan::Pro->chargePeriod('weekly'))->toBeNull()
+        ->and(Plan::Pro->chargePeriod('monthly_launch'))->toBeNull()
+        ->and(Plan::Starter->chargePeriod('monthly'))->toBeNull();
+});
+
+/**
+ * Kelviq only sells what has shipped, so a capability still in the hangar has
+ * no Kelviq feature and nobody paying through Kelviq can hold it.
+ */
+test('only shipped capabilities name a kelviq feature', function (): void {
+    foreach (Feature::cases() as $feature) {
+        expect($feature->kelviqId() !== null)->toBe($feature->isAvailable(), $feature->value);
+    }
 });
 
 test('display amounts are read from configuration', function (): void {
@@ -238,5 +127,40 @@ test('every offered billing period carries a display amount', function (): void 
             expect($plan->amount($variant))
                 ->toBeInt(sprintf('%s.%s is offered but has no amount in config/plans.php.', $plan->value, $variant));
         }
+    }
+});
+
+/**
+ * config/plans.php is copy and kelviq.config.ts is what Kelviq charges, and the
+ * two are kept in step by hand. This is the check that they were: a price
+ * changed in one file and not the other fails here rather than on somebody's
+ * card statement.
+ */
+test('the pricing page quotes what the kelviq catalog charges', function (): void {
+    $catalog = (string) file_get_contents(base_path('kelviq.config.ts'));
+
+    foreach (['monthly' => 'MONTHLY', 'yearly' => 'YEARLY', 'lifetime' => 'ONE_TIME'] as $variant => $chargePeriod) {
+        $matched = preg_match(sprintf("/chargePeriod: '%s',\\s+priceData: \\{ amount: (\\d+(?:\\.\\d+)?) \\}/", $chargePeriod), $catalog, $match);
+
+        expect($matched)->toBe(1, $chargePeriod.' price missing from kelviq.config.ts')
+            ->and((int) round((float) ($match[1] ?? 0) * 100))->toBe(Plan::Pro->amount($variant));
+    }
+});
+
+/**
+ * Every identifier the application asks Kelviq about must be one the catalog
+ * defines, or the entitlement it gates can never be granted.
+ */
+test('every kelviq identifier the application reads is in the catalog', function (): void {
+    $catalog = (string) file_get_contents(base_path('kelviq.config.ts'));
+
+    $identifiers = array_filter([
+        ...array_map(Plan::Pro->kelviqPlan(...), Plan::Pro->variants()),
+        Plan::Pro->catalogFeature(),
+        ...array_map(static fn (Feature $feature): ?string => $feature->kelviqId(), Feature::cases()),
+    ]);
+
+    foreach ($identifiers as $identifier) {
+        expect($catalog)->toContain(sprintf("identifier: '%s'", $identifier));
     }
 });

@@ -110,42 +110,7 @@ export type AdminChallenge = {
     pilots: number;
 };
 
-/** Mirrors App\Http\Resources\Admin\AdminOrderResource. */
-export type AdminOrder = {
-    creemId: string;
-    pilot: PilotRef | null;
-    product: string;
-    /** Already formatted by App\Actions\FormatMoney. */
-    amount: string;
-    status: string;
-    refunded: boolean;
-    refundedAmount: string | null;
-    refundedAt: string | null;
-    orderedAt: string;
-};
-
-/** Mirrors App\Http\Resources\Admin\AdminSubscriptionResource. */
-export type AdminSubscription = {
-    creemId: string;
-    pilot: PilotRef | null;
-    product: string;
-    status: string;
-    /** Subscription::valid(), which reads the period end as well as the status. */
-    entitles: boolean;
-    units: number;
-    renewsAt: string | null;
-    endsAt: string | null;
-    createdAt: string | null;
-};
-
-export type ActivityKind =
-    | 'signup'
-    | 'run'
-    | 'quiz'
-    | 'order'
-    | 'refund'
-    | 'subscription'
-    | 'cancellation';
+export type ActivityKind = 'signup' | 'run' | 'quiz';
 
 /** One row of App\Queries\ActivityFeed. */
 export type ActivityItem = {
@@ -189,34 +154,6 @@ export type AdminOverview = {
         pilots: number;
         clearRate: number;
     }[];
-};
-
-type RevenueTotal = { net: string; refunded: string; orders: number };
-
-/** Mirrors App\Actions\BuildRevenueReport. */
-export type RevenueReport = {
-    currency: string;
-    totals: {
-        thisMonth: RevenueTotal;
-        last30Days: RevenueTotal;
-        allTime: RevenueTotal;
-    };
-    /** Orders in a currency the totals do not sum. */
-    otherCurrencyOrders: number;
-    monthly: {
-        month: string;
-        net: number;
-        formatted: string;
-        orders: number;
-    }[];
-    subscriptions: {
-        entitled: number;
-        /** An estimate at list price; see the report's docblock. */
-        mrr: string;
-        cancelledLast30Days: number;
-        byStatus: { status: string; count: number; entitles: boolean }[];
-        byPlan: { plan: string; count: number }[];
-    };
 };
 
 export type HealthCheck = {

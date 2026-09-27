@@ -194,20 +194,6 @@ test('a paid pilot can open a locked mission', function (): void {
         ->assertOk();
 });
 
-/**
- * Access is a question about catalogue depth, not about the exact tier: a
- * plan ranked above the one a mission requires reaches it too.
- */
-test('a pilot on a higher tier reaches pro missions', function (): void {
-    $user = User::factory()->onPlan(Plan::Team)->create();
-    $course = Course::factory()->requiring(Plan::Pro)->create();
-    $challenge = Challenge::factory()->for($course)->create();
-
-    $this->actingAs($user)
-        ->get(route('challenges.show', [$course, $challenge]))
-        ->assertOk();
-});
-
 test('a starter pilot cannot post an attempt to a locked mission', function (): void {
     $user = User::factory()->create();
     $course = Course::factory()->requiring(Plan::Pro)->create();

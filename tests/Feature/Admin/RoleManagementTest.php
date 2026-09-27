@@ -30,14 +30,14 @@ test('creates a role that grants exactly what was ticked', function (): void {
     $this->actingAs($admin)
         ->post(route('admin.roles.store'), [
             'name' => 'auditor',
-            'permissions' => [AdminPermission::AccessAdmin->value, AdminPermission::ViewFinance->value],
+            'permissions' => [AdminPermission::AccessAdmin->value, AdminPermission::ViewSystem->value],
         ])
         ->assertRedirect();
 
     $auditor = User::factory()->create();
     $auditor->assignRole('auditor');
 
-    expect($auditor->can(AdminPermission::ViewFinance->value))->toBeTrue()
+    expect($auditor->can(AdminPermission::ViewSystem->value))->toBeTrue()
         ->and($auditor->can(AdminPermission::ManageUsers->value))->toBeFalse();
 });
 
@@ -74,7 +74,7 @@ test('the admin role cannot be edited or deleted, even by an admin', function ()
 
 test('editing a role renames it and changes what its holders may do', function (): void {
     $admin = User::factory()->admin()->create();
-    $holder = User::factory()->withPermissions([AdminPermission::AccessAdmin, AdminPermission::ViewFinance], 'finance')->create();
+    $holder = User::factory()->withPermissions([AdminPermission::AccessAdmin, AdminPermission::ManageCourses], 'finance')->create();
 
     $this->actingAs($admin)
         ->put(route('admin.roles.update', Role::findByName('finance')), [
@@ -88,7 +88,7 @@ test('editing a role renames it and changes what its holders may do', function (
 
     expect($holder?->hasRole('treasury'))->toBeTrue()
         ->and($holder?->can(AdminPermission::ViewSystem->value))->toBeTrue()
-        ->and($holder?->can(AdminPermission::ViewFinance->value))->toBeFalse();
+        ->and($holder?->can(AdminPermission::ManageCourses->value))->toBeFalse();
 });
 
 test('the role actions refuse the admin role whoever calls them', function (): void {
@@ -128,7 +128,7 @@ describe('a role manager who is not an admin', function (): void {
         $this->actingAs(roleManager())
             ->post(route('admin.roles.store'), [
                 'name' => 'treasurer',
-                'permissions' => [AdminPermission::AccessAdmin->value, AdminPermission::ViewFinance->value],
+                'permissions' => [AdminPermission::AccessAdmin->value, AdminPermission::ViewSystem->value],
             ])
             ->assertSessionHasErrors(['permissions' => 'You can only grant permissions you hold yourself.']);
 
@@ -155,7 +155,7 @@ describe('a role manager who is not an admin', function (): void {
 
     test('cannot edit or delete a role that grants more than they hold', function (): void {
         $manager = roleManager();
-        User::factory()->withPermissions([AdminPermission::AccessAdmin, AdminPermission::ViewFinance], 'finance')->create();
+        User::factory()->withPermissions([AdminPermission::AccessAdmin, AdminPermission::ViewSystem], 'finance')->create();
         $finance = Role::findByName('finance');
 
         $this->actingAs($manager)
@@ -169,7 +169,7 @@ describe('a role manager who is not an admin', function (): void {
 
     test('cannot hand a pilot a role that grants more than they hold', function (): void {
         $manager = roleManager();
-        User::factory()->withPermissions([AdminPermission::AccessAdmin, AdminPermission::ViewFinance], 'finance')->create();
+        User::factory()->withPermissions([AdminPermission::AccessAdmin, AdminPermission::ViewSystem], 'finance')->create();
         $pilot = User::factory()->create();
 
         $this->actingAs($manager)
@@ -201,7 +201,7 @@ describe('a role manager who is not an admin', function (): void {
 
     test('sees which roles and permissions are out of reach', function (): void {
         $manager = roleManager();
-        User::factory()->withPermissions([AdminPermission::AccessAdmin, AdminPermission::ViewFinance], 'finance')->create();
+        User::factory()->withPermissions([AdminPermission::AccessAdmin, AdminPermission::ViewSystem], 'finance')->create();
 
         $this->actingAs($manager)
             ->get(route('admin.roles.index'))
@@ -220,13 +220,13 @@ describe('a role manager who is not an admin', function (): void {
 
 test('deleting a role takes its permissions from the people who held it', function (): void {
     $admin = User::factory()->admin()->create();
-    $finance = User::factory()->withPermissions([AdminPermission::AccessAdmin, AdminPermission::ViewFinance], 'finance')->create();
+    $finance = User::factory()->withPermissions([AdminPermission::AccessAdmin, AdminPermission::ViewSystem], 'finance')->create();
 
     $this->actingAs($admin)
         ->delete(route('admin.roles.destroy', Role::findByName('finance')))
         ->assertRedirect();
 
-    expect($finance->fresh()?->can(AdminPermission::ViewFinance->value))->toBeFalse();
+    expect($finance->fresh()?->can(AdminPermission::ViewSystem->value))->toBeFalse();
 });
 
 test('admin:grant makes an existing account an admin', function (): void {

@@ -5,51 +5,37 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\ChallengeStatus;
-use App\Http\Resources\Admin\AdminOrderResource;
-use App\Http\Resources\Admin\AdminSubscriptionResource;
 use App\Http\Resources\Admin\AdminUserResource;
 use App\Models\ChallengeRun;
-use App\Models\Order;
-use App\Models\Subscription;
 use App\Models\User;
-use App\Queries\DefaultSubscription;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\Relation;
 
 /**
- * One account as the admin area shows it: who they are, what they pay for,
- * and what they have flown.
+ * One account as the admin area shows it: who they are, which plan they are
+ * on, and what they have flown.
  *
- * The money is shaped for the viewer. Subscriptions and orders are null
- * rather than empty for staff without `view_finance`, so the page can tell
- * "nothing bought" from "not yours to see".
+ * What they pay is not here. Kelviq is the only record of it, and the Kelviq
+ * dashboard is where staff read and act on it; the account's plan, resolved
+ * the same way every page resolves it, is what this page can vouch for.
  */
 final readonly class BuildAdminAccount
 {
-    /** Recent runs, orders and subscriptions on an account's page. */
+    /** Recent runs on an account's page. */
     private const int RECENT_LIMIT = 10;
-
-    public function __construct(private DefaultSubscription $subscriptions)
-    {
-        //
-    }
 
     /**
      * @return array{
      *     account: array<string, mixed>,
      *     stats: array{missionsCompleted: int, quizzesPassed: int, photos: int, lastRunAt: string|null},
      *     recentRuns: array<int, array{uuid: string, challengeTitle: string, courseTitle: string, score: int, stars: int, completed: bool, collisions: int, elapsedSeconds: float, flownAt: string}>,
-     *     subscriptions: array<int, array<string, mixed>>|null,
-     *     canCancelSubscription: bool,
-     *     orders: array<int, array<string, mixed>>|null,
      * }
      */
     public function handle(User $user, User $viewer): array
     {
-        $user->load(['roles', 'subscriptions'])->loadCount('challengeRuns');
+        $user->load('roles')->loadCount('challengeRuns');
 
         $runs = $this->recentRuns($user);
-        $seesFinance = $viewer->can('view_finance');
 
         return [
             'account' => AdminUserResource::one($user, $viewer),
@@ -65,16 +51,6 @@ final readonly class BuildAdminAccount
                 'elapsedSeconds' => $run->elapsed_seconds,
                 'flownAt' => $run->created_at?->toIso8601String() ?? '',
             ])->all(),
-            'subscriptions' => $seesFinance ? AdminSubscriptionResource::collection($this->recentSubscriptions($user)) : null,
-            /*
-             * Offered only where cancelling would do something: a subscription
-             * still billing, on an account this viewer may edit, to somebody
-             * trusted with the money.
-             */
-            'canCancelSubscription' => $seesFinance
-                && $viewer->can('update', $user)
-                && $this->subscriptions->isSwitchable($this->subscriptions->for($user)),
-            'orders' => $seesFinance ? AdminOrderResource::collection($this->recentOrders($user)) : null,
         ];
     }
 
@@ -107,32 +83,5 @@ final readonly class BuildAdminAccount
             'photos' => $user->dronePhotos()->count(),
             'lastRunAt' => $lastRun?->created_at?->toIso8601String(),
         ];
-    }
-
-    /**
-     * @return Collection<int, Subscription>
-     */
-    private function recentSubscriptions(User $user): Collection
-    {
-        return Subscription::query()
-            ->whereMorphedTo('billable', $user)
-            ->with('billable')
-            ->latest('id')
-            ->limit(self::RECENT_LIMIT)
-            ->get();
-    }
-
-    /**
-     * @return Collection<int, Order>
-     */
-    private function recentOrders(User $user): Collection
-    {
-        return Order::query()
-            ->whereMorphedTo('billable', $user)
-            ->with('billable')
-            ->latest('ordered_at')
-            ->latest('id')
-            ->limit(self::RECENT_LIMIT)
-            ->get();
     }
 }

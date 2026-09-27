@@ -13,7 +13,6 @@ import {
     Server,
     Trophy,
     Users,
-    Wallet,
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
@@ -34,7 +33,6 @@ import { analytics, dashboard, leaderboard } from '@/routes';
 import {
     activity as adminActivity,
     dashboard as adminDashboard,
-    finance as adminFinance,
     system as adminSystem,
 } from '@/routes/admin';
 import { index as adminCourses } from '@/routes/admin/courses';
@@ -118,12 +116,6 @@ const adminNavItems: (NavItem & { permission: AdminPermissionValue })[] = [
         href: adminCourses(),
         icon: Library,
         permission: 'manage_courses',
-    },
-    {
-        title: 'Finance',
-        href: adminFinance(),
-        icon: Wallet,
-        permission: 'view_finance',
     },
     {
         title: 'System',

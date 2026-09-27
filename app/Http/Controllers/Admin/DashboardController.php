@@ -6,9 +6,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Actions\BuildAdminOverview;
 use App\Http\Controllers\Controller;
-use App\Models\User;
 use App\Queries\ActivityFeed;
-use Illuminate\Container\Attributes\CurrentUser;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -24,11 +22,11 @@ final class DashboardController extends Controller
      * the recent activity is cheap, bounded reads by primary key, and it is
      * what someone opening this page usually came to look at.
      */
-    public function __invoke(#[CurrentUser] User $user, BuildAdminOverview $overview, ActivityFeed $feed): Response
+    public function __invoke(BuildAdminOverview $overview, ActivityFeed $feed): Response
     {
         return Inertia::render('admin/dashboard', [
             'overview' => Inertia::defer(fn (): array => $overview->handle()),
-            'activity' => $feed->page($feed->kindsVisibleTo($user), 1, self::RECENT_ACTIVITY)['items'],
+            'activity' => $feed->page(ActivityFeed::KINDS, 1, self::RECENT_ACTIVITY)['items'],
         ]);
     }
 }

@@ -19,7 +19,7 @@ namespace App\Enums;
  *
  * `AccessAdmin` is the door rather than a room: every admin route requires it,
  * and each section requires its own case on top. A role holding only
- * `ViewFinance` therefore reaches nothing — that is deliberate, because a
+ * `ViewSystem` therefore reaches nothing — that is deliberate, because a
  * section a person cannot navigate to is not one they have been given.
  */
 enum AdminPermission: string
@@ -28,7 +28,6 @@ enum AdminPermission: string
     case ManageUsers = 'manage_users';
     case ManageRoles = 'manage_roles';
     case ManageCourses = 'manage_courses';
-    case ViewFinance = 'view_finance';
     case ViewSystem = 'view_system';
 
     /**
@@ -46,7 +45,6 @@ enum AdminPermission: string
             self::ManageUsers => 'Manage users',
             self::ManageRoles => 'Manage roles',
             self::ManageCourses => 'Manage courses and challenges',
-            self::ViewFinance => 'View financial activity',
             self::ViewSystem => 'View system performance',
         };
     }
@@ -62,7 +60,6 @@ enum AdminPermission: string
             self::ManageUsers => 'Create, edit and delete accounts, grant plans by hand and assign roles.',
             self::ManageRoles => 'Create and edit roles, and decide what each one may do.',
             self::ManageCourses => 'Author, publish and delete courses and the missions inside them.',
-            self::ViewFinance => 'Revenue, orders, refunds and subscriptions, as Creem reported them.',
             self::ViewSystem => 'Health checks, queue backlog, failed jobs and database size.',
         };
     }

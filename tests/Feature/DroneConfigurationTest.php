@@ -230,10 +230,12 @@ test('an unknown airframe is rejected', function (): void {
 });
 
 test('a mission the pilot cannot fly cannot be configured', function (): void {
-    // Pro reaches the feature but not this mission, which is a Team
-    // course. The two gates are separate questions and both have to hold.
-    $user = User::factory()->onPlan(Plan::Pro)->create();
-    $course = Course::factory()->requiring(Plan::Team)->create();
+    // Kelviq grants this pilot the airframe feature but not the full
+    // catalogue, so they reach the feature and not this Pro mission. The two
+    // gates are separate questions and both have to hold.
+    $user = User::factory()->create();
+    fakeKelviq([$user->uuid => ['drone-config-editor']]);
+    $course = Course::factory()->requiring(Plan::Pro)->create();
     $challenge = Challenge::factory()->for($course)->create();
 
     $this->actingAs($user)

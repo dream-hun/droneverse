@@ -5,66 +5,26 @@ declare(strict_types=1);
 namespace App\Enums;
 
 /**
- * A subscription tier, as sold in docs/pricing.md.
+ * A subscription tier, as sold on the pricing page.
  *
  * A plan answers two independent questions, and they are deliberately not the
  * same method. `features()` says which capabilities are unlocked. `covers()`
- * says how deep into the catalogue the plan reaches. Team ranks above Pro on
- * both, but the two axes are not the same and are not collapsed: a tier can
- * include every mission without including an instructor dashboard.
+ * says how deep into the catalogue the plan reaches.
+ *
+ * Pro is the only tier for sale, through Kelviq; see kelviq.config.ts for the
+ * catalog it is sold from. Starter is not a Kelviq plan at all — it is the
+ * account every pilot has until Kelviq says otherwise.
  */
 enum Plan: string
 {
     case Starter = 'starter';
     case Pro = 'pro';
-    case Team = 'team';
-
-    /**
-     * The plan a subscribed price ID grants.
-     *
-     * "Price ID" is the provider-neutral name for whatever identifies the thing
-     * being sold, and under Creem that is a product ID — the value read off a
-     * subscription's `product_id` column. Creem has no separate price object: a
-     * product carries its own amount and billing period, so one product is one
-     * purchasable price. It is not this application's sense of "variant", which
-     * is a billing period; see variantFor().
-     *
-     * The reverse of priceIds(), and the branch ResolvePlanForUser leans on
-     * most. An unrecognized price ID resolves to null rather than to a default
-     * plan: an ID we cannot account for is a configuration error, and silently
-     * granting Pro for it would be worse than granting nothing.
-     *
-     * An ID claimed by more than one plan is the same kind of error and gets the
-     * same answer. config/plans.php requires these to be unique across plans and
-     * nothing enforces it, so the same product ID pasted under two tiers is one
-     * slip in one `.env` file. Returning the first match would answer it out of
-     * the order the cases happen to be declared in — which nobody reading this
-     * file thinks of as billing logic, and which would quietly grant Pro to
-     * every Team subscriber if the declarations were ever reordered. There is no
-     * honest answer to "which plan did they buy" when one ID sells two, and the
-     * ID sells exactly one thing in the Creem account whatever this
-     * configuration claims, so nobody is entitled by it until it is fixed.
-     */
-    public static function fromPriceId(?string $priceId): ?self
-    {
-        if ($priceId === null || $priceId === '') {
-            return null;
-        }
-
-        $matches = array_values(array_filter(
-            self::cases(),
-            static fn (self $plan): bool => in_array($priceId, $plan->priceIds(), true),
-        ));
-
-        return count($matches) === 1 ? $matches[0] : null;
-    }
 
     public function label(): string
     {
         return match ($this) {
             self::Starter => 'Starter',
             self::Pro => 'Pro',
-            self::Team => 'Team',
         };
     }
 
@@ -76,7 +36,6 @@ enum Plan: string
         return match ($this) {
             self::Starter => 'Everything you need to find out whether flying code is for you.',
             self::Pro => 'The whole catalogue, every mission in it, and the tools that come with them.',
-            self::Team => 'Everything Pro gives one pilot, on its way to a whole classroom.',
         };
     }
 
@@ -90,10 +49,9 @@ enum Plan: string
      * automatically.
      *
      * Which means these bullets have to keep themselves honest, by hand, and a
-     * bullet describing something unbuilt says so in its own words. That is not
-     * hypothetical: Team is on sale before its classroom tools exist, and a card
-     * promising an instructor dashboard that opens nowhere is the difference
-     * between a roadmap and a chargeback.
+     * bullet describing something unbuilt says so in its own words: a card
+     * promising a tool that opens nowhere is the difference between a roadmap
+     * and a chargeback.
      *
      * @return array<int, string>
      */
@@ -121,26 +79,12 @@ enum Plan: string
                 'Premium certificates — coming soon',
                 'Priority support and beta access',
             ],
-            /*
-             * Team is sold today and its classroom tools are not built yet, so
-             * every bullet that describes one says so. The tier is worth buying
-             * on the first two lines alone; the rest is a roadmap, and a card
-             * that presented it as shipped would be selling a screen nobody can
-             * open. The "coming soon" wording is the same phrase the capability
-             * grid uses for an unavailable Feature, so the two agree.
-             */
-            self::Team => [
-                'Everything in Pro',
-                'Priority support and beta access',
-                'Instructor dashboard and student analytics — coming soon',
-                'Seats for 10 students, assignments and shared workspaces — coming soon',
-                '$5/month per additional seat, once seats ship',
-            ],
         };
     }
 
     /**
-     * The billing periods a buyer chooses between, most frequent first.
+     * The ways a buyer can pay for this plan, most frequent first: monthly,
+     * yearly, or once for good.
      *
      * Empty for a plan nobody checks out of.
      *
@@ -149,7 +93,7 @@ enum Plan: string
     public function variants(): array
     {
         return match ($this) {
-            self::Pro, self::Team => ['monthly', 'yearly'],
+            self::Pro => ['monthly', 'yearly', 'lifetime'],
             self::Starter => [],
         };
     }
@@ -157,7 +101,9 @@ enum Plan: string
     /**
      * What a variant costs, in minor units of the configured currency.
      *
-     * Display only. Nothing that charges a card reads this — see priceId().
+     * Display only. Nothing that charges a card reads this: Kelviq charges what
+     * kelviq.config.ts says, and config/plans.php has to be kept in step with
+     * it by hand.
      */
     public function amount(string $variant): ?int
     {
@@ -168,6 +114,11 @@ enum Plan: string
 
     /**
      * Every capability this plan unlocks.
+     *
+     * What the pricing page advertises, and what a `plan_override` grants. A
+     * pilot paying through Kelviq is granted whatever Kelviq's entitlements say
+     * instead — see App\Actions\ResolveFeaturesForUser — so a capability that
+     * ships has to be added to kelviq.config.ts as well as listed here.
      *
      * @return array<int, Feature>
      */
@@ -186,7 +137,6 @@ enum Plan: string
         return match ($this) {
             self::Starter => [],
             self::Pro => $pro,
-            self::Team => [...$pro, Feature::TeamManagement, Feature::ClassroomTools],
         };
     }
 
@@ -198,9 +148,8 @@ enum Plan: string
     /**
      * Whether a viewer on this plan may reach content requiring `$required`.
      *
-     * Catalogue depth only. Team sits above Pro here because it includes
-     * everything Pro sells, not because it unlocks extra missions — which is
-     * why this is not the same question as features().
+     * Catalogue depth only, which is why this is not the same question as
+     * features().
      */
     public function covers(self $required): bool
     {
@@ -215,12 +164,6 @@ enum Plan: string
     /**
      * Whether checkout may be opened for this plan.
      *
-     * Every paid tier is bought with a card: a classroom of ten is a card
-     * payment like any other, and docs/pricing.md has always promised the
-     * upgrade is available at any time. Team's seat pricing is bought the same
-     * way once Phase 7 lands — a second subscription against the seat variants
-     * — which does not change how the base tier is sold.
-     *
      * Starter is the only no. It is an account rather than a purchase and has
      * no price for a card form to charge, which is what makes it the fallback
      * a request with an unreadable plan resolves to: refused here rather than
@@ -229,56 +172,55 @@ enum Plan: string
     public function isSelfServe(): bool
     {
         return match ($this) {
-            self::Pro, self::Team => true,
+            self::Pro => true,
             self::Starter => false,
         };
     }
 
     /**
-     * The Creem product ID selling a given billing period of this plan.
+     * The identifier of the Kelviq plan that sells a variant of this tier.
      *
-     * Returns null when the variant is unconfigured, which is the normal state
-     * in tests and on a fresh checkout. Callers that are about to charge must
-     * treat null as fatal rather than falling through to a default price.
+     * Lifetime is its own Kelviq plan, `pro-lifetime`, so a discount scoped to
+     * the subscription never applies to the one-time sale; both grant the same
+     * entitlements, so both resolve to Pro. Null for a variant the plan does
+     * not sell, and for Starter, which Kelviq does not sell at all. Each value
+     * is the `identifier` of a plan() in kelviq.config.ts.
      */
-    public function priceId(string $variant): ?string
+    public function kelviqPlan(string $variant): ?string
     {
-        $priceId = $this->priceIds()[$variant] ?? null;
-
-        return is_string($priceId) && $priceId !== '' ? $priceId : null;
-    }
-
-    /**
-     * Which variant of this plan a price ID sells.
-     *
-     * The reverse of priceId(), and how a stored subscription is read back as a
-     * billing period the settings page can name.
-     */
-    public function variantFor(?string $priceId): ?string
-    {
-        if ($priceId === null || $priceId === '') {
+        if (! in_array($variant, $this->variants(), true)) {
             return null;
         }
 
-        $variant = array_search($priceId, $this->priceIds(), true);
-
-        return is_string($variant) ? $variant : null;
+        return $variant === 'lifetime' ? 'pro-lifetime' : 'pro';
     }
 
     /**
-     * Every configured variant of this plan, keyed by variant name.
+     * The Kelviq feature whose entitlement means a pilot is on this tier.
      *
-     * @return array<string, string>
+     * Catalogue depth is not a Feature case — it is answered by `covers()` —
+     * so it is sold as a feature of its own, and this is what
+     * App\Actions\ResolvePlanForUser asks Kelviq about.
      */
-    public function priceIds(): array
+    public function catalogFeature(): ?string
     {
-        /** @var array<string, mixed> $configured */
-        $configured = config('plans.prices.'.$this->value, []);
+        return match ($this) {
+            self::Pro => 'full-catalog',
+            self::Starter => null,
+        };
+    }
 
-        return array_filter(
-            $configured,
-            static fn (mixed $priceId): bool => is_string($priceId) && $priceId !== '',
-        );
+    /**
+     * The Kelviq charge period a variant of this plan is sold on.
+     *
+     * Null for a variant the plan does not sell, which is how a checkout for
+     * anything else is refused before it reaches Kelviq.
+     */
+    public function chargePeriod(string $variant): ?string
+    {
+        $period = ['monthly' => 'MONTHLY', 'yearly' => 'YEARLY', 'lifetime' => 'ONE_TIME'][$variant] ?? null;
+
+        return in_array($variant, $this->variants(), true) ? $period : null;
     }
 
     /**
@@ -289,7 +231,6 @@ enum Plan: string
         return match ($this) {
             self::Starter => 0,
             self::Pro => 1,
-            self::Team => 2,
         };
     }
 }

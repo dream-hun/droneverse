@@ -163,18 +163,19 @@ export default function Privacy({ identity, updatedAt }: Props) {
                     </ul>
                     <h3>What we get from payment</h3>
                     <p>
-                        When you subscribe, we store the identifiers Creem gives
-                        us — your customer, subscription and order references,
-                        the product you bought, the subscription's status, its
-                        renewal and period dates, and the amount and currency of
-                        each payment so your billing page can list your
-                        receipts.{' '}
+                        When you open a checkout, we send Kelviq your account's
+                        identifier and email address so the subscription is tied
+                        to your account. Kelviq keeps the record of your
+                        subscription and your payments; we keep no copy of
+                        either. To decide which features you can use we ask
+                        Kelviq what your plan includes, and remember its answer
+                        for a short time.{' '}
                         <strong>
                             We receive nothing at all about the card itself:
                             not the number, not the brand, not the last four
                             digits.
                         </strong>{' '}
-                        Creem holds those, and its billing portal is the only
+                        Kelviq holds those, and its billing portal is the only
                         place they are shown to you.
                     </p>
                     <h3>What is visible to other pilots</h3>
@@ -219,9 +220,9 @@ export default function Privacy({ identity, updatedAt }: Props) {
                             Basis: performance of a contract, Article 6(1)(b),
                         </strong>{' '}
                         with tax and accounting records kept under{' '}
-                        <strong>legal obligation, Article 6(1)(c)</strong> —
-                        mostly by Creem, which is the merchant of record for the
-                        sale.
+                        <strong>legal obligation, Article 6(1)(c)</strong>,
+                        mostly by Kelviq, which is the merchant of record for
+                        the sale.
                     </p>
                     <h3>Security and preventing abuse</h3>
                     <p>
@@ -306,9 +307,10 @@ export default function Privacy({ identity, updatedAt }: Props) {
                         These are strictly necessary to provide a service you
                         have expressly requested, and are exempt from the
                         consent requirement in Article 5(3) of the ePrivacy
-                        Directive. When you open a checkout, Creem loads its own
-                        script and may set its own cookies as merchant of
-                        record; that is covered by their policy.
+                        Directive. When you open a checkout you are taken to
+                        Kelviq's own checkout page, which may set its own
+                        cookies as merchant of record; that is covered by their
+                        policy.
                     </p>
                     <p>
                         On your first visit a short notice says the same thing
@@ -359,8 +361,8 @@ export default function Privacy({ identity, updatedAt }: Props) {
                             password reset and billing messages.
                         </li>
                         <li>
-                            <strong>Creem</strong> — which processes payments
-                            and, as merchant of record, is the seller for your
+                            <strong>Kelviq:</strong> processes payments and, as
+                            merchant of record, is the seller for your
                             subscription. For that sale it acts as its own
                             controller and applies its own privacy notice, not
                             this one.
@@ -429,7 +431,8 @@ export default function Privacy({ identity, updatedAt }: Props) {
                             <strong>Billing and tax records:</strong> kept for
                             as long as tax law requires, which is typically
                             between six and ten years depending on the country.
-                            Most of this is held by Creem as merchant of record.
+                            Most of this is held by Kelviq as merchant of
+                            record.
                         </li>
                         <li>
                             <strong>Support email:</strong> up to two years

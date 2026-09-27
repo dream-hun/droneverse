@@ -9,6 +9,7 @@ use App\Models\DroneModel;
 use App\Models\User;
 use App\Models\UserChallengeProgress;
 use App\Queries\Leaderboard;
+use App\Queries\PilotProgress;
 
 /*
  * The board read model, exercised directly rather than through a page.
@@ -133,6 +134,9 @@ test('a run in one course leaves another courses board cached', function (): voi
     expect($leaderboard->standings($ada)->value('name'))->toBe('Grace');
 });
 
+// A pilot's own totals are PilotProgress's rather than the board's, but they
+// read the same rollup through the same playable scope, so they are held to
+// the same definition here.
 test('it counts only playable content towards a pilots totals', function (): void {
     $pilot = User::factory()->create();
 
@@ -140,14 +144,14 @@ test('it counts only playable content towards a pilots totals', function (): voi
     leaderboardProgress($pilot, $live, points: 30);
     leaderboardProgress($pilot, challenge(published: false), points: 70);
 
-    $leaderboard = resolve(Leaderboard::class);
+    $progress = resolve(PilotProgress::class);
 
-    expect($leaderboard->statsFor($pilot))->toBe(['completed' => 1, 'stars' => 3]);
+    expect($progress->statsFor($pilot))->toBe(['completed' => 1, 'stars' => 3]);
 
     // Keyed by course id, which is how the catalogue cards look their own
     // count up. A count returned under any other key reads as zero on
     // every card rather than failing.
-    expect($leaderboard->completedCountsByCourse($pilot)->all())->toBe([$live->course_id => 1]);
+    expect($progress->completedCountsByCourse($pilot)->all())->toBe([$live->course_id => 1]);
 });
 
 function challenge(bool $published = true): Challenge

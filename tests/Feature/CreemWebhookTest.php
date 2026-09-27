@@ -8,9 +8,11 @@ use App\Http\Middleware\VerifyCreemWebhookSignature;
 use App\Models\Order;
 use App\Models\Subscription;
 use App\Models\User;
+use Carbon\Exceptions\InvalidFormatException;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
 use Pest\TestSuite;
@@ -260,6 +262,46 @@ test('a renewal keeps the subscription in step', function (): void {
 
     expect($subscription->renews_at?->toIso8601String())->toBe('2026-10-01T00:00:00+00:00')
         ->and($user->fresh()?->plan())->toBe(Plan::Pro);
+});
+
+/**
+ * A date Creem sends in a shape nothing here can read is dropped rather than
+ * allowed to fail the delivery, because the status is what decides the plan.
+ * It is also reported: an unreadable date means Creem changed a format, and
+ * a renewal date that silently stops appearing is how that would otherwise
+ * be found.
+ */
+test('an unreadable subscription date is reported and the rest still lands', function (): void {
+    Exceptions::fake();
+    $user = User::factory()->create();
+    postSigned(checkoutCompletedPayload($user->id))->assertOk();
+
+    postSigned(subscriptionEventPayload($user->id, 'subscription.paid', [
+        'next_transaction_date' => 'not a date',
+    ]))->assertOk();
+
+    $subscription = Subscription::query()->where('creem_id', 'sub_900001')->firstOrFail();
+
+    expect($subscription->renews_at)->toBeNull()
+        ->and($user->fresh()?->plan())->toBe(Plan::Pro);
+
+    Exceptions::assertReported(InvalidFormatException::class);
+});
+
+test('an order with an unreadable date is dated on arrival and reported', function (): void {
+    Exceptions::fake();
+    $this->freezeSecond();
+    $user = User::factory()->create();
+    $payload = checkoutCompletedPayload($user->id);
+    Arr::set($payload, 'object.order.created_at', 'not a date');
+
+    postSigned($payload)->assertOk();
+
+    $order = Order::query()->where('creem_id', 'ord_700001')->firstOrFail();
+
+    expect($order->ordered_at->toIso8601String())->toBe(now()->toIso8601String());
+
+    Exceptions::assertReported(InvalidFormatException::class);
 });
 
 /**

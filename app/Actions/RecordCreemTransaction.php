@@ -8,7 +8,6 @@ use App\Models\Order;
 use App\Models\Subscription;
 use App\Models\User;
 use Carbon\CarbonImmutable;
-use Carbon\Exceptions\InvalidFormatException;
 
 /**
  * Record one Creem transaction as a receipt, if it is not one already.
@@ -35,6 +34,11 @@ use Carbon\Exceptions\InvalidFormatException;
  */
 final readonly class RecordCreemTransaction
 {
+    public function __construct(private ParseCreemDate $dates)
+    {
+        //
+    }
+
     /**
      * Returns the order the transaction is recorded as, or null when it is not
      * a payment this application records.
@@ -69,7 +73,7 @@ final readonly class RecordCreemTransaction
 
         $orderId = ResolveCreemBillable::id($transaction, 'order');
         $subscriptionId = ResolveCreemBillable::id($transaction, 'subscription');
-        $orderedAt = $this->date($transaction['created_at'] ?? null) ?? CarbonImmutable::now();
+        $orderedAt = $this->dates->handle($transaction['created_at'] ?? null) ?? CarbonImmutable::now();
 
         $checkout = $this->checkoutPaidBy($orderId, $subscriptionId, $orderedAt);
 
@@ -153,29 +157,5 @@ final readonly class RecordCreemTransaction
         }
 
         return null;
-    }
-
-    /**
-     * Creem's timestamps are ISO strings on most objects and epoch numbers on
-     * transactions — milliseconds in every example, but a value too small to
-     * be milliseconds after 1973 is read as seconds rather than as 1970.
-     */
-    private function date(mixed $value): ?CarbonImmutable
-    {
-        if ((is_int($value) || is_float($value)) && $value > 0) {
-            return $value >= 100_000_000_000
-                ? CarbonImmutable::createFromTimestampMs($value)
-                : CarbonImmutable::createFromTimestamp($value);
-        }
-
-        if (! is_string($value) || $value === '') {
-            return null;
-        }
-
-        try {
-            return CarbonImmutable::parse($value);
-        } catch (InvalidFormatException) {
-            return null;
-        }
     }
 }

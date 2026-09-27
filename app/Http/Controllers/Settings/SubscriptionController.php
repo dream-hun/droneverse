@@ -16,6 +16,7 @@ use App\Models\Customer;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Queries\DefaultSubscription;
+use Closure;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
@@ -34,25 +35,14 @@ final class SubscriptionController extends Controller
      */
     public function update(#[CurrentUser] User $user, ResumeSubscription $resume): RedirectResponse
     {
-        $subscription = $this->subscriptions->for($user);
-
-        if (! $subscription instanceof Subscription) {
-            return $this->failed(__('There is no subscription to resume.'));
-        }
-
-        try {
-            $resumed = $resume->handle($user, $subscription);
-        } catch (Throwable) {
-            return $this->failed(__('Creem could not resume your subscription. Please try again.'));
-        }
-
-        if (! $resumed) {
-            return $this->failed(__('That subscription has already ended. Start a new one from the pricing page.'));
-        }
-
-        Inertia::flash('toast', ['type' => 'success', 'message' => __('Your subscription will continue.')]);
-
-        return to_route('billing.edit');
+        return $this->settle(
+            $user,
+            $resume->handle(...),
+            missing: __('There is no subscription to resume.'),
+            unreachable: __('Creem could not resume your subscription. Please try again.'),
+            refused: __('That subscription has already ended. Start a new one from the pricing page.'),
+            done: __('Your subscription will continue.'),
+        );
     }
 
     /**
@@ -60,28 +50,14 @@ final class SubscriptionController extends Controller
      */
     public function destroy(#[CurrentUser] User $user, CancelSubscription $cancel): RedirectResponse
     {
-        $subscription = $this->subscriptions->for($user);
-
-        if (! $subscription instanceof Subscription) {
-            return $this->failed(__('There is no subscription to cancel.'));
-        }
-
-        try {
-            $cancelled = $cancel->handle($user, $subscription);
-        } catch (Throwable) {
-            return $this->failed(__('Creem could not cancel your subscription. Please try again.'));
-        }
-
-        if (! $cancelled) {
-            return $this->failed(__('That subscription is already scheduled to end.'));
-        }
-
-        Inertia::flash('toast', [
-            'type' => 'success',
-            'message' => __('Cancelled. You keep everything until the end of the period you have paid for.'),
-        ]);
-
-        return to_route('billing.edit');
+        return $this->settle(
+            $user,
+            $cancel->handle(...),
+            missing: __('There is no subscription to cancel.'),
+            unreachable: __('Creem could not cancel your subscription. Please try again.'),
+            refused: __('That subscription is already scheduled to end.'),
+            done: __('Cancelled. You keep everything until the end of the period you have paid for.'),
+        );
     }
 
     /**
@@ -185,6 +161,38 @@ final class SubscriptionController extends Controller
             'type' => 'success',
             'message' => __('You are on :plan now. The difference for the rest of this period has been settled.', ['plan' => $plan->label()]),
         ]);
+
+        return to_route('billing.edit');
+    }
+
+    /**
+     * Hand the pilot's subscription to Creem and say how it went.
+     *
+     * Resuming and cancelling are the same four outcomes with different
+     * words: no subscription to act on, Creem not answering, nothing to
+     * change, or done.
+     *
+     * @param  Closure(User, Subscription): bool  $action  false when there was nothing to change
+     */
+    private function settle(User $user, Closure $action, string $missing, string $unreachable, string $refused, string $done): RedirectResponse
+    {
+        $subscription = $this->subscriptions->for($user);
+
+        if (! $subscription instanceof Subscription) {
+            return $this->failed($missing);
+        }
+
+        try {
+            $changed = $action($user, $subscription);
+        } catch (Throwable) {
+            return $this->failed($unreachable);
+        }
+
+        if (! $changed) {
+            return $this->failed($refused);
+        }
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => $done]);
 
         return to_route('billing.edit');
     }

@@ -55,6 +55,9 @@ use App\Models\Challenge;
  *
  * @phpstan-import-type Environment from Challenge
  * @phpstan-import-type SuccessCriteria from Challenge
+ * @phpstan-import-type Obstacle from Challenge
+ *
+ * @phpstan-type SolidCore array{centreX: float, centreY: float, centreZ: float, cos: float, sin: float, halfX: float, halfY: float, halfZ: float, minX: float, maxX: float, minY: float, maxY: float, minZ: float, maxZ: float}
  */
 final readonly class ReconstructRunTelemetry
 {
@@ -537,99 +540,129 @@ final readonly class ReconstructRunTelemetry
             return 0;
         }
 
-        $pathMinX = min($xs);
-        $pathMaxX = max($xs);
-        $pathMinY = min($ys);
-        $pathMaxY = max($ys);
-        $pathMinZ = min($zs);
-        $pathMaxZ = max($zs);
+        $path = [
+            'minX' => min($xs), 'maxX' => max($xs),
+            'minY' => min($ys), 'maxY' => max($ys),
+            'minZ' => min($zs), 'maxZ' => max($zs),
+        ];
 
         $strikes = 0;
 
         foreach ($obstacles as $obstacle) {
-            $halfX = ((float) ($obstacle['sx'] ?? ($obstacle['radius'] ?? 0.5) * 2)) / 2 - self::INTRUSION_MARGIN;
-            $halfY = ((float) ($obstacle['sy'] ?? $obstacle['height'] ?? 1)) / 2 - self::INTRUSION_MARGIN;
-            $halfZ = ((float) ($obstacle['sz'] ?? ($obstacle['radius'] ?? 0.5) * 2)) / 2 - self::INTRUSION_MARGIN;
-            if ($halfX <= 0) {
-                continue;
+            $solid = $this->solidCore($obstacle);
+
+            if ($solid !== null && $this->overlaps($solid, $path) && $this->pathEntersSolid($xs, $ys, $zs, $samples, $solid)) {
+                $strikes++;
             }
+        }
 
-            if ($halfY <= 0) {
-                continue;
-            }
+        return $strikes;
+    }
 
-            if ($halfZ <= 0) {
-                continue;
-            }
+    /**
+     * The part of an obstacle a path has to be inside to count as a strike,
+     * or null when the margin leaves nothing of it.
+     *
+     * Carries both frames the sweep needs: the half-extents and rotation of
+     * the box in its own frame, for the exact test, and the axis-aligned box
+     * that holds it in the world, for the cheap rejections in front of it.
+     *
+     * @param  Obstacle  $obstacle
+     * @return SolidCore|null
+     */
+    private function solidCore(array $obstacle): ?array
+    {
+        $halfX = ((float) ($obstacle['sx'] ?? ($obstacle['radius'] ?? 0.5) * 2)) / 2 - self::INTRUSION_MARGIN;
+        $halfY = ((float) ($obstacle['sy'] ?? $obstacle['height'] ?? 1)) / 2 - self::INTRUSION_MARGIN;
+        $halfZ = ((float) ($obstacle['sz'] ?? ($obstacle['radius'] ?? 0.5) * 2)) / 2 - self::INTRUSION_MARGIN;
 
-            $rotation = (float) ($obstacle['rotationY'] ?? 0);
-            $cos = cos($rotation);
-            $sin = sin($rotation);
-            $centreX = (float) $obstacle['x'];
-            $centreY = (float) $obstacle['y'];
-            $centreZ = (float) $obstacle['z'];
+        if ($halfX <= 0 || $halfY <= 0 || $halfZ <= 0) {
+            return null;
+        }
 
-            // Half-extents of the Y-rotated box measured on the world axes:
-            // exact, so nothing that could be struck is discarded here.
-            $worldHalfX = abs($halfX * $cos) + abs($halfZ * $sin);
-            $worldHalfZ = abs($halfX * $sin) + abs($halfZ * $cos);
+        $rotation = (float) ($obstacle['rotationY'] ?? 0);
+        $cos = cos($rotation);
+        $sin = sin($rotation);
+        $centreX = (float) $obstacle['x'];
+        $centreY = (float) $obstacle['y'];
+        $centreZ = (float) $obstacle['z'];
 
-            $minX = $centreX - $worldHalfX;
-            $maxX = $centreX + $worldHalfX;
-            $minY = $centreY - $halfY;
-            $maxY = $centreY + $halfY;
-            $minZ = $centreZ - $worldHalfZ;
-            $maxZ = $centreZ + $worldHalfZ;
-            if ($maxX < $pathMinX) {
-                continue;
-            }
+        // Half-extents of the Y-rotated box measured on the world axes:
+        // exact, so nothing that could be struck is discarded here.
+        $worldHalfX = abs($halfX * $cos) + abs($halfZ * $sin);
+        $worldHalfZ = abs($halfX * $sin) + abs($halfZ * $cos);
 
-            if ($minX > $pathMaxX) {
-                continue;
-            }
+        return [
+            'centreX' => $centreX,
+            'centreY' => $centreY,
+            'centreZ' => $centreZ,
+            'cos' => $cos,
+            'sin' => $sin,
+            'halfX' => $halfX,
+            'halfY' => $halfY,
+            'halfZ' => $halfZ,
+            'minX' => $centreX - $worldHalfX,
+            'maxX' => $centreX + $worldHalfX,
+            'minY' => $centreY - $halfY,
+            'maxY' => $centreY + $halfY,
+            'minZ' => $centreZ - $worldHalfZ,
+            'maxZ' => $centreZ + $worldHalfZ,
+        ];
+    }
 
-            if ($maxY < $pathMinY) {
-                continue;
-            }
+    /**
+     * Whether an obstacle's world box and the path's own box overlap at all.
+     *
+     * @param  SolidCore  $solid
+     * @param  array{minX: float, maxX: float, minY: float, maxY: float, minZ: float, maxZ: float}  $path
+     */
+    private function overlaps(array $solid, array $path): bool
+    {
+        return $solid['maxX'] >= $path['minX'] && $solid['minX'] <= $path['maxX']
+            && $solid['maxY'] >= $path['minY'] && $solid['minY'] <= $path['maxY']
+            && $solid['maxZ'] >= $path['minZ'] && $solid['minZ'] <= $path['maxZ'];
+    }
 
-            if ($minY > $pathMaxY) {
-                continue;
-            }
+    /**
+     * Whether any segment of the path passes into an obstacle's solid core.
+     *
+     * The loop is the hot path of the whole class, so what settles most
+     * segments is written into it rather than called from it.
+     *
+     * @param  array<int, float>  $xs
+     * @param  array<int, float>  $ys
+     * @param  array<int, float>  $zs
+     * @param  SolidCore  $solid
+     */
+    private function pathEntersSolid(array $xs, array $ys, array $zs, int $samples, array $solid): bool
+    {
+        [
+            'centreX' => $centreX, 'centreY' => $centreY, 'centreZ' => $centreZ,
+            'cos' => $cos, 'sin' => $sin,
+            'halfX' => $halfX, 'halfY' => $halfY, 'halfZ' => $halfZ,
+            'minX' => $minX, 'maxX' => $maxX,
+            'minY' => $minY, 'maxY' => $maxY,
+            'minZ' => $minZ, 'maxZ' => $maxZ,
+        ] = $solid;
 
-            if ($maxZ < $pathMinZ) {
-                continue;
-            }
+        $previousX = $xs[0];
+        $previousY = $ys[0];
+        $previousZ = $zs[0];
 
-            if ($minZ > $pathMaxZ) {
-                continue;
-            }
+        for ($i = 1; $i < $samples; $i++) {
+            $x = $xs[$i];
+            $y = $ys[$i];
+            $z = $zs[$i];
 
-            $previousX = $xs[0];
-            $previousY = $ys[0];
-            $previousZ = $zs[0];
+            // A segment lying wholly beyond one face of the world box
+            // cannot reach the rotated box inside it. Almost every segment
+            // of a real flight is settled right here, which is what keeps
+            // the rotation and the slab test off the hot path.
+            $beyond = ($x > $maxX && $previousX > $maxX) || ($x < $minX && $previousX < $minX)
+                || ($y > $maxY && $previousY > $maxY) || ($y < $minY && $previousY < $minY)
+                || ($z > $maxZ && $previousZ > $maxZ) || ($z < $minZ && $previousZ < $minZ);
 
-            for ($i = 1; $i < $samples; $i++) {
-                $x = $xs[$i];
-                $y = $ys[$i];
-                $z = $zs[$i];
-
-                // A segment lying wholly beyond one face of the world box
-                // cannot reach the rotated box inside it. Almost every
-                // segment of a real flight is settled right here, which is
-                // what keeps the rotation and the slab test off the hot
-                // path.
-                if (
-                    ($x > $maxX && $previousX > $maxX) || ($x < $minX && $previousX < $minX)
-                    || ($y > $maxY && $previousY > $maxY) || ($y < $minY && $previousY < $minY)
-                    || ($z > $maxZ && $previousZ > $maxZ) || ($z < $minZ && $previousZ < $minZ)
-                ) {
-                    $previousX = $x;
-                    $previousY = $y;
-                    $previousZ = $z;
-
-                    continue;
-                }
-
+            if (! $beyond) {
                 $dx = $previousX - $centreX;
                 $dz = $previousZ - $centreZ;
                 $dx2 = $x - $centreX;
@@ -644,27 +677,29 @@ final readonly class ReconstructRunTelemetry
                     $dx2 * $sin + $dz2 * $cos,
                     $halfX, $halfY, $halfZ,
                 )) {
-                    $strikes++;
-
-                    break;
+                    return true;
                 }
-
-                $previousX = $x;
-                $previousY = $y;
-                $previousZ = $z;
             }
+
+            $previousX = $x;
+            $previousY = $y;
+            $previousZ = $z;
         }
 
-        return $strikes;
+        return false;
     }
 
     /**
      * Whether the segment between two local-frame points enters the box.
      *
      * The slab test: clip the segment against each pair of opposing faces in
-     * turn and see whether any of it survives. Written out per axis rather
-     * than looped, because this runs once per path segment per obstacle and
-     * the loop's own bookkeeping cost more than the arithmetic in it.
+     * turn and see whether any of it survives.
+     *
+     * One call per pair of faces rather than the three written out in line.
+     * The calls are not free, but only segments the world-box rejection in
+     * {@see self::pathEntersSolid()} could not settle get here: a
+     * four-thousand-sample path aimed at six obstacles, the most any authored
+     * mission has, measured about a fifth of a millisecond slower for them.
      */
     private function segmentEntersBox(
         float $fromX, float $fromY, float $fromZ,
@@ -674,70 +709,30 @@ final readonly class ReconstructRunTelemetry
         $enter = 0.0;
         $exit = 1.0;
 
-        $direction = $toX - $fromX;
+        return $this->clipToSlab($fromX, $toX, $halfX, $enter, $exit)
+            && $this->clipToSlab($fromY, $toY, $halfY, $enter, $exit)
+            && $this->clipToSlab($fromZ, $toZ, $halfZ, $enter, $exit);
+    }
+
+    /**
+     * Narrow the part of the segment still inside the box to the part that is
+     * also between one pair of opposing faces, false once nothing is left.
+     *
+     * `$enter` and `$exit` are that part as fractions of the segment, carried
+     * from one pair of faces to the next.
+     */
+    private function clipToSlab(float $from, float $to, float $half, float &$enter, float &$exit): bool
+    {
+        $direction = $to - $from;
 
         if ($direction > -1e-9 && $direction < 1e-9) {
             // Parallel to this pair of faces: either always between them or
             // never.
-            if ($fromX > $halfX || $fromX < -$halfX) {
-                return false;
-            }
-        } else {
-            $first = (-$halfX - $fromX) / $direction;
-            $second = ($halfX - $fromX) / $direction;
-
-            if ($first > $second) {
-                [$first, $second] = [$second, $first];
-            }
-
-            if ($first > $enter) {
-                $enter = $first;
-            }
-
-            if ($second < $exit) {
-                $exit = $second;
-            }
-
-            if ($enter > $exit) {
-                return false;
-            }
+            return $from <= $half && $from >= -$half;
         }
 
-        $direction = $toY - $fromY;
-
-        if ($direction > -1e-9 && $direction < 1e-9) {
-            if ($fromY > $halfY || $fromY < -$halfY) {
-                return false;
-            }
-        } else {
-            $first = (-$halfY - $fromY) / $direction;
-            $second = ($halfY - $fromY) / $direction;
-
-            if ($first > $second) {
-                [$first, $second] = [$second, $first];
-            }
-
-            if ($first > $enter) {
-                $enter = $first;
-            }
-
-            if ($second < $exit) {
-                $exit = $second;
-            }
-
-            if ($enter > $exit) {
-                return false;
-            }
-        }
-
-        $direction = $toZ - $fromZ;
-
-        if ($direction > -1e-9 && $direction < 1e-9) {
-            return $fromZ <= $halfZ && $fromZ >= -$halfZ;
-        }
-
-        $first = (-$halfZ - $fromZ) / $direction;
-        $second = ($halfZ - $fromZ) / $direction;
+        $first = (-$half - $from) / $direction;
+        $second = ($half - $from) / $direction;
 
         if ($first > $second) {
             [$first, $second] = [$second, $first];

@@ -9,6 +9,7 @@ use App\Models\ChallengeRun;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use stdClass;
 
@@ -194,7 +195,36 @@ final readonly class BuildAdminOverview
      */
     private function busiestMissions(CarbonImmutable $now): array
     {
-        $rows = ChallengeRun::query()
+        $rows = $this->runsPerMission($now);
+
+        $challenges = Challenge::query()
+            ->select(['id', 'course_id', 'title', 'slug'])
+            ->with('course:id,title,slug')
+            ->findMany($rows->pluck('challenge_id'))
+            ->keyBy('id');
+
+        return $rows
+            ->map(function (stdClass $record) use ($challenges): ?array {
+                $row = fluent($record);
+                $challenge = $challenges->get($row->integer('challenge_id'));
+
+                return $challenge instanceof Challenge
+                    ? $this->missionRow($challenge, $row->integer('runs'), $row->integer('pilots'), $row->integer('clears'))
+                    : null;
+            })
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * This week's runs counted per mission, the busiest first.
+     *
+     * @return Collection<int, stdClass>
+     */
+    private function runsPerMission(CarbonImmutable $now): Collection
+    {
+        return ChallengeRun::query()
             ->toBase()
             ->where('created_at', '>=', $now->subWeek())
             ->groupBy('challenge_id')
@@ -209,36 +239,21 @@ final readonly class BuildAdminOverview
             ->orderBy('challenge_id')
             ->limit(self::BUSIEST_LIMIT)
             ->get();
+    }
 
-        $challenges = Challenge::query()
-            ->select(['id', 'course_id', 'title', 'slug'])
-            ->with('course:id,title,slug')
-            ->findMany($rows->pluck('challenge_id'))
-            ->keyBy('id');
-
-        return $rows
-            ->map(function (stdClass $record) use ($challenges): ?array {
-                $row = fluent($record);
-                $challenge = $challenges->get($row->integer('challenge_id'));
-
-                if (! $challenge instanceof Challenge) {
-                    return null;
-                }
-
-                $runs = $row->integer('runs');
-
-                return [
-                    'challengeTitle' => $challenge->title,
-                    'challengeSlug' => $challenge->slug,
-                    'courseTitle' => $challenge->course->title,
-                    'courseSlug' => $challenge->course->slug,
-                    'runs' => $runs,
-                    'pilots' => $row->integer('pilots'),
-                    'clearRate' => $runs === 0 ? 0.0 : round($row->integer('clears') / $runs, 3),
-                ];
-            })
-            ->filter()
-            ->values()
-            ->all();
+    /**
+     * @return array{challengeTitle: string, challengeSlug: string, courseTitle: string, courseSlug: string, runs: int, pilots: int, clearRate: float}
+     */
+    private function missionRow(Challenge $challenge, int $runs, int $pilots, int $clears): array
+    {
+        return [
+            'challengeTitle' => $challenge->title,
+            'challengeSlug' => $challenge->slug,
+            'courseTitle' => $challenge->course->title,
+            'courseSlug' => $challenge->course->slug,
+            'runs' => $runs,
+            'pilots' => $pilots,
+            'clearRate' => $runs === 0 ? 0.0 : round($clears / $runs, 3),
+        ];
     }
 }

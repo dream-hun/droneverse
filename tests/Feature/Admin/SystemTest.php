@@ -51,6 +51,34 @@ test('reports live checks and the failed jobs', function (): void {
             ->where('logViewerUrl', null));
 });
 
+test('counts the watched tables in one query', function (): void {
+    $admin = User::factory()->admin()->create();
+    User::factory()->count(2)->create();
+    failJob();
+
+    DB::enableQueryLog();
+
+    $this->actingAs($admin)
+        ->get(route('admin.system'))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('report.tables.0.name', 'users')
+            ->where('report.tables.0.rows', 3)
+            ->where('report.tables.9.name', 'failed_jobs')
+            ->where('report.tables.9.rows', 1));
+
+    // Quoted by the connection's own grammar: MySQL's CI job runs this too.
+    $grammar = DB::getQueryGrammar();
+    $counted = fn (string $table): string => sprintf('(select count(*) from %s)', $grammar->wrapTable($table));
+
+    $statements = array_filter(
+        array_column(DB::getQueryLog(), 'query'),
+        fn (string $query): bool => str_contains($query, $counted('users')) && str_contains($query, $counted('failed_jobs')),
+    );
+
+    expect($statements)->toHaveCount(1);
+});
+
 test('a figure that cannot be read shows as unknown and reports why', function (): void {
     Exceptions::fake();
     config([

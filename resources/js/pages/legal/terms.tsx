@@ -143,19 +143,20 @@ export default function Terms({ identity, updatedAt }: Props) {
             body: (
                 <>
                     <p>
-                        Starter is free and stays free. Pro and Team are paid
-                        subscriptions billed monthly or yearly. What each plan
+                        Starter is free and stays free. Pro is a paid
+                        subscription billed monthly or yearly, or a one-time
+                        Lifetime purchase that does not renew. What each plan
                         includes, and what it costs, is set out on the pricing
                         page — that page is part of these terms, and the price
                         shown there before you buy is the price you pay.
                     </p>
                     <p>
                         <strong>
-                            Payments are handled by Creem, which is the merchant
-                            of record for every subscription sold here.
+                            Payments are handled by Kelviq, which is the
+                            merchant of record for every subscription sold here.
                         </strong>{' '}
                         That means the purchase itself is a contract between you
-                        and Creem: they take the payment, they appear on your
+                        and Kelviq: they take the payment, they appear on your
                         card statement and on your invoice, and they calculate,
                         collect and remit any VAT or sales tax owed on the sale.
                         Their terms and privacy notice apply to that part of the
@@ -236,7 +237,7 @@ export default function Terms({ identity, updatedAt }: Props) {
                         meantime, we may keep an amount in proportion to what
                         you used before withdrawing, measured against the full
                         price of the subscription. Refunds are issued through
-                        Creem as merchant of record.
+                        Kelviq as merchant of record.
                     </p>
                     <div className="border border-primary bg-primary/5 p-6">
                         <h3>What we need from you</h3>

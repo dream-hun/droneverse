@@ -45,8 +45,6 @@ final readonly class BuildSystemReport
         'user_challenge_progress',
         'quiz_attempts',
         'drone_photos',
-        'creem_orders',
-        'creem_subscriptions',
         'sessions',
         'jobs',
         'failed_jobs',

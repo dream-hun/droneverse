@@ -1,10 +1,11 @@
-import { Head, Link, router, useHttp, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Check, Minus } from 'lucide-react';
-import { useCallback, useId, useState } from 'react';
-import { toast } from 'sonner';
+import { useId, useState } from 'react';
 import CheckoutController from '@/actions/App/Http/Controllers/CheckoutController';
-import SubscriptionController from '@/actions/App/Http/Controllers/Settings/SubscriptionController';
-import { ConfirmDialog } from '@/components/confirm-dialog';
+import {
+    BillingPeriodToggle,
+    periodSuffix,
+} from '@/components/billing-period-toggle';
 import { SectionLabel } from '@/components/marketing/marketing-shell';
 import { SiteFooter } from '@/components/marketing/site-footer';
 import { SiteHeader } from '@/components/marketing/site-header';
@@ -17,14 +18,10 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { useCreem } from '@/hooks/use-creem';
 import { cn } from '@/lib/utils';
 import { dashboard, register } from '@/routes';
-import { edit as editBilling } from '@/routes/billing';
 import { index as coursesIndex } from '@/routes/courses';
-import { thankYou as subscriptionThankYou } from '@/routes/subscription';
 import type {
-    CreemConfig,
     PlanComparisonRow,
     PlanVariant,
     PricingPlan,
@@ -33,26 +30,20 @@ import type {
 type PricingProps = {
     plans: PricingPlan[];
     comparison: PlanComparisonRow[];
-    creem: CreemConfig;
-};
-
-/**
- * The server mints a whole checkout URL, so there is nothing here to assemble.
- * That URL is also a working standalone page, which is what lets the hook fall
- * back to a navigation when the overlay script never arrives.
- */
-type CheckoutResponse = {
-    checkout: { url: string };
 };
 
 const FAQS = [
     {
-        question: 'Can I change plan later?',
-        answer: 'Yes, in either direction and at any time. Upgrading, downgrading and moving to yearly billing all change the subscription you already have rather than starting a second one, and the difference is settled on your next renewal.',
+        question: 'Can I switch between monthly and yearly?',
+        answer: 'Yes, at any time. Open Manage billing in your account settings to move between monthly and yearly billing, update your card or download invoices.',
+    },
+    {
+        question: 'What is Lifetime?',
+        answer: 'Pro, paid for once. There is nothing to renew or cancel, and everything Pro includes stays on your account.',
     },
     {
         question: 'Can I cancel my subscription?',
-        answer: 'Any time. Cancelling schedules the end of the period you have already paid for; nothing is taken away before then.',
+        answer: 'Any time, from Manage billing in your account settings. Cancelling schedules the end of the period you have already paid for; nothing is taken away before then.',
     },
     {
         question: 'Do I keep what I have built if I downgrade?',
@@ -72,61 +63,6 @@ function ctaClass(emphasised: boolean) {
         emphasised
             ? 'bg-primary text-primary-foreground hover:brightness-110'
             : 'border border-border text-foreground hover:border-primary hover:text-primary',
-    );
-}
-
-/**
- * The bar above the cards, switching every priced tier between its periods.
- */
-function BillingPeriodToggle({
-    variant,
-    onChange,
-    saving,
-}: {
-    variant: PlanVariant;
-    onChange: (variant: PlanVariant) => void;
-    saving: number | null;
-}) {
-    const options: { value: PlanVariant; label: string }[] = [
-        { value: 'monthly', label: 'Monthly' },
-        { value: 'yearly', label: 'Yearly' },
-    ];
-
-    return (
-        <div
-            role="group"
-            aria-label="Billing period"
-            className="inline-flex border border-border"
-        >
-            {options.map((option) => (
-                <button
-                    key={option.value}
-                    type="button"
-                    aria-pressed={variant === option.value}
-                    onClick={() => onChange(option.value)}
-                    className={cn(
-                        'px-5 py-2.5 font-mono text-xs tracking-widest uppercase transition-colors',
-                        variant === option.value
-                            ? 'bg-primary text-primary-foreground'
-                            : 'text-muted-foreground hover:text-primary',
-                    )}
-                >
-                    {option.label}
-                    {option.value === 'yearly' && saving !== null && (
-                        <span
-                            className={cn(
-                                'ml-2',
-                                variant === 'yearly'
-                                    ? 'text-primary-foreground/70'
-                                    : 'text-primary',
-                            )}
-                        >
-                            save {saving}%
-                        </span>
-                    )}
-                </button>
-            ))}
-        </div>
     );
 }
 
@@ -160,107 +96,41 @@ function PlanPriceLine({
         <p className="text-4xl font-extrabold tracking-tighter">
             {price.formatted}
             <span className="text-lg font-normal text-muted-foreground">
-                {variant === 'yearly' ? ' / year' : ' / month'}
+                {periodSuffix(variant)}
             </span>
         </p>
     );
 }
 
-export default function Pricing({ plans, comparison, creem }: PricingProps) {
+export default function Pricing({ plans, comparison }: PricingProps) {
     const { auth } = usePage().props;
     const [variant, setVariant] = useState<PlanVariant>('monthly');
+    const [processing, setProcessing] = useState(false);
     const comparisonCaptionId = useId();
-
-    const checkout = useHttp<
-        { plan: string; variant: string },
-        CheckoutResponse
-    >({ plan: '', variant: '' });
 
     const annualSaving =
         plans.find((plan) => plan.prices.yearly?.savingPercent)?.prices.yearly
             ?.savingPercent ?? null;
 
     /**
-     * Hand a paid-up buyer over to the thank-you page.
-     *
-     * An Inertia visit rather than the embed's own redirect, and rather than
-     * the waiting this page used to do itself. The overlay is an iframe on the
-     * document, so a client-side visit swaps the page underneath it without
-     * tearing it down: the buyer closes the overlay when they are ready and
-     * finds the confirmation behind it. The hook cancels the embed's pending
-     * navigation to the same page for exactly that reason — see
-     * openCheckoutUrl in @/hooks/use-creem.
-     *
-     * The plan is granted by a webhook arriving separately, and waiting for it
-     * belongs to the page that says so. This one has nothing left to poll for.
-     */
-    const onCheckoutCompleted = useCallback(() => {
-        router.visit(subscriptionThankYou());
-    }, []);
-
-    const { ready, openCheckout } = useCreem(creem, {
-        onCompleted: onCheckoutCompleted,
-    });
-
-    /**
-     * Ask the server to open a checkout.
+     * Ask the server to open a checkout, and follow it there.
      *
      * The request carries a tier and a period; the price it resolves to is the
-     * server's business. The overlay is opened from the URL in the response
-     * rather than from anything this page knows.
-     *
-     * The error branch is the whole of this page's failure reporting. The embed
-     * publishes no checkout-failure event of any kind, so once the overlay is
-     * open the app is blind to whatever happens inside it. Every failure
-     * anybody will hear about is one this request returned: a plan that is not
-     * for sale, a period with no configured product, or a provider the server
-     * could not reach. Swallowing an error here would leave a buyer clicking a
-     * button that visibly does nothing.
+     * server's business. It answers with Kelviq's hosted checkout as an Inertia
+     * location, which Inertia follows with a full navigation — or with a flashed
+     * toast and a redirect back, which the global flash handler shows.
      */
     const startCheckout = (plan: PricingPlan) => {
-        checkout.setData({ plan: plan.value, variant });
-
-        checkout.post(CheckoutController.store.url(), {
-            onSuccess: (response) => openCheckout(response.checkout.url),
-            onError: (errors) =>
-                toast.error(
-                    errors.plan ??
-                        'Checkout could not be opened. Please try again.',
-                ),
-        });
+        router.post(
+            CheckoutController.store.url(),
+            { plan: plan.value, variant },
+            {
+                preserveScroll: true,
+                onStart: () => setProcessing(true),
+                onFinish: () => setProcessing(false),
+            },
+        );
     };
-
-    /**
-     * Move the subscription this pilot already holds onto another plan.
-     *
-     * Never a checkout: a second subscription would bill them twice for one
-     * account and grant nothing the first one did not. The server decides that
-     * this viewer is in a position to switch — the button only appears when it
-     * said so — and it answers with a redirect to billing settings, where the
-     * new plan and its renewal date are spelled out.
-     *
-     * The promise is what keeps the dialog open until the request settles, so a
-     * rejected change leaves the pilot somewhere they can read the error.
-     */
-    const switchPlan = (plan: PricingPlan) =>
-        new Promise<void>((resolve, reject) => {
-            router.put(
-                SubscriptionController.swap.url(),
-                { plan: plan.value, variant },
-                {
-                    onSuccess: () => resolve(),
-                    onError: (errors) => {
-                        toast.error(
-                            errors.plan ??
-                                errors.variant ??
-                                'Your plan could not be changed. Please try again.',
-                        );
-
-                        reject(new Error('The plan change was refused.'));
-                    },
-                },
-            );
-        });
 
     const renderCta = (plan: PricingPlan) => {
         const emphasised = plan.isPopular;
@@ -281,61 +151,18 @@ export default function Pricing({ plans, comparison, creem }: PricingProps) {
                  * The server decides that the tier is buyable by this viewer;
                  * whether the period they are looking at is buyable is a
                  * separate answer, and it changes under the toggle without
-                 * another round trip. A tier half-listed in the Creem account
-                 * — the monthly product created, the yearly one not yet —
-                 * would otherwise offer a button that can only ever come back
-                 * as an error toast.
+                 * another round trip.
                  */
                 const purchasable = plan.prices[variant]?.purchasable === true;
 
                 return (
                     <button
                         className={ctaClass(emphasised)}
-                        disabled={!ready || !purchasable || checkout.processing}
+                        disabled={!purchasable || processing}
                         onClick={() => startCheckout(plan)}
                     >
-                        {!ready
-                            ? 'Checkout unavailable'
-                            : purchasable
-                              ? plan.cta.label
-                              : 'Not yet available'}
+                        {purchasable ? plan.cta.label : 'Not yet available'}
                     </button>
-                );
-            }
-
-            case 'manage':
-                return (
-                    <Link href={editBilling()} className={ctaClass(false)}>
-                        {plan.cta.label}
-                    </Link>
-                );
-
-            case 'switch': {
-                /*
-                 * The same per-period check checkout makes, for the same
-                 * reason: the card was decided once, and the toggle moves under
-                 * it without asking the server again.
-                 */
-                const purchasable = plan.prices[variant]?.purchasable === true;
-
-                return (
-                    <ConfirmDialog
-                        trigger={
-                            <button
-                                className={ctaClass(emphasised)}
-                                disabled={!purchasable}
-                            >
-                                {purchasable
-                                    ? plan.cta.label
-                                    : 'Not yet available'}
-                            </button>
-                        }
-                        title={`${plan.cta.label}?`}
-                        description={`Your subscription moves to ${plan.label}, ${variant === 'yearly' ? 'billed yearly' : 'billed monthly'}. Nothing is charged today — the difference between what you have paid for and what you are moving to is settled on your next renewal.`}
-                        confirmLabel={plan.cta.label}
-                        pendingLabel="Changing…"
-                        onConfirm={() => switchPlan(plan)}
-                    />
                 );
             }
 
@@ -438,7 +265,7 @@ export default function Pricing({ plans, comparison, creem }: PricingProps) {
                             />
                         </div>
 
-                        <div className="grid gap-1 md:grid-cols-2 lg:grid-cols-3">
+                        <div className="grid max-w-4xl gap-1 md:grid-cols-2">
                             {plans.map(renderCard)}
                         </div>
                     </section>

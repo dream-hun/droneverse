@@ -17,7 +17,7 @@ import type { ActivityKind, ActivityPage } from '@/types/admin';
 
 type ActivityProps = {
     activity: ActivityPage;
-    /** The sources this viewer may read; money only with `view_finance`. */
+    /** The sources the feed can read. */
     kinds: ActivityKind[];
     type: ActivityKind | null;
 };

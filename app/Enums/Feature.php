@@ -23,9 +23,10 @@ namespace App\Enums;
  * needs a flag. Adding the case back means building that ledger with it.
  *
  * API access and single sign-on left with the Enterprise tier that was the only
- * thing granting them. Every case here has to be granted by some plan: the
- * pricing page renders one comparison row per case, and a row no tier can tick
- * advertises a capability nobody is able to buy.
+ * thing granting them, and team management and classroom tools with the Team
+ * tier. Every case here has to be granted by some plan: the pricing page
+ * renders one comparison row per case, and a row no tier can tick advertises a
+ * capability nobody is able to buy.
  *
  * A Python runtime left for the opposite reason — every paid tier granted it
  * and nothing behind it exists. A second language is a second worker sandbox, a
@@ -40,8 +41,6 @@ enum Feature: string
     case PremiumCertificates = 'premium_certificates';
     case AdvancedAnalytics = 'advanced_analytics';
     case DownloadableProjects = 'downloadable_projects';
-    case TeamManagement = 'team_management';
-    case ClassroomTools = 'classroom_tools';
     case PrioritySupport = 'priority_support';
     case BetaAccess = 'beta_access';
 
@@ -61,8 +60,6 @@ enum Feature: string
             self::PremiumCertificates => 'Premium Certificates',
             self::AdvancedAnalytics => 'Advanced Analytics',
             self::DownloadableProjects => 'Downloadable Projects',
-            self::TeamManagement => 'Team Management',
-            self::ClassroomTools => 'Classroom Tools',
             self::PrioritySupport => 'Priority Support',
             self::BetaAccess => 'Beta Access',
         };
@@ -81,9 +78,26 @@ enum Feature: string
     {
         return match ($this) {
             self::PrioritySupport, self::BetaAccess, self::AdvancedAnalytics, self::DroneConfigEditor => true,
-            self::MissionBuilder,
-            self::PremiumCertificates,
-            self::DownloadableProjects, self::TeamManagement, self::ClassroomTools => false,
+            self::MissionBuilder, self::PremiumCertificates, self::DownloadableProjects => false,
+        };
+    }
+
+    /**
+     * The identifier of the Kelviq feature that grants this capability.
+     *
+     * Null for everything that has not shipped: Kelviq only sells what exists,
+     * so an unbuilt capability has no feature in kelviq.config.ts and nobody
+     * paying through Kelviq holds it. The commit that ships one adds its
+     * feature there, and its identifier here.
+     */
+    public function kelviqId(): ?string
+    {
+        return match ($this) {
+            self::DroneConfigEditor => 'drone-config-editor',
+            self::AdvancedAnalytics => 'advanced-analytics',
+            self::PrioritySupport => 'priority-support',
+            self::BetaAccess => 'beta-access',
+            self::MissionBuilder, self::PremiumCertificates, self::DownloadableProjects => null,
         };
     }
 }

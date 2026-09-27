@@ -56,7 +56,6 @@ final class RoleSeeder extends Seeder
         return [
             'content-manager' => [AdminPermission::AccessAdmin, AdminPermission::ManageCourses],
             'support' => [AdminPermission::AccessAdmin, AdminPermission::ManageUsers],
-            'finance' => [AdminPermission::AccessAdmin, AdminPermission::ViewFinance],
         ];
     }
 }

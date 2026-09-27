@@ -5,85 +5,67 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\Plan;
-use App\Http\Integrations\Creem;
+use App\Http\Integrations\Kelviq;
 use App\Models\User;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 use RuntimeException;
 
 /**
- * Open a Creem checkout for a plan, server-side.
+ * Open a Kelviq checkout for a plan, server-side.
  *
- * Returns the checkout URL Creem mints for the resolved product. The browser is
- * handed a checkout it cannot alter the price of — it never learns a product
- * ID, and it has nothing to submit but the plan it clicked. The URL is already
- * scoped to this buyer and this product by the time it leaves here.
+ * Returns the URL of the hosted checkout Kelviq mints. The browser is handed a
+ * checkout it cannot alter the price of — it names a tier and a billing period
+ * and nothing else, and what that costs is Kelviq's answer.
  */
 final readonly class StartCheckout
 {
-    public function __construct(
-        private ResolveCheckoutPrice $prices,
-        private Creem $creem,
-    ) {
+    public function __construct(private Kelviq $kelviq)
+    {
         //
     }
 
     /**
-     * Returns null when the plan is not for sale in this environment; see
-     * ResolveCheckoutPrice for what that covers.
+     * Returns null when the plan or period is not for sale: Starter, a period
+     * the plan does not sell, or an environment with no Kelviq key.
      *
-     * Throws when Creem will not mint a checkout — no API key, a product the
-     * account does not have, or the API answering with an error. Callers
-     * reached from a request must turn it into something a buyer can read
-     * rather than letting it become a 500; see
-     * App\Http\Controllers\CheckoutController.
+     * Throws when Kelviq will not mint a checkout. Callers reached from a
+     * request must turn it into something a buyer can read rather than letting
+     * it become a 500; see App\Http\Controllers\CheckoutController.
+     *
+     * @throws ConnectionException|RequestException|RuntimeException
      */
     public function handle(User $user, Plan $plan, string $variant): ?string
     {
-        $productId = $this->prices->handle($user, $plan, $variant);
+        $identifier = $plan->kelviqPlan($variant);
+        $chargePeriod = $plan->chargePeriod($variant);
 
-        if ($productId === null) {
+        if (! $plan->isSelfServe() || $identifier === null || $chargePeriod === null || ! $this->kelviq->configured()) {
             return null;
         }
 
-        $checkout = $this->creem->createCheckout([
-            'product_id' => $productId,
+        return $this->kelviq->createCheckoutSession([
+            'plan_identifier' => $identifier,
+            'charge_period' => $chargePeriod,
             /*
-             * Where a buyer lands if the browser navigates rather than framing
-             * the checkout — the embed script being blocked, or a URL opened
-             * directly. The embed cancels this redirect when the page closes
-             * the overlay itself, so setting it costs the inline flow nothing
-             * and rescues the fallback one. The Lemon Squeezy integration this
-             * replaces could not have both: its overlay would navigate away the
-             * instant payment landed, so it set no redirect at all and left a
-             * script-blocked buyer stranded on the payment page.
+             * The pilot's uuid, read from the session. It is the Kelviq
+             * customerId for this account everywhere — entitlements, portal,
+             * webhooks — and nothing a request carries can change it.
+             */
+            'customer_id' => $user->uuid,
+            /*
+             * Absolute, as Kelviq requires: route() builds it from APP_URL,
+             * the application's own base-URL convention.
              */
             'success_url' => route('subscription.thank-you'),
+            'cancel_url' => route('billing.edit'),
             /*
              * Locks the email at checkout to the one on the account, so the
-             * Creem customer that comes back is this pilot rather than whoever
-             * they happened to type. It is also what lets a payment made
-             * without metadata still be placed — see ResolveCreemBillable.
+             * Kelviq customer that comes back carries this pilot's address —
+             * which is also what the customer portal needs before it will open.
              */
-            'customer' => ['email' => $user->email],
-            /*
-             * Creem copies this onto the subscription it creates and onto every
-             * event about it afterwards, which is how a webhook arriving hours
-             * later knows whose plan to grant. `plan` and `variant` are not read
-             * by anything — the product ID on the subscription is what decides
-             * entitlements — and are here so that a support conversation about
-             * one payment can be had in this application's own vocabulary.
-             */
-            'metadata' => [
-                'billable_id' => (string) $user->id,
-                'billable_type' => $user->getMorphClass(),
-                'plan' => $plan->value,
-                'variant' => $variant,
-            ],
-        ]);
-
-        $url = $checkout['checkout_url'] ?? null;
-
-        throw_unless(is_string($url) && $url !== '', RuntimeException::class, 'Creem returned no checkout URL.');
-
-        return $url;
+            'email' => $user->email,
+            'lock_email' => true,
+        ])['checkoutUrl'];
     }
 }

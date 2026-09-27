@@ -58,7 +58,7 @@ final class HandleInertiaRequests extends Middleware
                     'label' => $plan->label(),
                     'isPaid' => $plan->isPaid(),
                 ],
-                'features' => $this->grantedFeatures($plan),
+                'features' => $this->grantedFeatures($request),
                 'permissions' => $this->heldPermissions($request),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
@@ -90,7 +90,7 @@ final class HandleInertiaRequests extends Middleware
     }
 
     /**
-     * The feature flags the viewer's plan grants, as a flat list.
+     * The feature flags the viewer holds, as a flat list.
      *
      * Shared so React gates UI by asking what the server already decided,
      * rather than re-deriving plan rules client-side where they would drift.
@@ -99,11 +99,11 @@ final class HandleInertiaRequests extends Middleware
      *
      * @return array<int, string>
      */
-    private function grantedFeatures(Plan $plan): array
+    private function grantedFeatures(Request $request): array
     {
         return array_values(array_map(
             static fn (Feature $feature): string => $feature->value,
-            $plan->features(),
+            $request->user()?->features() ?? [],
         ));
     }
 }

@@ -14,11 +14,12 @@ use Inertia\Response;
 final class BillingController extends Controller
 {
     /**
-     * Show the pilot's plan, renewal date and receipts.
+     * Show the pilot's plan, the upgrade to Pro, and the way into the portal.
      *
-     * Every prop is spread from BuildBillingSummary, which reads only local
-     * tables — this page reaches no third party, so it renders the same in an
-     * environment with no Creem credentials as in one with them.
+     * Every prop is spread from BuildBillingSummary. It reaches Kelviq only
+     * through the pilot's own cached entitlements, so it renders in an
+     * environment with no Kelviq credentials too — on Starter, with the upgrade
+     * button disabled.
      */
     public function edit(BuildBillingSummary $summary, #[CurrentUser] User $user): Response
     {

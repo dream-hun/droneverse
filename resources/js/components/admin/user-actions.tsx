@@ -99,7 +99,7 @@ export function useUserActions(options: UserFormOptions): UseUserActionsReturn {
                 onOpenChange={(open) => !open && setDeleting(null)}
                 destructive
                 title={`Delete ${deleting?.name ?? 'this account'}?`}
-                description="Their progress, runs, quiz attempts and photos go with the account, for good. An account Creem is still billing is refused — cancel the subscription first."
+                description="Their progress, runs, quiz attempts and photos go with the account, for good. An account Kelviq is still billing is refused — cancel the subscription in the Kelviq dashboard first."
                 confirmationText={deleting?.email}
                 confirmLabel="Delete account"
                 pendingLabel="Deleting…"

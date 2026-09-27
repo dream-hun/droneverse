@@ -23,9 +23,8 @@ use stdClass;
  * through an index: the users table by its size alone, the runs by the
  * `created_at` index added for exactly this.
  *
- * Money is not here. The overview is open to every member of staff and the
- * finance numbers are not, so revenue lives on its own page behind its own
- * permission rather than on a card some viewers would see and some not.
+ * Money is not here. Kelviq is the only record of what anybody has paid, and
+ * its dashboard is where revenue is read.
  */
 final readonly class BuildAdminOverview
 {

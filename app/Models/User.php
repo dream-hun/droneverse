@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use App\Concerns\Billable;
 use App\Concerns\HasPlan;
 use App\Enums\AdminPermission;
 use Database\Factories\UserFactory;
@@ -55,9 +54,6 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string|null $remember_token
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
- * @property-read Customer|null $customer
- * @property-read Collection<int, Subscription> $subscriptions
- * @property-read Collection<int, Order> $orders
  * @property-read Collection<int, Role> $roles
  * @property-read Collection<int, ChallengeRun> $challengeRuns
  * @property-read Collection<int, QuizAttempt> $quizAttempts
@@ -66,8 +62,6 @@ use Spatie\Permission\Traits\HasRoles;
 #[Hidden(['password', 'plan_override', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 final class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
 {
-    use Billable;
-
     /** @use HasFactory<UserFactory> */
     use HasFactory;
 

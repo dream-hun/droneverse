@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Actions\BuildCreemClientConfig;
 use App\Actions\BuildPricingCatalog;
 use App\Enums\Plan;
-use App\Queries\DefaultSubscription;
+use App\Http\Integrations\Kelviq;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -15,38 +14,20 @@ use Inertia\Response;
 final class PricingController extends Controller
 {
     /**
-     * Show what each plan costs and what it unlocks.
+     * The plans, their prices and what each one unlocks.
      *
-     * Public on purpose: the page is the whole conversion argument, and a pilot
-     * who has just hit a locked mission is sent here before they have any
-     * reason to sign in.
+     * Public, and rendered from local configuration alone: it reaches Kelviq
+     * only through the viewer's own entitlements, so it renders the same in an
+     * environment with no Kelviq account as in one with it.
      */
-    public function __invoke(
-        Request $request,
-        BuildPricingCatalog $catalog,
-        BuildCreemClientConfig $creem,
-        DefaultSubscription $subscriptions,
-    ): Response {
+    public function __invoke(Request $request, BuildPricingCatalog $catalog, Kelviq $kelviq): Response
+    {
         $user = $request->user();
 
-        /*
-         * A subscriber's buttons move the subscription they have rather than
-         * opening a second checkout. The two answers differ for one pilot only —
-         * the one whose subscription is cancelled and running out its grace
-         * period, who can neither switch nor be sold a second subscription
-         * beside a live one — and telling them apart is the whole reason the
-         * catalogue is told both.
-         */
-        $subscription = $subscriptions->for($user);
-
-        return Inertia::render('pricing', [
-            ...$catalog->handle(
-                $user?->plan() ?? Plan::Starter,
-                $user === null,
-                $subscription?->valid() === true,
-                $subscriptions->isSwitchable($subscription),
-            ),
-            'creem' => $creem->handle(),
-        ]);
+        return Inertia::render('pricing', $catalog->handle(
+            $user?->plan() ?? Plan::Starter,
+            $user === null,
+            $kelviq->configured(),
+        ));
     }
 }

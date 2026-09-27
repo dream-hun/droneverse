@@ -149,13 +149,6 @@ export function formatDuration(seconds: number | null | undefined): string {
     return `${(seconds / 86400).toFixed(1)}d`;
 }
 
-/** Creem's wire status, spelled for a person: `scheduled_cancel` → `Scheduled cancel`. */
-export function humanizeStatus(status: string): string {
-    const words = status.replaceAll('_', ' ').trim();
-
-    return words.charAt(0).toUpperCase() + words.slice(1);
-}
-
 /**
  * A URL slug suggested from a title: `Hover & Land` → `hover-land`.
  *

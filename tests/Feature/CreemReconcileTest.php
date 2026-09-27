@@ -10,9 +10,11 @@ use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Subscription;
 use App\Models\User;
+use Carbon\Exceptions\InvalidFormatException;
 use Illuminate\Console\Command;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Http;
 
 /*
@@ -245,6 +247,21 @@ test('only money that landed is recorded', function (): void {
     expect(Artisan::call('creem:reconcile'))->toBe(Command::SUCCESS);
 
     expect(Order::query()->count())->toBe(1);
+});
+
+test('a payment with an unreadable date is dated on arrival and reported', function (): void {
+    Exceptions::fake();
+    $this->freezeSecond();
+    reconcileSubscriber();
+
+    fakeCreem(remoteSubscription(), [remoteTransaction('tran_renewal', ['created_at' => 'not a date'])]);
+
+    expect(Artisan::call('creem:reconcile'))->toBe(Command::SUCCESS);
+
+    expect(Order::query()->where('creem_id', 'tran_renewal')->sole()->ordered_at->toIso8601String())
+        ->toBe(now()->toIso8601String());
+
+    Exceptions::assertReported(InvalidFormatException::class);
 });
 
 test('a cancellation that was never delivered takes the plan away', function (): void {

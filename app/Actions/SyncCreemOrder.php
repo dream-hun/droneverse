@@ -7,7 +7,6 @@ namespace App\Actions;
 use App\Models\Order;
 use App\Models\User;
 use Carbon\CarbonImmutable;
-use Carbon\Exceptions\InvalidFormatException;
 
 /**
  * Record a completed order as a receipt on the pilot's billing page.
@@ -20,8 +19,10 @@ use Carbon\Exceptions\InvalidFormatException;
  */
 final readonly class SyncCreemOrder
 {
-    public function __construct(private SyncCreemCustomer $customers)
-    {
+    public function __construct(
+        private SyncCreemCustomer $customers,
+        private ParseCreemDate $dates,
+    ) {
         //
     }
 
@@ -86,26 +87,8 @@ final readonly class SyncCreemOrder
                  * is close enough for a receipt list and better than a row that
                  * cannot be listed at all.
                  */
-                'ordered_at' => $this->date($order, 'created_at') ?? CarbonImmutable::now(),
+                'ordered_at' => $this->dates->handle($order['created_at'] ?? null) ?? CarbonImmutable::now(),
             ],
         );
-    }
-
-    /**
-     * @param  array<mixed>  $order
-     */
-    private function date(array $order, string $key): ?CarbonImmutable
-    {
-        $value = $order[$key] ?? null;
-
-        if (! is_string($value) || $value === '') {
-            return null;
-        }
-
-        try {
-            return CarbonImmutable::parse($value);
-        } catch (InvalidFormatException) {
-            return null;
-        }
     }
 }

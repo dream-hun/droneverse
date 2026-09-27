@@ -8,7 +8,6 @@ use App\Enums\SubscriptionStatus;
 use App\Models\Subscription;
 use App\Models\User;
 use Carbon\CarbonImmutable;
-use Carbon\Exceptions\InvalidFormatException;
 
 /**
  * Write what a webhook says about a subscription onto the local copy of it.
@@ -29,8 +28,10 @@ use Carbon\Exceptions\InvalidFormatException;
  */
 final readonly class SyncCreemSubscription
 {
-    public function __construct(private SyncCreemCustomer $customers)
-    {
+    public function __construct(
+        private SyncCreemCustomer $customers,
+        private ParseCreemDate $dates,
+    ) {
         //
     }
 
@@ -54,7 +55,7 @@ final readonly class SyncCreemSubscription
 
         $this->customers->handle($user, $subscription);
 
-        $periodEnd = $this->date($subscription, 'current_period_end_date');
+        $periodEnd = $this->dates->handle($subscription['current_period_end_date'] ?? null);
 
         $record = Subscription::query()->updateOrCreate(
             ['creem_id' => $creemId],
@@ -77,10 +78,10 @@ final readonly class SyncCreemSubscription
                 ...($status === SubscriptionStatus::Trialing->value && $periodEnd instanceof CarbonImmutable
                     ? ['trial_ends_at' => $periodEnd]
                     : []),
-                'renews_at' => $this->date($subscription, 'next_transaction_date'),
-                'current_period_start_at' => $this->date($subscription, 'current_period_start_date'),
+                'renews_at' => $this->dates->handle($subscription['next_transaction_date'] ?? null),
+                'current_period_start_at' => $this->dates->handle($subscription['current_period_start_date'] ?? null),
                 'current_period_end_at' => $periodEnd,
-                'canceled_at' => $this->date($subscription, 'canceled_at'),
+                'canceled_at' => $this->dates->handle($subscription['canceled_at'] ?? null),
             ],
         );
 
@@ -110,28 +111,5 @@ final readonly class SyncCreemSubscription
         $units = data_get($subscription, 'items.0.units');
 
         return is_int($units) && $units > 0 ? $units : 1;
-    }
-
-    /**
-     * @param  array<string, mixed>  $subscription
-     */
-    private function date(array $subscription, string $key): ?CarbonImmutable
-    {
-        $value = $subscription[$key] ?? null;
-
-        if (! is_string($value) || $value === '') {
-            return null;
-        }
-
-        try {
-            return CarbonImmutable::parse($value);
-        } catch (InvalidFormatException) {
-            /*
-             * A date we cannot read is dropped rather than allowed to abort the
-             * whole delivery. The status is the part that decides entitlements;
-             * losing a renewal date costs a line of copy on a settings page.
-             */
-            return null;
-        }
     }
 }

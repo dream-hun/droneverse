@@ -8,7 +8,7 @@ use App\Enums\ChallengeStatus;
 use App\Http\Resources\CourseCardResource;
 use App\Models\Course;
 use App\Models\User;
-use App\Queries\Leaderboard;
+use App\Queries\PilotProgress;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -19,7 +19,7 @@ final class DashboardController extends Controller
     /**
      * Handle the incoming request.
      */
-    public function __invoke(Request $request, Leaderboard $leaderboard): Response
+    public function __invoke(Request $request, PilotProgress $progress): Response
     {
         /** @var User $user Route middleware requires an authenticated pilot. */
         $user = $request->user();
@@ -33,11 +33,11 @@ final class DashboardController extends Controller
         return Inertia::render('dashboard', [
             'courses' => Inertia::defer(fn (): array => CourseCardResource::collection(
                 Course::catalog()->get(),
-                $leaderboard->completedCountsByCourse($user),
+                $progress->completedCountsByCourse($user),
                 $user->plan(),
             )),
             'continue' => $this->continueCard($user),
-            'stats' => $leaderboard->statsFor($user),
+            'stats' => $progress->statsFor($user),
         ]);
     }
 

@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\DB;
 use stdClass;
 
 /**
- * Ranked pilot standings, and the per-pilot totals shown alongside them.
+ * Ranked pilot standings.
  *
  * This is a read model over {@see UserChallengeProgress}, not a second way to
  * write one — but it no longer reads that table directly. Ranking is a full
@@ -63,48 +63,6 @@ final readonly class Leaderboard
     public function __construct(
         private SliceCache $cache = new SliceCache('leaderboard', self::BOARD_TTL_SECONDS),
     ) {}
-
-    /**
-     * Completed-challenge counts for the given user, keyed by course id.
-     *
-     * Only currently playable content counts (published challenge in a
-     * published course), so a count can never exceed the published-challenge
-     * total displayed beside it.
-     *
-     * @return Collection<int, int>
-     */
-    public function completedCountsByCourse(User $user): Collection
-    {
-        // Already one row per course, so this is a lookup rather than an
-        // aggregate: the count the rollup keeps is the count being asked for.
-        return $this->playableFor($user)
-            ->get(['pilot_course_totals.course_id', 'pilot_course_totals.completed'])
-            ->mapWithKeys(fn (PilotCourseTotals $totals): array => [$totals->course_id => $totals->completed]);
-    }
-
-    /**
-     * Aggregate completion stats for the given user, in a single query.
-     *
-     * Scoped to currently playable content, matching the per-course counts
-     * shown alongside these totals.
-     *
-     * @return array{completed: int, stars: int}
-     */
-    public function statsFor(User $user): array
-    {
-        $row = fluent($this->playableFor($user)
-            ->selectRaw(
-                'coalesce(sum(pilot_course_totals.completed), 0) as completed, '
-                .'coalesce(sum(pilot_course_totals.stars), 0) as stars',
-            )
-            ->toBase()
-            ->first());
-
-        return [
-            'completed' => $row->integer('completed'),
-            'stars' => $row->integer('stars'),
-        ];
-    }
 
     /**
      * The leading pilots, the best first.
@@ -180,7 +138,7 @@ final readonly class Leaderboard
         return $this->remember(
             'pilots',
             [$this->scopeFor($course)],
-            fn (): int => $this->inCourse($this->playable(), $course)
+            fn (): int => $this->inCourse(PilotCourseTotals::query()->playable(), $course)
                 ->distinct()
                 ->count('pilot_course_totals.user_id'),
         );
@@ -248,37 +206,6 @@ final readonly class Leaderboard
     }
 
     /**
-     * Course totals for content that is still playable today.
-     *
-     * Every aggregate here reads through this, so "playable" means exactly
-     * one thing everywhere. Half of it is enforced by the join below —
-     * retiring a course takes its totals off the board at once, with no
-     * predicate left behind to drift out of step. The other half, whether an
-     * individual mission is published, is already folded into the stored
-     * totals by {@see \App\Actions\RollUpCourseTotals}, which is why
-     * {@see \App\Observers\ChallengeObserver} has to rebuild a course when
-     * that changes.
-     *
-     * @return EloquentBuilder<PilotCourseTotals>
-     */
-    private function playable(): EloquentBuilder
-    {
-        return PilotCourseTotals::query()
-            ->join('courses', 'courses.id', '=', 'pilot_course_totals.course_id')
-            ->where('courses.is_published', true);
-    }
-
-    /**
-     * {@see self::playable()} narrowed to one pilot.
-     *
-     * @return EloquentBuilder<PilotCourseTotals>
-     */
-    private function playableFor(User $user): EloquentBuilder
-    {
-        return $this->playable()->where('pilot_course_totals.user_id', $user->id);
-    }
-
-    /**
      * Narrow a playable-totals query to one course, or leave it global.
      *
      * @param  EloquentBuilder<PilotCourseTotals>  $query
@@ -311,7 +238,7 @@ final readonly class Leaderboard
      */
     private function standingsQuery(?Course $course = null): QueryBuilder
     {
-        $totals = $this->inCourse($this->playable(), $course)
+        $totals = $this->inCourse(PilotCourseTotals::query()->playable(), $course)
             ->join('users', 'users.id', '=', 'pilot_course_totals.user_id')
             ->groupBy('users.id', 'users.name')
             ->selectRaw(

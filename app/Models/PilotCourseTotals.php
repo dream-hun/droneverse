@@ -6,7 +6,9 @@ namespace App\Models;
 
 use Carbon\CarbonInterface;
 use Database\Factories\PilotCourseTotalsFactory;
+use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Attributes\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -54,6 +56,29 @@ final class PilotCourseTotals extends Model
     public function course(): BelongsTo
     {
         return $this->belongsTo(Course::class);
+    }
+
+    /**
+     * Totals for content that is still playable today.
+     *
+     * Every read of the totals goes through this — the board's in
+     * {@see \App\Queries\Leaderboard} and a pilot's own in
+     * {@see \App\Queries\PilotProgress} — so "playable" means exactly one
+     * thing everywhere. Half of it is enforced by the join below: retiring a
+     * course takes its totals off the board at once, with no predicate left
+     * behind to drift out of step. The other half, whether an individual
+     * mission is published, is already folded into the stored totals by
+     * {@see \App\Actions\RollUpCourseTotals}, which is why
+     * {@see \App\Observers\ChallengeObserver} has to rebuild a course when
+     * that changes.
+     *
+     * @param  Builder<PilotCourseTotals>  $query
+     */
+    #[Scope]
+    protected function playable(Builder $query): void
+    {
+        $query->join('courses', 'courses.id', '=', 'pilot_course_totals.course_id')
+            ->where('courses.is_published', true);
     }
 
     /**

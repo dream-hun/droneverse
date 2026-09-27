@@ -137,7 +137,25 @@ final readonly class BuildRevenueReport
      */
     private function subscriptions(string $currency, CarbonImmutable $now): array
     {
-        $byStatus = Subscription::query()
+        $entitled = $this->entitledSubscriptions();
+
+        return [
+            'entitled' => $entitled->count(),
+            'mrr' => $this->money->handle($this->monthlyRecurring($entitled), $currency),
+            'cancelledLast30Days' => Subscription::query()->where('canceled_at', '>=', $now->subDays(30))->count(),
+            'byStatus' => $this->countsByStatus(),
+            'byPlan' => $this->countsByPlan($entitled),
+        ];
+    }
+
+    /**
+     * Every subscription row, grouped by the status Creem last reported.
+     *
+     * @return array<int, array{status: string, count: int, entitles: bool}>
+     */
+    private function countsByStatus(): array
+    {
+        return Subscription::query()
             ->toBase()
             ->groupBy('status')
             ->selectRaw('status, count(*) as total')
@@ -155,14 +173,21 @@ final readonly class BuildRevenueReport
             })
             ->values()
             ->all();
+    }
 
-        /*
-         * Entitlement is App\Models\Subscription::valid()'s answer and it
-         * reads a date as well as a status, so the candidates are narrowed in
-         * SQL by the statuses that can entitle and settled per row by the
-         * model — one definition of "paying", not two.
-         */
-        $entitled = Subscription::query()
+    /**
+     * The subscriptions that entitle somebody to a plan right now.
+     *
+     * Entitlement is App\Models\Subscription::valid()'s answer and it reads a
+     * date as well as a status, so the candidates are narrowed in SQL by the
+     * statuses that can entitle and settled per row by the model — one
+     * definition of "paying", not two.
+     *
+     * @return Collection<int, Subscription>
+     */
+    private function entitledSubscriptions(): Collection
+    {
+        return Subscription::query()
             ->select(['id', 'product_id', 'status', 'units', 'current_period_end_at'])
             ->whereIn('status', array_map(
                 static fn (SubscriptionStatus $status): string => $status->value,
@@ -170,27 +195,35 @@ final readonly class BuildRevenueReport
             ))
             ->get()
             ->filter(fn (Subscription $subscription): bool => $subscription->valid());
+    }
 
-        // A trial entitles and has not paid yet, so it counts as a
-        // subscriber and not as revenue.
-        $mrr = $entitled
+    /**
+     * What the entitled subscriptions bring in per month at list price.
+     *
+     * A trial entitles and has not paid yet, so it counts as a subscriber and
+     * not as revenue.
+     *
+     * @param  Collection<int, Subscription>  $entitled
+     */
+    private function monthlyRecurring(Collection $entitled): int
+    {
+        return $entitled
             ->reject(fn (Subscription $subscription): bool => $subscription->onTrial())
             ->sum(fn (Subscription $subscription): int => $this->monthlyAmount($subscription));
+    }
 
-        $byPlan = $entitled
+    /**
+     * @param  Collection<int, Subscription>  $entitled
+     * @return array<int, array{plan: string, count: int}>
+     */
+    private function countsByPlan(Collection $entitled): array
+    {
+        return $entitled
             ->groupBy(fn (Subscription $subscription): string => Plan::fromPriceId($subscription->product_id)?->label() ?? 'Unrecognised product')
             ->map(fn (Collection $subscriptions, string $plan): array => ['plan' => $plan, 'count' => $subscriptions->count()])
             ->sortByDesc('count')
             ->values()
             ->all();
-
-        return [
-            'entitled' => $entitled->count(),
-            'mrr' => $this->money->handle($mrr, $currency),
-            'cancelledLast30Days' => Subscription::query()->where('canceled_at', '>=', $now->subDays(30))->count(),
-            'byStatus' => $byStatus,
-            'byPlan' => $byPlan,
-        ];
     }
 
     /**

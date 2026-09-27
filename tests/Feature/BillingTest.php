@@ -323,6 +323,66 @@ test('resuming a subscription that has already ended fails without calling creem
     Http::assertNothingSent();
 });
 
+test('cancelling a subscription already winding down reaches nobody', function (): void {
+    $user = User::factory()->create();
+    billingSubscribe(
+        $user,
+        'prod_pro_monthly',
+        status: SubscriptionStatus::ScheduledCancel,
+        periodEndsAt: now()->addWeek(),
+    );
+
+    $this->actingAs($user)
+        ->delete(route('subscription.destroy'))
+        ->assertRedirect(route('billing.edit'))
+        ->assertInertiaFlash('toast.message', 'That subscription is already scheduled to end.');
+
+    Http::assertNothingSent();
+});
+
+test('a cancellation survives an answer that cannot be read in full', function (): void {
+    $user = User::factory()->create();
+    $subscription = billingSubscribe($user, 'prod_pro_monthly');
+
+    config(['creem.api_key' => 'creem_test_key']);
+
+    Http::fake([
+        CREEM_API.'/subscriptions/'.$subscription->creem_id.'/cancel' => Http::response(['ok' => true]),
+    ]);
+
+    $this->actingAs($user)
+        ->delete(route('subscription.destroy'))
+        ->assertRedirect(route('billing.edit'));
+
+    expect($subscription->refresh()->status())->toBe(SubscriptionStatus::ScheduledCancel);
+});
+
+test('a resumption survives an answer that cannot be read in full', function (): void {
+    $user = User::factory()->create();
+    $subscription = billingSubscribe(
+        $user,
+        'prod_pro_monthly',
+        status: SubscriptionStatus::ScheduledCancel,
+        periodEndsAt: now()->addWeek(),
+    );
+    $subscription->forceFill(['canceled_at' => now()])->save();
+
+    config(['creem.api_key' => 'creem_test_key']);
+
+    Http::fake([
+        CREEM_API.'/subscriptions/'.$subscription->creem_id.'/resume' => Http::response(['ok' => true]),
+    ]);
+
+    $this->actingAs($user)
+        ->put(route('subscription.update'))
+        ->assertRedirect(route('billing.edit'));
+
+    $subscription->refresh();
+
+    expect($subscription->status())->toBe(SubscriptionStatus::Active)
+        ->and($subscription->canceled_at)->toBeNull();
+});
+
 test('a starter pilot has no subscription to cancel', function (): void {
     $this->actingAs(User::factory()->create())
         ->delete(route('subscription.destroy'))
@@ -373,6 +433,20 @@ test('a subscriber is offered every plan and period they could move to', functio
  */
 test('a period with no configured price is not offered as a destination', function (): void {
     config(['plans.prices.team' => ['monthly' => 'prod_team_monthly']]);
+
+    $user = User::factory()->create();
+    billingSubscribe($user, 'prod_pro_monthly');
+
+    $this->actingAs($user)
+        ->get(route('billing.edit'))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('switchable.1.value', 'team')
+            ->count('switchable.1.variants', 1)
+            ->where('switchable.1.variants.0.value', 'monthly'));
+});
+
+test('a period sold at creem but with no quoted amount is not offered as a destination', function (): void {
+    config(['plans.amounts.team.yearly' => null]);
 
     $user = User::factory()->create();
     billingSubscribe($user, 'prod_pro_monthly');
@@ -641,6 +715,18 @@ test(/**
         ])
         ->assertStatus(409)
         ->assertHeader('X-Inertia-Location', 'https://creem.io/my-orders/login/abc123');
+});
+
+test('a portal creem cannot open is reported rather than thrown', function (): void {
+    $user = User::factory()->create();
+    billingSubscribe($user, 'prod_pro_monthly');
+
+    fakeCreemOutage();
+
+    $this->actingAs($user)
+        ->get(route('billing-portal.edit'))
+        ->assertRedirect(route('billing.edit'))
+        ->assertInertiaFlash('toast.message', 'Creem could not open the billing portal. Please try again.');
 });
 
 /**

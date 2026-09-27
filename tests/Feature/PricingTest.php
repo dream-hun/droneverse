@@ -331,6 +331,24 @@ test('the annual saving is computed from the prices it describes', function (): 
             ->where('plans.1.prices.monthly.savingPercent', null));
 });
 
+test('a period with no quoted amount is left off the page', function (): void {
+    config(['plans.amounts.pro.yearly' => null]);
+
+    $this->get(route('pricing'))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->has('plans.1.prices.monthly')
+            ->missing('plans.1.prices.yearly'));
+});
+
+test('no annual saving is claimed without a monthly price to compare against', function (): void {
+    config(['plans.amounts.pro.monthly' => null]);
+
+    $this->get(route('pricing'))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('plans.1.prices.yearly.formatted', '$190')
+            ->where('plans.1.prices.yearly.savingPercent', null));
+});
+
 test('the comparison grid marks unbuilt capabilities', function (): void {
     $this->get(route('pricing'))
         ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
@@ -404,6 +422,20 @@ test('checkout answers with a url minted for the resolved product', function ():
  * app mounted underneath. It is there for the buyer whose browser blocked
  * embed.js and paid on Creem's own page, who would otherwise be stranded on it.
  */
+test('a configured api url overrides the host the key implies', function (): void {
+    config(['creem.api_key' => 'creem_test_key', 'creem.api_url' => 'https://creem-proxy.test/v1/']);
+
+    Http::fake([
+        'https://creem-proxy.test/v1/checkouts' => Http::response(['checkout_url' => CHECKOUT_URL]),
+    ]);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('checkout.store'), ['plan' => 'pro', 'variant' => 'monthly'])
+        ->assertOk();
+
+    expect(lastRequest()->url())->toBe('https://creem-proxy.test/v1/checkouts');
+});
+
 test('checkout names the thank you page for a buyer who never framed it', function (): void {
     fakeCheckoutApi();
 

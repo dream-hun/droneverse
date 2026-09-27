@@ -169,7 +169,7 @@ final class StoreQuizAttemptRequest extends FormRequest
         $quiz = $this->route('quiz');
 
         if (! $quiz instanceof Quiz) {
-            return [];
+            return []; // @codeCoverageIgnore
         }
 
         return $quiz->questions()

@@ -6,8 +6,10 @@ use App\Enums\AdminPermission;
 use App\Models\Challenge;
 use App\Models\ChallengeRun;
 use App\Models\Order;
+use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia;
 
 test('the overview counts the last day of flying and the last week of missions', function (): void {
@@ -30,6 +32,36 @@ test('the overview counts the last day of flying and the last week of missions',
                 ->where('overview.flying.clearRate', 0.5)
                 ->where('overview.busiestMissions.0.challengeSlug', $challenge->slug)
                 ->where('overview.busiestMissions.0.runs', 3)));
+});
+
+test('the overview counts each account seen in the last five minutes once', function (): void {
+    config(['session.driver' => 'database']);
+    $admin = User::factory()->admin()->create();
+    $pilot = User::factory()->create();
+    $idle = User::factory()->create();
+    DB::table('sessions')->insert([
+        ['id' => 'a', 'user_id' => $pilot->id, 'payload' => '', 'last_activity' => now()->subMinute()->getTimestamp()],
+        ['id' => 'b', 'user_id' => $pilot->id, 'payload' => '', 'last_activity' => now()->subMinutes(2)->getTimestamp()],
+        ['id' => 'c', 'user_id' => null, 'payload' => '', 'last_activity' => now()->getTimestamp()],
+        ['id' => 'd', 'user_id' => $idle->id, 'payload' => '', 'last_activity' => now()->subMinutes(6)->getTimestamp()],
+    ]);
+
+    $this->actingAs($admin)
+        ->get(route('admin.dashboard'))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            // The pilot, once for two sessions, and the admin reading the page.
+            ->loadDeferredProps(fn (AssertableInertia $reload): AssertableInertia => $reload
+                ->where('overview.online', 2)));
+});
+
+test('the overview does not claim a count of pilots online it cannot read', function (): void {
+    $admin = User::factory()->admin()->create();
+
+    $this->actingAs($admin)
+        ->get(route('admin.dashboard'))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->loadDeferredProps(fn (AssertableInertia $reload): AssertableInertia => $reload
+                ->where('overview.online', null)));
 });
 
 test('the daily chart fills quiet days with zero', function (): void {
@@ -70,6 +102,20 @@ test('staff with view_finance see orders in the activity feed', function (): voi
             ->has('activity.items', 1)
             ->where('activity.items.0.kind', 'order')
             ->where('activity.items.0.title', 'Paid $19.00'));
+});
+
+test('a cancellation in the feed says when access ends, where it does', function (): void {
+    $this->travelTo('2026-09-27 12:00:00');
+    $finance = User::factory()->withPermissions([AdminPermission::AccessAdmin, AdminPermission::ViewFinance])->create();
+    Subscription::factory()->canceled(now()->subDays(2))->create();
+    Subscription::factory()->create(['canceled_at' => now()->subDays(5)]);
+
+    $this->actingAs($finance)
+        ->get(route('admin.activity', ['type' => 'cancellation']))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->has('activity.items', 2)
+            ->where('activity.items.0.meta', 'Access ends Sep 25, 2026')
+            ->where('activity.items.1.meta', null));
 });
 
 test('a money filter from somebody without view_finance falls back to everything', function (): void {

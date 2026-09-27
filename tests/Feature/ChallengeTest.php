@@ -812,6 +812,24 @@ test('a photo taken nowhere is rejected', function (): void {
     $this->assertDatabaseEmpty('user_challenge_progress');
 });
 
+test('a flight made of something other than samples is rejected with 422', function (string $field, string $message): void {
+    $user = User::factory()->create();
+    $course = Course::factory()->create();
+    $challenge = Challenge::factory()->for($course)->create();
+
+    $this->actingAs($user)->postJson(
+        route('challenges.attempts.store', [$course, $challenge]),
+        challengeFlight([$field => [1, 2, 3]]),
+    )
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors([$field => $message]);
+
+    $this->assertDatabaseEmpty('user_challenge_progress');
+})->with([
+    'a path of numbers' => ['path', 'The flight path is not a sequence of samples.'],
+    'a photo list of numbers' => ['photos', 'The photo list is not a sequence of positions.'],
+]);
+
 test('a run without a flight path is rejected', function (): void {
     $user = User::factory()->create();
     $course = Course::factory()->create();

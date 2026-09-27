@@ -7,6 +7,7 @@ use App\Models\Challenge;
 use App\Models\Course;
 use App\Models\DronePhoto;
 use App\Models\User;
+use App\Models\UserChallengeProgress;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia;
 
@@ -130,6 +131,25 @@ test('deleting a course removes its photo files', function (): void {
     Storage::disk('photos')->assertMissing($photo->path);
 });
 
+test('unpublishing a course takes its points off a board already cached', function (): void {
+    $admin = User::factory()->admin()->create();
+    $challenge = Challenge::factory()->create();
+    UserChallengeProgress::factory()->completed()->create(['challenge_id' => $challenge->id]);
+    $this->actingAs($admin)->get(route('leaderboard'))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->has('standings', 1));
+
+    // An unticked checkbox sends nothing at all, which is what this mirrors.
+    $payload = coursePayload(['slug' => $challenge->course->slug]);
+    unset($payload['is_published']);
+
+    $this->actingAs($admin)
+        ->put(route('admin.courses.update', $challenge->course), $payload)
+        ->assertSessionHasNoErrors();
+
+    $this->actingAs($admin)->get(route('leaderboard'))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->has('standings', 0));
+});
+
 test("the course page includes each mission's reference solution", function (): void {
     $admin = User::factory()->admin()->create();
     $challenge = Challenge::factory()->create();
@@ -175,6 +195,15 @@ test('rejects text that is not JSON as the grading rules', function (): void {
         ->assertSessionHasErrors('success_criteria');
 });
 
+test('rejects a JSON list where the world should be an object', function (): void {
+    $admin = User::factory()->admin()->create();
+    $course = Course::factory()->create();
+
+    $this->actingAs($admin)
+        ->post(route('admin.courses.challenges.store', $course), missionPayload(['environment' => '[1, 2]']))
+        ->assertSessionHasErrors(['environment' => 'This must be a JSON object.']);
+});
+
 test('a mission slug need only be unique within its course', function (): void {
     $admin = User::factory()->admin()->create();
     Challenge::factory()->create(['slug' => 'dark-hover']);
@@ -211,4 +240,22 @@ test('an unticked publish box unpublishes the mission', function (): void {
         ->assertRedirect(route('admin.courses.show', $challenge->course));
 
     expect($challenge->fresh()?->is_published)->toBeFalse();
+});
+
+test('deleting a mission removes its photo files and returns to its course', function (): void {
+    Storage::fake('photos');
+
+    $admin = User::factory()->admin()->create();
+    $challenge = Challenge::factory()->create();
+    $photo = DronePhoto::factory()->for($challenge)->create();
+    Storage::disk('photos')->put($photo->path, 'image');
+
+    $this->actingAs($admin)
+        ->delete(route('admin.courses.challenges.destroy', [$challenge->course, $challenge]))
+        ->assertRedirect(route('admin.courses.show', $challenge->course))
+        ->assertInertiaFlash('toast.message', "Mission {$challenge->title} deleted.");
+
+    $this->assertModelMissing($challenge);
+    $this->assertModelMissing($photo);
+    Storage::disk('photos')->assertMissing($photo->path);
 });

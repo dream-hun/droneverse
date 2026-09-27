@@ -131,3 +131,15 @@ test('examples link to a published course and only name an unavailable one', fun
     expect($courses['precision-flight']['published'])->toBeFalse()
         ->and($courses['precision-flight']['title'])->toBe('Precision Flight');
 });
+
+test('a course that wrote no examples or no pitfalls gets no empty section for them', function (): void {
+    config(['course-docs' => [
+        'drone-basics' => ['examples' => [['slug' => 'hover', 'title' => 'Hover', 'description' => '', 'code' => '']]],
+        'sensor-flight' => ['pitfalls' => [['title' => 'Stale readings', 'body' => 'Read again.']]],
+    ]]);
+
+    $manual = resolve(BuildDroneManual::class)->handle();
+
+    expect(array_column(array_column($manual['examples'], 'course'), 'slug'))->toBe(['drone-basics'])
+        ->and(array_column(array_column($manual['pitfalls'], 'course'), 'slug'))->toBe(['sensor-flight']);
+});

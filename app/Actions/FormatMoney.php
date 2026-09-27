@@ -35,7 +35,7 @@ final readonly class FormatMoney
         $formatter = $this->formatter($currency);
 
         if (! $formatter instanceof NumberFormatter) {
-            return $this->fallback($minorUnits, $currency);
+            return $this->fallback($minorUnits, $currency); // @codeCoverageIgnore
         }
 
         $exponent = $formatter->getAttribute(NumberFormatter::FRACTION_DIGITS);
@@ -47,7 +47,7 @@ final readonly class FormatMoney
          * the two apart.
          */
         if ($formatter->getErrorCode() !== U_ZERO_ERROR || $exponent < 0) {
-            $exponent = 2;
+            $exponent = 2; // @codeCoverageIgnore
         }
 
         if ($minFractionDigits !== null) {
@@ -62,7 +62,7 @@ final readonly class FormatMoney
     private function formatter(string $currency): ?NumberFormatter
     {
         if (! class_exists(NumberFormatter::class)) {
-            return null;
+            return null; // @codeCoverageIgnore
         }
 
         $formatter = new NumberFormatter($this->locale(), NumberFormatter::CURRENCY);

@@ -7,6 +7,7 @@ use App\Models\Challenge;
 use App\Models\Course;
 use App\Models\DronePhoto;
 use App\Models\User;
+use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
@@ -123,6 +124,43 @@ test('base64 that is not a real image is rejected', function (): void {
     $response->assertJsonValidationErrors('image');
     $this->assertDatabaseCount('drone_photos', 0);
     expect(Storage::disk('photos')->allFiles())->toBeEmpty();
+});
+
+test('base64 that does not decode is rejected with 422', function (): void {
+    Storage::fake('photos');
+
+    $user = User::factory()->create();
+    $course = Course::factory()->create();
+    $challenge = Challenge::factory()->for($course)->create();
+
+    $this->actingAs($user)->postJson(
+        route('challenges.photos.store', [$course, $challenge]),
+        payload(['image' => 'data:image/png;base64,QQ=Q']),
+    )
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['image' => 'The photo could not be decoded.']);
+
+    $this->assertDatabaseCount('drone_photos', 0);
+});
+
+test('a photo the disk refuses to write is rejected with 422 and never logged', function (): void {
+    $disk = Mockery::mock(Filesystem::class);
+    $disk->shouldReceive('put')->once()->andReturnFalse();
+    $disk->shouldNotReceive('delete');
+    Storage::set('photos', $disk);
+
+    $user = User::factory()->create();
+    $course = Course::factory()->create();
+    $challenge = Challenge::factory()->for($course)->create();
+
+    $this->actingAs($user)->postJson(
+        route('challenges.photos.store', [$course, $challenge]),
+        payload(),
+    )
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['image' => 'The photo could not be saved. Try again.']);
+
+    $this->assertDatabaseCount('drone_photos', 0);
 });
 
 test('photos cannot be stored on unpublished content', function (): void {
@@ -256,6 +294,14 @@ test('a user cannot delete someone elses photo', function (): void {
     $response->assertForbidden();
     $this->assertDatabaseHas('drone_photos', ['id' => $photo->id]);
     Storage::disk('photos')->assertExists($photo->path);
+});
+
+test('only the pilot who took a photo may view it', function (): void {
+    $owner = User::factory()->create();
+    $photo = DronePhoto::factory()->for($owner)->create();
+
+    expect($owner->can('view', $photo))->toBeTrue()
+        ->and(User::factory()->create()->can('view', $photo))->toBeFalse();
 });
 
 test('the photo log has a storage cap', function (): void {

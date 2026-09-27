@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Actions\DeleteRole;
+use App\Actions\UpdateRole;
 use App\Enums\AdminPermission;
 use App\Models\Role;
 use App\Models\User;
@@ -68,6 +70,34 @@ test('the admin role cannot be edited or deleted, even by an admin', function ()
         ->assertForbidden();
 
     expect(Role::query()->where('name', Role::ADMIN)->exists())->toBeTrue();
+});
+
+test('editing a role renames it and changes what its holders may do', function (): void {
+    $admin = User::factory()->admin()->create();
+    $holder = User::factory()->withPermissions([AdminPermission::AccessAdmin, AdminPermission::ViewFinance], 'finance')->create();
+
+    $this->actingAs($admin)
+        ->put(route('admin.roles.update', Role::findByName('finance')), [
+            'name' => 'treasury',
+            'permissions' => [AdminPermission::AccessAdmin->value, AdminPermission::ViewSystem->value],
+        ])
+        ->assertRedirect()
+        ->assertInertiaFlash('toast.message', 'Role updated.');
+
+    $holder = $holder->fresh();
+
+    expect($holder?->hasRole('treasury'))->toBeTrue()
+        ->and($holder?->can(AdminPermission::ViewSystem->value))->toBeTrue()
+        ->and($holder?->can(AdminPermission::ViewFinance->value))->toBeFalse();
+});
+
+test('the role actions refuse the admin role whoever calls them', function (): void {
+    $role = Role::query()->firstOrCreate(['name' => Role::ADMIN, 'guard_name' => 'web']);
+
+    expect(resolve(UpdateRole::class)->handle($role, 'renamed', []))->toBeFalse()
+        ->and(resolve(DeleteRole::class)->handle($role))->toBeFalse();
+
+    expect($role->fresh()?->name)->toBe(Role::ADMIN);
 });
 
 describe('a role manager who is not an admin', function (): void {

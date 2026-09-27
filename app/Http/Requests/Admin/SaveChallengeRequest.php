@@ -179,7 +179,7 @@ final class SaveChallengeRequest extends FormRequest
         $value = $this->input($field);
 
         if (! is_string($value)) {
-            return null;
+            return null; // @codeCoverageIgnore
         }
 
         $decoded = json_decode($value, true);

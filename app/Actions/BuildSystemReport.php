@@ -249,7 +249,7 @@ final readonly class BuildSystemReport
     private function loadAverage(): ?array
     {
         if (! function_exists('sys_getloadavg')) {
-            return null;
+            return null; // @codeCoverageIgnore
         }
 
         $load = sys_getloadavg();

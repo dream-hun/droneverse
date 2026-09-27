@@ -8,6 +8,7 @@ use App\Models\Course;
 use App\Models\User;
 use Database\Seeders\CourseSeeder;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Inertia\Testing\AssertableInertia;
 
 test('guests can read a course guide', function (): void {
@@ -30,6 +31,16 @@ test('guests can read a course guide', function (): void {
             ->has('missions', 1)
             ->where('missions.0.title', 'Hover & Land')
             ->where('missions.0.locked', false)));
+});
+
+test('a guide naming a command the reference does not know leaves it out', function (): void {
+    $course = Course::factory()->create(['slug' => 'drone-basics']);
+    config(['course-docs.drone-basics.commands' => ['takeoff', 'teleport']]);
+
+    $this->get(route('courses.docs', $course))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('documentation.commandGroups', fn (Collection $groups): bool => $groups
+                ->pluck('commands')->flatten(1)->pluck('name')->all() === ['takeoff']));
 });
 
 test('a course with no written guide has no docs page', function (): void {

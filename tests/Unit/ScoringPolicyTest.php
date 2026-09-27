@@ -20,7 +20,8 @@ use App\Models\Challenge;
  * The one file in the suite that does not `uses(TestCase::class)`: nothing
  * here touches the database. A Challenge is built in memory and asked for the
  * two attributes the grader reads, which is the whole of the grader's
- * dependency on it.
+ * dependency on it. It is force-filled because the application-wide
+ * Model::unguard() lives in a service provider that never boots here.
  */
 
 /**
@@ -62,7 +63,7 @@ dataset(/**
  */
 test('the server grades a run the way the contract says', function (array $vector): void {
     /** @var array{name: string, why: string, maxScore: int, criteria: array<string, mixed>, measured: array{waypointsHit: int, waypointsTotal: int, collisions: int, maxAltitude: float, landed: bool, elapsedSeconds: float, timedOut: bool, photosTaken: int, photoTargetsHit: int, photoTargetsTotal: int, photosMissing: int, washRequired: bool, washed: bool}, expected: array<string, bool|float|int>} $vector Pest datasets are dynamically invoked. */
-    $challenge = new Challenge([
+    $challenge = new Challenge()->forceFill([
         'success_criteria' => $vector['criteria'],
         'max_score' => $vector['maxScore'],
     ]);

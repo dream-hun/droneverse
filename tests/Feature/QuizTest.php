@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\Plan;
 use App\Enums\QuizStatus;
+use App\Http\Resources\QuizDetailResource;
 use App\Models\Course;
 use App\Models\Quiz;
 use App\Models\QuizAttempt;
@@ -363,6 +364,35 @@ test('a quiz with no questions cannot be passed', function (): void {
         ->postJson(route('quizzes.attempts.store', [$course, $quiz]), ['answers' => []])
         ->assertOk()
         ->assertJson(['score' => 0, 'questionCount' => 0, 'passed' => false]);
+});
+
+test('a question with no correct answer cannot be earned by leaving it blank', function (): void {
+    $course = Course::factory()->create();
+    $quiz = Quiz::factory()->for($course)->create();
+    $question = QuizQuestion::factory()->for($quiz)->withOptions(correct: 0)->create();
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('quizzes.attempts.store', [$course, $quiz]), ['answers' => [$question->id => []]])
+        ->assertOk()
+        ->assertJson(['score' => 0, 'correctCount' => 0, 'questionCount' => 1]);
+});
+
+test('an answer that is not a list of choices is rejected with 422', function (): void {
+    [$course, $quiz] = publishedQuiz();
+    $question = $quiz->questions()->firstOrFail();
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('quizzes.attempts.store', [$course, $quiz]), ['answers' => [$question->id => 'first']])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['answers' => 'An answer was not a list of choices.']);
+});
+
+test('the server and the client agree on the question types', function (): void {
+    $source = file_get_contents(resource_path('js/types/quiz.ts')) ?: '';
+    preg_match('/export type QuizQuestionType = ([^;]+);/', $source, $union);
+    preg_match_all("/'([a-z_]+)'/", $union[1] ?? '', $clientTypes);
+
+    expect($clientTypes[1])->toEqualCanonicalizing(QuizDetailResource::questionTypes());
 });
 
 test('the course page lists its quizzes with the viewers progress', function (): void {

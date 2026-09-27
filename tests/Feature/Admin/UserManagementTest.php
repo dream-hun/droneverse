@@ -5,6 +5,9 @@ declare(strict_types=1);
 use App\Enums\AdminPermission;
 use App\Enums\Plan;
 use App\Enums\SubscriptionStatus;
+use App\Models\Challenge;
+use App\Models\ChallengeRun;
+use App\Models\Course;
 use App\Models\DronePhoto;
 use App\Models\Role;
 use App\Models\Subscription;
@@ -101,6 +104,44 @@ describe('store', function (): void {
 
         expect(User::query()->where('email', 'sneaky@example.com')->exists())->toBeFalse();
     });
+
+    test('opens an account holding the roles it was given', function (): void {
+        $admin = User::factory()->admin()->create();
+        Role::findOrCreate('finance');
+
+        $this->actingAs($admin)
+            ->post(route('admin.users.store'), [
+                'name' => 'New Staff',
+                'email' => 'staff@example.com',
+                'password' => 'password-123',
+                'password_confirmation' => 'password-123',
+                'roles' => ['finance'],
+            ])
+            ->assertSessionHasNoErrors();
+
+        expect(User::query()->where('email', 'staff@example.com')->sole()->hasRole('finance'))->toBeTrue();
+    });
+
+    test('refuses to open an admin account for a role manager who is not an admin', function (): void {
+        $manager = User::factory()->withPermissions([
+            AdminPermission::AccessAdmin,
+            AdminPermission::ManageUsers,
+            AdminPermission::ManageRoles,
+        ])->create();
+        Role::findOrCreate(Role::ADMIN);
+
+        $this->actingAs($manager)
+            ->post(route('admin.users.store'), [
+                'name' => 'Climber',
+                'email' => 'climber@example.com',
+                'password' => 'password-123',
+                'password_confirmation' => 'password-123',
+                'roles' => [Role::ADMIN],
+            ])
+            ->assertSessionHasErrors(['roles' => 'Only an admin can make somebody an admin.']);
+
+        expect(User::query()->where('email', 'climber@example.com')->exists())->toBeFalse();
+    });
 });
 
 describe('update', function (): void {
@@ -187,6 +228,34 @@ test("marks an address verified on the pilot's behalf", function (): void {
         ->assertRedirect();
 
     expect($pilot->fresh()?->hasVerifiedEmail())->toBeTrue();
+});
+
+test('reports an address that was already verified and changes nothing', function (): void {
+    $admin = User::factory()->admin()->create();
+    $pilot = User::factory()->create();
+    $verifiedAt = $pilot->email_verified_at;
+
+    $this->actingAs($admin)
+        ->post(route('admin.users.verification.store', $pilot))
+        ->assertInertiaFlash('toast', ['type' => 'info', 'message' => 'That address was already verified.']);
+
+    expect($pilot->fresh()?->email_verified_at?->toJSON())->toBe($verifiedAt?->toJSON());
+});
+
+test("the account page lists the pilot's recent runs by mission and course", function (): void {
+    $admin = User::factory()->admin()->create();
+    $pilot = User::factory()->create();
+    $course = Course::factory()->create(['title' => 'Night Ops']);
+    $challenge = Challenge::factory()->for($course)->create(['title' => 'Dark Hover']);
+    $run = ChallengeRun::factory()->for($pilot)->for($challenge)->create();
+
+    $this->actingAs($admin)
+        ->get(route('admin.users.show', $pilot))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->has('recentRuns', 1)
+            ->where('recentRuns.0.uuid', $run->uuid)
+            ->where('recentRuns.0.challengeTitle', 'Dark Hover')
+            ->where('recentRuns.0.courseTitle', 'Night Ops'));
 });
 
 test('the account page leaves billing out for staff without view_finance', function (): void {

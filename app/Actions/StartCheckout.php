@@ -44,6 +44,15 @@ final readonly class StartCheckout
             return null;
         }
 
+        /*
+         * Kelviq's checkout page asks for a name and an email address and will
+         * not proceed without both, and the checkout below locks the email. It
+         * takes both from the customer record, so that record is brought in
+         * step with the account first, which also follows an email address the
+         * pilot has changed since their last checkout.
+         */
+        $this->kelviq->syncCustomer($user->uuid, $user->name, $user->email);
+
         return $this->kelviq->createCheckoutSession([
             'plan_identifier' => $identifier,
             'charge_period' => $chargePeriod,
@@ -60,11 +69,10 @@ final readonly class StartCheckout
             'success_url' => route('subscription.thank-you'),
             'cancel_url' => route('billing.edit'),
             /*
-             * Locks the email at checkout to the one on the account, so the
-             * Kelviq customer that comes back carries this pilot's address —
-             * which is also what the customer portal needs before it will open.
+             * Locks the email at checkout to the one on the customer record,
+             * synced from the account above, so the buyer cannot pay under an
+             * address other than the one the customer portal will expect.
              */
-            'email' => $user->email,
             'lock_email' => true,
         ])['checkoutUrl'];
     }

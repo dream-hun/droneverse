@@ -73,7 +73,7 @@ describe('checkout', function (): void {
     });
 
     test('checkout hands the pilot to the hosted checkout kelviq mints', function (string $variant, string $chargePeriod): void {
-        $user = User::factory()->create(['email' => 'pilot@example.com']);
+        $user = User::factory()->create();
         fakeCheckout();
 
         $this->actingAs($user)
@@ -87,13 +87,46 @@ describe('checkout', function (): void {
                 'customer_id' => $user->uuid,
                 'success_url' => route('subscription.thank-you'),
                 'cancel_url' => route('billing.edit'),
-                'email' => 'pilot@example.com',
                 'lock_email' => true,
             ]);
     })->with([
         'monthly' => ['monthly', 'MONTHLY'],
         'yearly' => ['yearly', 'YEARLY'],
     ]);
+
+    test('the kelviq customer carries the pilots name and email before checkout opens', function (): void {
+        $user = User::factory()->create(['name' => 'Ada Pilot', 'email' => 'pilot@example.com']);
+        fakeCheckout();
+
+        $this->actingAs($user)
+            ->post(route('checkout.store'), ['plan' => 'pro', 'variant' => 'monthly'])
+            ->assertRedirect('https://kelviq.com/checkout/cs_123/');
+
+        $calls = Http::recorded(fn (Request $request): bool => ! str_contains($request->url(), '/entitlements'))
+            ->map(fn (array $call): string => $call[0]->method().' '.$call[0]->url())
+            ->values()
+            ->all();
+
+        expect($calls)->toBe([
+            'PATCH https://sandboxapi.kelviq.com/api/v1/customers/'.$user->uuid.'/',
+            'POST https://sandboxapi.kelviq.com/api/v1/checkout/',
+        ]);
+
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'PATCH'
+            && $request->data() === ['name' => 'Ada Pilot', 'email' => 'pilot@example.com']);
+    });
+
+    test('a customer kelviq will not update is not sent on to checkout', function (): void {
+        fakeCheckout(responses: ['https://sandboxapi.kelviq.com/api/v1/customers/*' => Http::response(['email' => ['Enter a valid email address.']], 400)]);
+
+        $this->actingAs(User::factory()->create())
+            ->from(route('billing.edit'))
+            ->post(route('checkout.store'), ['plan' => 'pro', 'variant' => 'monthly'])
+            ->assertRedirect(route('billing.edit'))
+            ->assertInertiaFlash('toast.message', 'Checkout could not be opened right now. Please try again in a moment.');
+
+        Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), '/checkout/'));
+    });
 
     test('lifetime is checked out once, from its own kelviq plan', function (): void {
         $user = User::factory()->create();
@@ -166,7 +199,7 @@ describe('checkout', function (): void {
             ->assertRedirect(route('pricing'))
             ->assertInertiaFlash('toast.type', 'error');
 
-        Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), '/checkout/'));
+        Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), '/checkout/') || str_contains($request->url(), '/customers/'));
     })->with([
         'the free tier' => ['starter', 'monthly'],
         'a period pro does not sell' => ['pro', 'weekly'],
@@ -253,10 +286,11 @@ describe('billing portal', function (): void {
 
 /**
  * @param  array<string, array<int, string>>  $entitlements
+ * @param  array<string, mixed>  $responses
  */
-function fakeCheckout(array $entitlements = []): void
+function fakeCheckout(array $entitlements = [], array $responses = []): void
 {
-    fakeKelviq($entitlements, ['sandboxapi.kelviq.com/api/v1/checkout/' => Http::response([
+    fakeKelviq($entitlements, $responses + ['sandboxapi.kelviq.com/api/v1/checkout/' => Http::response([
         'checkoutSessionId' => 'cs_123',
         'checkoutUrl' => 'https://kelviq.com/checkout/cs_123/',
     ], 201)]);

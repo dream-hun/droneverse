@@ -77,7 +77,7 @@
             "rector --dry-run",
             "npm run lint:check"
         ],
-        "test:unit": "XDEBUG_MODE=\"coverage\" pest --parallel --tia --coverage --exactly=100.0 --no-progress",
+        "test:unit": "XDEBUG_MODE=\"coverage\" pest --parallel --coverage --exactly=100.0 --no-progress",
         "test:types": [
             "phpstan",
             "npm run types:check"

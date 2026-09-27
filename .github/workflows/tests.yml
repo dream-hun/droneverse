@@ -80,6 +80,10 @@ jobs:
   # needs Xdebug, which the matrix above deliberately leaves off, and once
   # rather than once per PHP version. Xdebug rather than PCOV so the numbers
   # are the ones a developer gets from the same script locally.
+  #
+  # Assertions on, as on a development machine. The runner's php.ini compiles
+  # `assert()` out, which leaves every assert line in app/ unexecuted and the
+  # gate short of 100% for code the suite does run.
   coverage:
     runs-on: ubuntu-latest
 
@@ -95,6 +99,7 @@ jobs:
           php-version: '8.5'
           tools: composer:v2
           coverage: xdebug
+          ini-values: zend.assertions=1
 
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6

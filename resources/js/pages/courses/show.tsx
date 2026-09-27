@@ -211,7 +211,7 @@ export default function CourseShow({
                         <p className="mb-8 max-w-xl leading-relaxed text-muted-foreground">
                             The briefings above are yours to read either way.
                             Flying the ones marked {planLabel(lockedPlan)} takes
-                            a subscription — it also adds your pick of airframe
+                            a subscription. It also adds your pick of airframe
                             and analytics on every run.
                         </p>
                         <div className="flex flex-wrap gap-4">

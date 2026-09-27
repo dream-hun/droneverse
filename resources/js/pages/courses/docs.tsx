@@ -154,7 +154,7 @@ export default function CourseDocs({
             id: 'examples',
             title: 'Worked examples',
             description:
-                'Complete programs. Copy one into any mission editor in this course and hit Run — they are written to fly on their own, not to solve a particular mission.',
+                'Complete programs. Copy one into any mission editor in this course and hit Run. They are written to fly on their own, not to solve a particular mission.',
             body: (
                 <div className="space-y-8">
                     {documentation.examples.map((example) => (

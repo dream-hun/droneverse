@@ -4,18 +4,12 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Concerns\DescribesSystem;
+use App\Queries\QueueState;
 use Carbon\CarbonImmutable;
-use Illuminate\Contracts\Cache\Repository as Cache;
 use Illuminate\Contracts\Foundation\Application;
-use Illuminate\Database\ConnectionInterface;
-use Illuminate\Database\Query\Builder;
-use Illuminate\Queue\Failed\CountableFailedJobProvider;
-use Illuminate\Queue\Failed\FailedJobProviderInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
-use RuntimeException;
-use stdClass;
 use Throwable;
 
 /**
@@ -24,24 +18,19 @@ use Throwable;
  * Every probe here is live — a query against the database, a round trip
  * through the cache, a look at the disk — rather than a figure some scheduler
  * wrote down earlier, because a health page that reports the last time things
- * were fine is worse than no page. Each probe is also contained: one that
- * throws becomes a failed check on the page instead of a 500 in place of it,
- * since the moment somebody opens this screen is the moment something is
- * most likely to be broken. The figures around the checks fall back to null
- * the same way, and report what threw so the cause outlives the page.
+ * were fine is worse than no page. Each probe is also contained: see
+ * {@see RunHealthChecks} for the checks, which turn anything they throw into a
+ * failed check. The figures around the checks fall back to null the same way,
+ * and report what threw so the cause outlives the page.
  *
  * What it does not do is keep history. There is no metrics store behind this
  * and adding one is a dependency decision, not a page; the queue backlog, the
  * failed jobs and the table sizes are the signals that already exist in the
- * database, so they are the ones read.
+ * database, so they are the ones read — the queue's through {@see QueueState}.
  */
 final readonly class BuildSystemReport
 {
-    /** Failed jobs listed on the page; the rest are counted. */
-    private const int FAILED_JOB_LIMIT = 20;
-
-    /** Below this share of free disk the check turns red. */
-    private const float DISK_WARNING_RATIO = 0.1;
+    use DescribesSystem;
 
     /**
      * The tables worth watching grow, in the order they are listed.
@@ -65,8 +54,8 @@ final readonly class BuildSystemReport
 
     public function __construct(
         private Application $app,
-        private Cache $cache,
-        private FailedJobProviderInterface $failer,
+        private RunHealthChecks $checks,
+        private QueueState $queue,
     ) {}
 
     /**
@@ -86,12 +75,7 @@ final readonly class BuildSystemReport
 
         return [
             'environment' => $this->environment(),
-            'checks' => [
-                $this->databaseCheck(),
-                $this->cacheCheck(),
-                $this->queueCheck(),
-                $this->diskCheck($disk),
-            ],
+            'checks' => $this->checks->handle($disk),
             'runtime' => [
                 'memoryPeak' => memory_get_peak_usage(true),
                 'memoryLimit' => ini_get('memory_limit'),
@@ -100,8 +84,8 @@ final readonly class BuildSystemReport
                 'diskFree' => $disk['free'],
                 'diskTotal' => $disk['total'],
             ],
-            'queue' => $this->queue(),
-            'failedJobs' => $this->failedJobs(),
+            'queue' => $this->queue->backlog(),
+            'failedJobs' => $this->queue->failedJobs(),
             'tables' => $this->tables(),
             'sessions' => [
                 'last5Minutes' => $this->sessionsSince(CarbonImmutable::now()->subMinutes(5)),
@@ -135,185 +119,6 @@ final readonly class BuildSystemReport
     }
 
     /**
-     * @return array{name: string, ok: bool, detail: string, latencyMs: float|null}
-     */
-    private function databaseCheck(): array
-    {
-        return $this->probe('Database', function (): string {
-            DB::select('select 1');
-
-            return sprintf('%s connection answering', DB::connection()->getDriverName());
-        });
-    }
-
-    /**
-     * A full round trip rather than a read: a cache that accepts writes and
-     * returns nothing is the failure worth catching, and only reading back
-     * what was just written catches it.
-     *
-     * @return array{name: string, ok: bool, detail: string, latencyMs: float|null}
-     */
-    private function cacheCheck(): array
-    {
-        return $this->probe('Cache', function (): string {
-            $key = 'admin:health:'.Str::random(12);
-            $value = Str::random(16);
-
-            $this->cache->put($key, $value, 10);
-            $read = $this->cache->get($key);
-            $this->cache->forget($key);
-
-            throw_if($read !== $value, RuntimeException::class, 'A value written to the cache did not come back.');
-
-            return sprintf('%s store round trip', $this->configString('cache.default'));
-        });
-    }
-
-    /**
-     * Healthy while nothing has failed in the last day. Older failures are
-     * still listed below, but a job that fell over last month is a chore, not
-     * an outage.
-     *
-     * @return array{name: string, ok: bool, detail: string, latencyMs: float|null}
-     */
-    private function queueCheck(): array
-    {
-        try {
-            $recent = $this->failedTable()?->where('failed_at', '>=', CarbonImmutable::now()->subDay())->count();
-        } catch (Throwable $throwable) {
-            return ['name' => 'Queue', 'ok' => false, 'detail' => $this->firstLine($throwable->getMessage()), 'latencyMs' => null];
-        }
-
-        if ($recent === null) {
-            return ['name' => 'Queue', 'ok' => true, 'detail' => 'Failures are not stored in the database', 'latencyMs' => null];
-        }
-
-        return [
-            'name' => 'Queue',
-            'ok' => $recent === 0,
-            'detail' => $recent === 0
-                ? 'No failed jobs in the last 24 hours'
-                : sprintf('%d failed %s in the last 24 hours', $recent, Str::plural('job', $recent)),
-            'latencyMs' => null,
-        ];
-    }
-
-    /**
-     * @param  array{free: int|null, total: int|null}  $disk
-     * @return array{name: string, ok: bool, detail: string, latencyMs: float|null}
-     */
-    private function diskCheck(array $disk): array
-    {
-        if ($disk['free'] === null || $disk['total'] === null || $disk['total'] === 0) {
-            return ['name' => 'Disk space', 'ok' => true, 'detail' => 'Not reported by this host', 'latencyMs' => null];
-        }
-
-        return [
-            'name' => 'Disk space',
-            'ok' => $disk['free'] / $disk['total'] >= self::DISK_WARNING_RATIO,
-            'detail' => sprintf('%s free of %s', $this->bytes($disk['free']), $this->bytes($disk['total'])),
-            'latencyMs' => null,
-        ];
-    }
-
-    /**
-     * Run a check, timing it, and turn any exception into a failed result.
-     *
-     * @param  callable(): string  $check
-     * @return array{name: string, ok: bool, detail: string, latencyMs: float|null}
-     */
-    private function probe(string $name, callable $check): array
-    {
-        $started = hrtime(true);
-
-        try {
-            $detail = $check();
-        } catch (Throwable $throwable) {
-            return ['name' => $name, 'ok' => false, 'detail' => $this->firstLine($throwable->getMessage()), 'latencyMs' => null];
-        }
-
-        return [
-            'name' => $name,
-            'ok' => true,
-            'detail' => $detail,
-            'latencyMs' => round((hrtime(true) - $started) / 1_000_000, 2),
-        ];
-    }
-
-    /**
-     * @return array{connection: string, pending: int|null, oldestPendingSeconds: int|null, failed: int|null}
-     */
-    private function queue(): array
-    {
-        $connection = $this->configString('queue.default');
-        $pending = null;
-        $oldest = null;
-
-        if (config('queue.connections.'.$connection.'.driver') === 'database') {
-            try {
-                $jobs = $this->jobsTable($connection);
-                $pending = (clone $jobs)->count();
-                $available = (clone $jobs)->min('available_at');
-                $oldest = is_numeric($available) ? max(0, CarbonImmutable::now()->getTimestamp() - (int) $available) : null;
-            } catch (Throwable $throwable) {
-                report($throwable);
-                $pending = null;
-            }
-        }
-
-        try {
-            $failed = $this->failer instanceof CountableFailedJobProvider ? $this->failer->count() : null;
-        } catch (Throwable $throwable) {
-            report($throwable);
-            $failed = null;
-        }
-
-        return [
-            'connection' => $connection,
-            'pending' => $pending,
-            'oldestPendingSeconds' => $oldest,
-            'failed' => $failed,
-        ];
-    }
-
-    /**
-     * @return array<int, array{id: string, connection: string, queue: string, job: string, exception: string, failedAt: string|null}>
-     */
-    private function failedJobs(): array
-    {
-        try {
-            $rows = $this->failedTable()
-                ?->orderByDesc('failed_at')
-                ->orderByDesc('id')
-                ->limit(self::FAILED_JOB_LIMIT)
-                ->get(['uuid', 'connection', 'queue', 'payload', 'exception', 'failed_at']);
-        } catch (Throwable $throwable) {
-            report($throwable);
-
-            return [];
-        }
-
-        if ($rows === null) {
-            return [];
-        }
-
-        return $rows->map(function (stdClass $record): array {
-            $row = fluent($record);
-            $payload = json_decode((string) $row->string('payload'), true);
-            $failedAt = $row->get('failed_at');
-
-            return [
-                'id' => (string) $row->string('uuid'),
-                'connection' => (string) $row->string('connection'),
-                'queue' => (string) $row->string('queue'),
-                'job' => is_array($payload) && is_string($payload['displayName'] ?? null) ? $payload['displayName'] : 'Unknown job',
-                'exception' => $this->firstLine((string) $row->string('exception')),
-                'failedAt' => is_string($failedAt) ? CarbonImmutable::parse($failedAt)->toIso8601String() : null,
-            ];
-        })->values()->all();
-    }
-
-    /**
      * Row counts for the watched tables, with sizes where the driver reports
      * them. MySQL reports data plus index length; SQLite reports nothing
      * without an extension, and null says so.
@@ -321,6 +126,26 @@ final readonly class BuildSystemReport
      * @return array<int, array{name: string, rows: int|null, size: int|null}>
      */
     private function tables(): array
+    {
+        $names = array_values(array_filter(
+            self::WATCHED_TABLES,
+            static fn (string $name): bool => Schema::hasTable($name),
+        ));
+
+        $sizes = $this->tableSizes();
+        $rows = $this->rowCounts($names);
+
+        return array_map(static fn (string $name): array => [
+            'name' => $name,
+            'rows' => $rows[$name] ?? null,
+            'size' => $sizes[$name] ?? null,
+        ], $names);
+    }
+
+    /**
+     * @return array<string, int|null>
+     */
+    private function tableSizes(): array
     {
         $sizes = [];
 
@@ -334,27 +159,52 @@ final readonly class BuildSystemReport
             }
         } catch (Throwable $throwable) {
             report($throwable);
-            $sizes = [];
+
+            return [];
         }
 
-        $tables = [];
+        return $sizes;
+    }
 
-        foreach (self::WATCHED_TABLES as $name) {
-            if (! Schema::hasTable($name)) {
-                continue;
-            }
-
-            try {
-                $rows = DB::table($name)->count();
-            } catch (Throwable $throwable) {
-                report($throwable);
-                $rows = null;
-            }
-
-            $tables[] = ['name' => $name, 'rows' => $rows, 'size' => $sizes[$name] ?? null];
+    /**
+     * Every table's row count in one statement, a scalar subquery apiece,
+     * rather than a round trip per table.
+     *
+     * Which means they fail together: a table that cannot be counted leaves
+     * every count on the page unknown, and reported, rather than only its own.
+     * That is the price of one query instead of one per table.
+     *
+     * @param  list<string>  $names
+     * @return array<string, int|null>
+     */
+    private function rowCounts(array $names): array
+    {
+        if ($names === []) {
+            return [];
         }
 
-        return $tables;
+        $query = DB::query();
+
+        foreach ($names as $name) {
+            $query->selectSub(DB::table($name)->selectRaw('count(*)'), $name);
+        }
+
+        try {
+            $row = fluent($query->first());
+        } catch (Throwable $throwable) {
+            report($throwable);
+
+            return [];
+        }
+
+        $counts = [];
+
+        foreach ($names as $name) {
+            $count = $row->get($name);
+            $counts[$name] = is_numeric($count) ? (int) $count : null;
+        }
+
+        return $counts;
     }
 
     /**
@@ -405,54 +255,5 @@ final readonly class BuildSystemReport
         $load = sys_getloadavg();
 
         return is_array($load) ? array_map(static fn (float $value): float => round($value, 2), $load) : null;
-    }
-
-    /**
-     * The failed jobs table, when failures are kept in one.
-     */
-    private function failedTable(): ?Builder
-    {
-        $driver = $this->configString('queue.failed.driver');
-
-        if (! in_array($driver, ['database', 'database-uuids'], true)) {
-            return null;
-        }
-
-        return $this->connection($this->configString('queue.failed.database'))
-            ->table($this->configString('queue.failed.table', 'failed_jobs'));
-    }
-
-    private function jobsTable(string $queueConnection): Builder
-    {
-        $database = config('queue.connections.'.$queueConnection.'.connection');
-        $table = config('queue.connections.'.$queueConnection.'.table');
-
-        return $this->connection(is_string($database) ? $database : '')
-            ->table(is_string($table) ? $table : 'jobs');
-    }
-
-    private function connection(string $name): ConnectionInterface
-    {
-        return $name === '' ? DB::connection() : DB::connection($name);
-    }
-
-    private function configString(string $key, string $default = ''): string
-    {
-        $value = config($key);
-
-        return is_string($value) && $value !== '' ? $value : $default;
-    }
-
-    private function firstLine(string $text): string
-    {
-        return Str::limit(mb_trim(strtok($text, "\n") ?: $text), 300);
-    }
-
-    private function bytes(int $bytes): string
-    {
-        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-        $power = $bytes > 0 ? min((int) floor(log($bytes, 1024)), count($units) - 1) : 0;
-
-        return sprintf('%.1f %s', $bytes / (1024 ** $power), $units[$power]);
     }
 }

@@ -152,7 +152,7 @@ export function UserFormDialog({
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value={NO_OVERRIDE}>
-                                    None — follow their subscription
+                                    None (follow their subscription)
                                 </SelectItem>
                                 {options.plans.map((plan) => (
                                     <SelectItem

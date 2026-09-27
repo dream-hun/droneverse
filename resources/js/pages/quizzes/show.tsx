@@ -82,7 +82,7 @@ export default function QuizShow({ course, quiz, progress }: QuizShowProps) {
                 toast.success(`Passed with ${graded.score}%.`);
             } else {
                 toast.error(
-                    `Scored ${graded.score}% — ${quiz.passPercentage}% needed to pass.`,
+                    `Scored ${graded.score}%. ${quiz.passPercentage}% needed to pass.`,
                 );
             }
         } catch {
@@ -158,7 +158,7 @@ export default function QuizShow({ course, quiz, progress }: QuizShowProps) {
                         <p className="text-sm text-muted-foreground">
                             {answeredCount} of {quiz.questions.length} answered
                             {!allAnswered &&
-                                ' — unanswered questions are marked wrong.'}
+                                '. Unanswered questions are marked wrong.'}
                         </p>
                         <Button
                             onClick={grade}

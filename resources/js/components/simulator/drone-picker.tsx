@@ -142,7 +142,7 @@ export function DronePicker({
                     <DialogDescription>
                         Every mission is balanced around the{' '}
                         {fleet.find((d) => d.isDefault)?.name ?? 'stock drone'}.
-                        The rest of the fleet trades one thing for another —
+                        The rest of the fleet trades one thing for another, and
                         none of them is a straight upgrade.
                     </DialogDescription>
                 </DialogHeader>

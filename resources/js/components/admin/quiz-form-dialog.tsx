@@ -183,7 +183,7 @@ export function QuizFormDialog({
                             defaultChecked={quiz?.isPublished ?? false}
                         />
                         <Label htmlFor="quiz-published">
-                            Published — pilots can see and take it
+                            Published: pilots can see and take it
                         </Label>
                     </div>
                 </div>

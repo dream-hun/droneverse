@@ -196,7 +196,7 @@ export function useDroneSimulation({
             flightStateRef.current.photosTaken = index;
 
             appendLog('log', [
-                `Photo ${index} captured${label ? ` — "${label}"` : ''}.`,
+                `Photo ${index} captured${label ? `: "${label}"` : ''}.`,
             ]);
 
             uploadsRef.current
@@ -430,7 +430,7 @@ export function useDroneSimulation({
                 !washAnnouncedRef.current
             ) {
                 washAnnouncedRef.current = true;
-                appendLog('log', ['Wash cycle complete — airframe clean.']);
+                appendLog('log', ['Wash cycle complete. Airframe clean.']);
                 droneVoice.announceEvent('washed');
             }
         },

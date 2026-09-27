@@ -114,7 +114,7 @@ final class QuizSeeder extends Seeder
                             ['Each command returns a promise that resolves when the manoeuvre completes', true],
                             ['`await` is what sends the command to the simulator', false],
                             ['It slows the drone to a safe speed', false],
-                            ['It is optional — the simulator queues commands either way', false],
+                            ['It is optional: the simulator queues commands either way', false],
                         ],
                     ],
                     [

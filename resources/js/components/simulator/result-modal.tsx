@@ -47,8 +47,8 @@ export function ResultModal({ result, onClose, onRetry }: ResultModalProps) {
                         {result?.timedOut
                             ? 'You ran out of time.'
                             : result?.completed
-                              ? 'Nice flying — your progress has been saved.'
-                              : 'Not quite there yet — check the objectives and try again.'}
+                              ? 'Nice flying. Your progress has been saved.'
+                              : 'Not quite there yet. Check the objectives and try again.'}
                     </DialogDescription>
                 </DialogHeader>
 

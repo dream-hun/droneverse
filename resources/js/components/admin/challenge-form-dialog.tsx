@@ -338,7 +338,7 @@ export function ChallengeFormDialog({
                             defaultChecked={challenge?.isPublished ?? false}
                         />
                         <Label htmlFor="challenge-published">
-                            Published — pilots can see and fly it
+                            Published: pilots can see and fly it
                         </Label>
                     </div>
                 </div>

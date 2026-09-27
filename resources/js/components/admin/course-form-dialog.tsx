@@ -188,7 +188,7 @@ export function CourseFormDialog({
                             defaultChecked={course?.isPublished ?? false}
                         />
                         <Label htmlFor="course-published">
-                            Published — listed in the catalogue
+                            Published: listed in the catalogue
                         </Label>
                     </div>
                 </div>

@@ -14,7 +14,7 @@ use App\Http\Resources\Admin\AdminChallengeResource;
 use App\Http\Resources\Admin\AdminCourseResource;
 use App\Http\Resources\Admin\AdminQuizResource;
 use App\Models\Course;
-use Illuminate\Database\Eloquent\Builder;
+use App\Queries\AdminCatalog;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -25,16 +25,11 @@ final class CourseController extends Controller
     /**
      * The whole catalogue in author order, drafts included.
      */
-    public function index(): Response
+    public function index(AdminCatalog $catalog): Response
     {
-        $courses = $this->withCounts(Course::query())
-            ->orderBy('order')
-            ->orderBy('id')
-            ->get();
-
         return Inertia::render('admin/courses/index', [
-            'courses' => AdminCourseResource::collection($courses),
-            'plans' => $this->plans(),
+            'courses' => AdminCourseResource::collection($catalog->courses()),
+            'plans' => Plan::options(),
         ]);
     }
 
@@ -54,22 +49,13 @@ final class CourseController extends Controller
      * edit form opens in place over this page. A course holds a handful of
      * missions, so that is a few kilobytes rather than a round trip per edit.
      */
-    public function show(Course $course): Response
+    public function show(Course $course, AdminCatalog $catalog): Response
     {
-        $course->loadCount($this->counts());
-
-        $challenges = $course->challenges()
-            ->withCount('progress')
-            ->orderBy('id')
-            ->get();
-
         return Inertia::render('admin/courses/show', [
-            'course' => AdminCourseResource::one($course),
-            'challenges' => AdminChallengeResource::collection($challenges),
-            'quizzes' => AdminQuizResource::collection(
-                $course->quizzes()->withCount(['questions', 'progress'])->get(),
-            ),
-            'plans' => $this->plans(),
+            'course' => AdminCourseResource::one($catalog->loadCounts($course)),
+            'challenges' => AdminChallengeResource::collection($catalog->challengesIn($course)),
+            'quizzes' => AdminQuizResource::collection($catalog->quizzesIn($course)),
+            'plans' => Plan::options(),
         ]);
     }
 
@@ -100,37 +86,5 @@ final class CourseController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Course :title deleted.', ['title' => $course->title])]);
 
         return to_route('admin.courses.index');
-    }
-
-    /**
-     * @param  Builder<Course>  $query
-     * @return Builder<Course>
-     */
-    private function withCounts(Builder $query): Builder
-    {
-        return $query->withCount($this->counts());
-    }
-
-    /**
-     * @return array<int|string, mixed>
-     */
-    private function counts(): array
-    {
-        return [
-            'challenges',
-            'challenges as published_challenges_count' => fn (Builder $challenges): Builder => $challenges->where('is_published', true),
-            'quizzes',
-        ];
-    }
-
-    /**
-     * @return array<int, array{value: string, label: string}>
-     */
-    private function plans(): array
-    {
-        return array_map(
-            static fn (Plan $plan): array => ['value' => $plan->value, 'label' => $plan->label()],
-            Plan::cases(),
-        );
     }
 }

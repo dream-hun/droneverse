@@ -16,8 +16,8 @@ use App\Http\Resources\Admin\AdminUserResource;
 use App\Http\Resources\Admin\PaginationResource;
 use App\Models\Role;
 use App\Models\User;
+use App\Queries\UserDirectory;
 use Illuminate\Container\Attributes\CurrentUser;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\RedirectResponse;
@@ -32,30 +32,15 @@ final class UserController extends Controller
     private const int PER_PAGE = 25;
 
     /**
-     * Every account, newest first, searchable by name or address.
-     *
-     * `role` narrows to holders of one role, or to `staff` — anyone holding
-     * any role — which is the question asked when auditing who can reach
-     * this area at all.
+     * Every account, newest first, searchable by name or address and
+     * filterable by role; see {@see UserDirectory::page()}.
      */
-    public function index(Request $request, #[CurrentUser] User $viewer): Response
+    public function index(Request $request, #[CurrentUser] User $viewer, UserDirectory $directory): Response
     {
         $search = mb_trim((string) $request->string('q'));
         $role = mb_trim((string) $request->string('role'));
 
-        $users = User::query()
-            ->with('roles')
-            ->withCount('challengeRuns')
-            ->when($search !== '', fn (Builder $query): Builder => $query->where(
-                fn (Builder $match): Builder => $match
-                    ->where('name', 'like', '%'.$search.'%')
-                    ->orWhere('email', 'like', '%'.$search.'%'),
-            ))
-            ->when($role === 'staff', fn (Builder $query): Builder => $query->whereHas('roles'))
-            ->when($role !== '' && $role !== 'staff', fn (Builder $query): Builder => $query->role($role))
-            ->latest('id')
-            ->paginate(self::PER_PAGE)
-            ->withQueryString();
+        $users = $directory->page($search, $role, self::PER_PAGE);
 
         return Inertia::render('admin/users/index', [
             'users' => AdminUserResource::collection($users->getCollection(), $viewer),
@@ -145,8 +130,7 @@ final class UserController extends Controller
         return [
             'roles' => Role::query()
                 ->with('permissions')
-                ->orderByRaw('name = ? desc', [Role::ADMIN])
-                ->orderBy('name')
+                ->adminFirst()
                 ->get()
                 ->map(fn (Role $role): array => [
                     'name' => $role->name,
@@ -154,10 +138,7 @@ final class UserController extends Controller
                     'assignable' => $viewer->can('assignRole', [User::class, $role]),
                 ])
                 ->all(),
-            'plans' => array_map(
-                static fn (Plan $plan): array => ['value' => $plan->value, 'label' => $plan->label()],
-                Plan::cases(),
-            ),
+            'plans' => Plan::options(),
             'can' => [
                 'assignRoles' => $viewer->can('assignRoles', User::class),
                 'assignAdminRole' => $viewer->can('assignAdminRole', User::class),

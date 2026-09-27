@@ -6,6 +6,8 @@ namespace App\Models;
 
 use App\Enums\AdminPermission;
 use Database\Factories\RoleFactory;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -98,5 +100,17 @@ final class Role extends SpatieRole
         );
 
         return array_diff($this->permissionNames(), $held) === [];
+    }
+
+    /**
+     * `admin` first, as the role everything else is measured against, then
+     * the rest by name.
+     *
+     * @param  Builder<Role>  $query
+     */
+    #[Scope]
+    protected function adminFirst(Builder $query): void
+    {
+        $query->orderByRaw('name = ? desc', [self::ADMIN])->orderBy('name');
     }
 }

@@ -61,7 +61,7 @@ export default function Terms({ identity, updatedAt }: Props) {
                         We write to you in English and these terms are concluded
                         in English. If you are a consumer, nothing in this
                         document takes away rights you have under the law of the
-                        country you live in — where the two disagree, your local
+                        country you live in. Where the two disagree, your local
                         consumer law wins.
                     </p>
                 </>
@@ -116,9 +116,9 @@ export default function Terms({ identity, updatedAt }: Props) {
                     <p>
                         You need an account to fly. You must give us a real name
                         and a working email address, keep them up to date, and
-                        keep your credentials to yourself. Accounts are personal
-                        — do not share one, and do not let anyone else use
-                        yours.
+                        keep your credentials to yourself. Accounts are
+                        personal. Do not share one, and do not let anyone else
+                        use yours.
                     </p>
                     <p>
                         You must be at least 16 years old to open an account. If
@@ -147,7 +147,7 @@ export default function Terms({ identity, updatedAt }: Props) {
                         subscription billed monthly or yearly, or a one-time
                         Lifetime purchase that does not renew. What each plan
                         includes, and what it costs, is set out on the pricing
-                        page — that page is part of these terms, and the price
+                        page. That page is part of these terms, and the price
                         shown there before you buy is the price you pay.
                     </p>
                     <p>
@@ -175,11 +175,11 @@ export default function Terms({ identity, updatedAt }: Props) {
                         already paid for.
                     </p>
                     <p>
-                        Changing plan — upgrading, downgrading, or moving
-                        between monthly and yearly — adjusts the subscription
-                        you already hold rather than starting a second one, and
-                        the difference is settled on your next renewal. You can
-                        see and manage all of this from your{' '}
+                        Changing plan (upgrading, downgrading, or moving between
+                        monthly and yearly) adjusts the subscription you already
+                        hold rather than starting a second one, and the
+                        difference is settled on your next renewal. You can see
+                        and manage all of this from your{' '}
                         <a href={editBilling.url()}>billing settings</a>.
                     </p>
                 </>
@@ -194,7 +194,7 @@ export default function Terms({ identity, updatedAt }: Props) {
                         If you are a consumer in the EU or EEA, you have the
                         right to withdraw from a paid subscription within{' '}
                         <strong>14 days</strong>, without giving any reason. The
-                        period runs from the day the contract is concluded —
+                        period runs from the day the contract is concluded,
                         which is the day you subscribe, including where the
                         subscription opens with a free or discounted period.
                     </p>
@@ -218,15 +218,15 @@ export default function Terms({ identity, updatedAt }: Props) {
                         withdraw.{' '}
                         <strong>
                             There is no form to fill in and no template to
-                            follow
+                            follow.
                         </strong>{' '}
-                        — say it in your own words, in any way that is clear,
-                        and a person will read it and deal with it. We do not
-                        ask you for a reason, we do not put you through a
-                        retention flow, and we will not send you back to a
-                        screen to do it yourself. Sending your notice before the
-                        14 days are up is all that is required; we acknowledge
-                        it without delay and confirm when it is done.
+                        Say it in your own words, in any way that is clear, and
+                        a person will read it and deal with it. We do not ask
+                        you for a reason, we do not put you through a retention
+                        flow, and we will not send you back to a screen to do it
+                        yourself. Sending your notice before the 14 days are up
+                        is all that is required; we acknowledge it without delay
+                        and confirm when it is done.
                     </p>
                     <p>
                         <strong>What you get back.</strong> We refund every
@@ -255,7 +255,7 @@ export default function Terms({ identity, updatedAt }: Props) {
                                 one-page PDF to download
                             </a>
                             . It is offered because the law expects us to offer
-                            it — you are never obliged to use it, and sending it
+                            it. You are never obliged to use it, and sending it
                             gets your withdrawal handled no faster than an email
                             would.
                         </p>
@@ -276,9 +276,9 @@ export default function Terms({ identity, updatedAt }: Props) {
                         you would rather not hunt for it,{' '}
                         <strong>
                             write to <MailLink email={support} /> and a person
-                            will cancel it for you
+                            will cancel it for you.
                         </strong>{' '}
-                        — no form, no questionnaire, no reason required, and
+                        No form, no questionnaire, no reason required, and
                         nobody trying to talk you out of it.
                     </p>
                     <p>
@@ -289,7 +289,7 @@ export default function Terms({ identity, updatedAt }: Props) {
                     <p>
                         Dropping to Starter changes which missions you can fly.
                         It does not delete your progress, your scores or your
-                        photo log — those stay on your account, and come back
+                        photo log. Those stay on your account, and come back
                         with you if you subscribe again. Deleting the account
                         itself is a separate action and is described in our{' '}
                         <a href={privacy.url()}>privacy policy</a>.
@@ -309,8 +309,8 @@ export default function Terms({ identity, updatedAt }: Props) {
                     <ul>
                         <li>
                             Attack the service or the sandbox your code runs in
-                            — probing for vulnerabilities, escaping the sandbox,
-                            attempting to reach other pilots' data, or
+                            by probing for vulnerabilities, escaping the
+                            sandbox, attempting to reach other pilots' data, or
                             interfering with anyone else's use of it.
                         </li>
                         <li>
@@ -330,7 +330,7 @@ export default function Terms({ identity, updatedAt }: Props) {
                             leaderboard.
                         </li>
                         <li>
-                            Misrepresent what DroneVerse is — in particular,
+                            Misrepresent what DroneVerse is, in particular by
                             presenting anything from here as aviation training,
                             certification or evidence of competence to fly a
                             real aircraft.
@@ -348,7 +348,7 @@ export default function Terms({ identity, updatedAt }: Props) {
                         <strong>Yours stays yours.</strong> The code you write,
                         the flights you record and the photos your simulated
                         drone takes belong to you. You give us only the
-                        permission we need to run the service — to store your
+                        permission we need to run the service: to store your
                         work, execute and score it, show it back to you, and
                         show your display name and score on the leaderboard to
                         other signed-in pilots. That permission ends when you
@@ -361,7 +361,7 @@ export default function Terms({ identity, updatedAt }: Props) {
                         models, and the DroneVerse name and marks are ours or
                         our licensors'. Your subscription is a personal,
                         non-transferable licence to use them for your own
-                        learning for as long as it lasts — it transfers nothing
+                        learning for as long as it lasts. It transfers nothing
                         else.
                     </p>
                 </>
@@ -410,7 +410,7 @@ export default function Terms({ identity, updatedAt }: Props) {
                         Because this is a subscription supplied continuously, we
                         are answerable for conformity throughout the period it
                         runs. Tell us at <MailLink email={support} /> and
-                        describe what went wrong — none of this costs you
+                        describe what went wrong. None of this costs you
                         anything, and none of it depends on you having bought
                         anything extra.
                     </p>
@@ -431,8 +431,8 @@ export default function Terms({ identity, updatedAt }: Props) {
                         <strong>We never exclude or limit</strong> liability for
                         death or personal injury caused by our negligence, for
                         fraud or fraudulent misrepresentation, or for anything
-                        else the law does not permit us to limit — including
-                        your rights as a consumer under the Consumer Rights
+                        else the law does not permit us to limit, including your
+                        rights as a consumer under the Consumer Rights
                         Directive, the Digital Content Directive and your
                         national law implementing them.
                     </p>
@@ -443,7 +443,7 @@ export default function Terms({ identity, updatedAt }: Props) {
                         out of you flying a real drone. Where a limit is
                         permitted, our total liability for claims arising in any
                         twelve-month period is limited to what you paid us in
-                        that period — and to nothing where you are on the free
+                        that period, and to nothing where you are on the free
                         plan and have paid us nothing.
                     </p>
                 </>
@@ -477,7 +477,7 @@ export default function Terms({ identity, updatedAt }: Props) {
             title: 'Changes to these terms',
             body: (
                 <p>
-                    We may update these terms — for new features, or because the
+                    We may update these terms for new features, or because the
                     law changes. For any change that materially affects your
                     rights or obligations we will email you at least 30 days
                     before it takes effect, and you may end your subscription

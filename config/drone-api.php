@@ -63,7 +63,7 @@ return [
             'signature' => 'await drone.moveForward(distance)',
             'summary' => "Fly `distance` meters along the drone's current heading, holding altitude.",
             'params' => [
-                ['name' => 'distance', 'type' => 'number', 'optional' => false, 'description' => 'Meters to travel. Horizontal only — altitude is preserved.'],
+                ['name' => 'distance', 'type' => 'number', 'optional' => false, 'description' => 'Meters to travel. Horizontal only; altitude is preserved.'],
             ],
             'returns' => null,
             'notes' => [
@@ -166,7 +166,7 @@ return [
             'params' => [],
             'returns' => 'A number, in degrees.',
             'notes' => [
-                'This is not the 0–360 compass figure on the HUD. The HUD shows the compass bearing; this reports raw yaw, which runs the opposite way — a positive turn() makes this value go down.',
+                'This is not the 0–360 compass figure on the HUD. The HUD shows the compass bearing; this reports raw yaw, which runs the opposite way: a positive turn() makes this value go down.',
                 'For anything that has to reason about direction, prefer the `bearingDeg` on a scan() contact: it is already relative to the nose and already normalised.',
             ],
         ],
@@ -189,7 +189,7 @@ return [
             'params' => [],
             'returns' => 'Meters to the first solid thing ahead, or 20 if nothing is within range.',
             'notes' => [
-                'A level ray, cast horizontally from the drone at its current altitude — it sees nothing above or below that line.',
+                'A level ray, cast horizontally from the drone at its current altitude. It sees nothing above or below that line.',
                 '20 means "clear", not "wall at 20 m". Compare against a threshold well under 20 rather than testing for the number itself.',
             ],
         ],
@@ -219,7 +219,7 @@ return [
             'returns' => 'The captured photo, which is also queued for your photo log.',
             'notes' => [
                 'The drone stabilises for 0.4 s before the shutter fires, so the shot is not smeared. That time is on the mission clock.',
-                'Where the drone was standing when it fired is what photo-target objectives are graded on — point the nose at the subject, not just near it.',
+                'Where the drone was standing when it fired is what photo-target objectives are graded on. Point the nose at the subject, not just near it.',
                 'Photos survive the run: they upload to your photo log and are served through links that expire after 30 minutes.',
             ],
         ],
@@ -264,12 +264,12 @@ return [
 
         'tagline' => 'Everything the drone can do, and everything a run is graded on.',
 
-        'summary' => 'One reference for the whole simulator: every command a program can issue, a worked example for each idea the courses teach, and the rules every run is scored by. None of it needs an account — read it before you write a line.',
+        'summary' => 'One reference for the whole simulator: every command a program can issue, a worked example for each idea the courses teach, and the rules every run is scored by. None of it needs an account. Read it before you write a line.',
 
         'concepts' => [
             [
                 'title' => 'A program is one async function',
-                'body' => 'Every mission runs the same entry point: `async function main(drone)`. The simulator calls it once, hands it the drone, and the run ends when it returns. Declare whatever you like around it — helpers, constants, classes — but that function has to exist, or the run stops before it starts with "Define an async function named main(drone)".',
+                'body' => 'Every mission runs the same entry point: `async function main(drone)`. The simulator calls it once, hands it the drone, and the run ends when it returns. Declare whatever you like around it (helpers, constants, classes), but that function has to exist, or the run stops before it starts with "Define an async function named main(drone)".',
             ],
             [
                 'title' => 'Every command is awaited',
@@ -281,11 +281,11 @@ return [
             ],
             [
                 'title' => 'Relative and absolute movement',
-                'body' => '`moveForward()` and `turn()` fly relative to wherever the nose points; `moveTo()` flies to a coordinate in the world whatever the heading. Briefings give waypoints as absolute coordinates, so those are flown with `moveTo()` — and `moveTo()` will happily fly you into the ground if you hand it a low `y`, so take off first.',
+                'body' => '`moveForward()` and `turn()` fly relative to wherever the nose points; `moveTo()` flies to a coordinate in the world whatever the heading. Briefings give waypoints as absolute coordinates, so those are flown with `moveTo()`, and `moveTo()` will happily fly you into the ground if you hand it a low `y`, so take off first.',
             ],
             [
                 'title' => 'Where the code runs',
-                'body' => 'Programs run in a dedicated Web Worker: no DOM, no `window`, and `fetch`, `XMLHttpRequest`, `WebSocket` and `EventSource` are removed before the first line executes. `console.log`, `console.warn` and `console.error` do work, and print to the console beside the editor — which is how you see what a program thought it was doing.',
+                'body' => 'Programs run in a dedicated Web Worker: no DOM, no `window`, and `fetch`, `XMLHttpRequest`, `WebSocket` and `EventSource` are removed before the first line executes. `console.log`, `console.warn` and `console.error` do work, and print to the console beside the editor, which is how you see what a program thought it was doing.',
             ],
         ],
 

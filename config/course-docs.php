@@ -44,7 +44,7 @@ return [
             [
                 'slug' => 'minimal-flight',
                 'title' => 'The shape of every program',
-                'description' => 'Your code is one async function named `main`, and it is handed a `drone`. Every command is awaited, because each one resolves when the manoeuvre has actually been flown — drop an `await` and the whole script runs in a single frame.',
+                'description' => 'Your code is one async function named `main`, and it is handed a `drone`. Every command is awaited, because each one resolves when the manoeuvre has actually been flown. Drop an `await` and the whole script runs in a single frame.',
                 'code' => <<<'JS'
                     async function main(drone) {
                         await drone.takeoff();
@@ -56,7 +56,7 @@ return [
             [
                 'slug' => 'flying-a-square',
                 'title' => 'A square, with a loop',
-                'description' => '`moveForward()` goes wherever the nose points, so turning between legs is what draws a shape. Four identical legs means a loop rather than four pairs of lines — and changing the 4 to a 6 flies a hexagon.',
+                'description' => '`moveForward()` goes wherever the nose points, so turning between legs is what draws a shape. Four identical legs means a loop rather than four pairs of lines, and changing the 4 to a 6 flies a hexagon.',
                 'code' => <<<'JS'
                     async function main(drone) {
                         await drone.takeoff(3);
@@ -78,7 +78,7 @@ return [
                 'description' => 'Waypoint coordinates from a briefing are absolute, so they are flown with `moveTo()`. Keeping them in an array separates the route from the flying: to change the mission you edit the list, not the loop.',
                 'code' => <<<'JS'
                     async function main(drone) {
-                        // Lift off first — moveTo() will happily fly you into
+                        // Lift off first. moveTo() will happily fly you into
                         // the ground if you hand it a low y.
                         await drone.takeoff();
 
@@ -100,7 +100,7 @@ return [
             [
                 'slug' => 'stop-before-the-wall',
                 'title' => 'Creeping up on an obstacle',
-                'description' => 'The rangefinder looks straight along the nose and reports 20 when it sees nothing. Testing against a threshold — rather than against 20 — is what makes this read as "keep going while the way is clear".',
+                'description' => 'The rangefinder looks straight along the nose and reports 20 when it sees nothing. Testing against a threshold, rather than against 20, is what makes this read as "keep going while the way is clear".',
                 'code' => <<<'JS'
                     async function main(drone) {
                         await drone.takeoff(2);
@@ -135,7 +135,7 @@ return [
 
     'precision-flight' => [
         'tagline' => 'The same commands, flown to a tolerance.',
-        'summary' => 'These missions are not harder to plan — they are harder to fly. The margin for error is small enough that speed, settling time and the difference between absolute and relative altitude all start to matter.',
+        'summary' => 'These missions are not harder to plan. They are harder to fly. The margin for error is small enough that speed, settling time and the difference between absolute and relative altitude all start to matter.',
         'objectives' => [
             'Command absolute altitude, and step relative to the current one.',
             'Trade speed for accuracy with `setSpeed()`.',
@@ -170,7 +170,7 @@ return [
             [
                 'slug' => 'slow-is-accurate',
                 'title' => 'Slowing down for the tight part',
-                'description' => 'Cruise speed is a setting, not an argument — it applies to every move that follows until it is changed. Cruising between the open stretches and slowing for the gates is usually faster overall than flying the whole route carefully.',
+                'description' => 'Cruise speed is a setting, not an argument. It applies to every move that follows until it is changed. Cruising between the open stretches and slowing for the gates is usually faster overall than flying the whole route carefully.',
                 'code' => <<<'JS'
                     async function main(drone) {
                         await drone.takeoff(3);
@@ -250,7 +250,7 @@ return [
 
     'sensor-flight' => [
         'tagline' => 'Let the readings decide where to go.',
-        'summary' => 'Up to now the route was known before the run started. Here it is not: the program probes, reads, and picks its next move from what came back. The flying is the same — the control flow is what changes.',
+        'summary' => 'Up to now the route was known before the run started. Here it is not: the program probes, reads, and picks its next move from what came back. The flying is the same. The control flow is what changes.',
         'objectives' => [
             'Drive a `while` loop from a live sensor reading.',
             'Probe in more than one direction by turning between reads.',
@@ -316,7 +316,7 @@ return [
             [
                 'slug' => 'homing-on-a-contact',
                 'title' => 'Flying to something you found',
-                'description' => 'A contact carries both a bearing and absolute coordinates, which gives you two ways to reach it. Turning by the bearing and flying the distance is the one that generalises — it works the same whether the target moved or you did.',
+                'description' => 'A contact carries both a bearing and absolute coordinates, which gives you two ways to reach it. Turning by the bearing and flying the distance is the one that generalises. It works the same whether the target moved or you did.',
                 'code' => <<<'JS'
                     async function main(drone) {
                         await drone.takeoff(3);
@@ -516,7 +516,7 @@ return [
 
     'city-operations' => [
         'tagline' => 'A full shift over a working city block.',
-        'summary' => 'The graduation course. Sensors, camera and route planning at once, over a block with traffic, trees and a wash tunnel in it — and missions that grade several of those at the same time.',
+        'summary' => 'The graduation course. Sensors, camera and route planning at once, over a block with traffic, trees and a wash tunnel in it, and missions that grade several of those at the same time.',
         'objectives' => [
             'Sweep a street and log every contact the scanner returns.',
             'Find a labelled target and photograph it from the right place.',
@@ -558,7 +558,7 @@ return [
             [
                 'slug' => 'photograph-a-target',
                 'title' => 'Photographing a named target',
-                'description' => 'Photo objectives are graded on where the drone was standing when the shutter fired, so the job is to get to a sensible stand-off and point the nose at the subject. The 0.4 s stabilise happens inside `takePhoto()` — it does not need a hover before it.',
+                'description' => 'Photo objectives are graded on where the drone was standing when the shutter fired, so the job is to get to a sensible stand-off and point the nose at the subject. The 0.4 s stabilise happens inside `takePhoto()`. It does not need a hover before it.',
                 'code' => <<<'JS'
                     async function main(drone) {
                         await drone.takeoff(8);
@@ -630,7 +630,7 @@ return [
             [
                 'slug' => 'shift-skeleton',
                 'title' => 'A shift, in pieces',
-                'description' => 'A combined mission is long enough that debugging it as one block is painful. Splitting it into named phases lets you comment out three of them and fly the fourth until it works — which is how these get finished.',
+                'description' => 'A combined mission is long enough that debugging it as one block is painful. Splitting it into named phases lets you comment out three of them and fly the fourth until it works. That is how these get finished.',
                 'code' => <<<'JS'
                     async function main(drone) {
                         const CRUISE = 10;

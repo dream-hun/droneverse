@@ -47,7 +47,7 @@ const FAQS = [
     },
     {
         question: 'Do I keep what I have built if I downgrade?',
-        answer: 'Yes. Your progress, photos and scores stay on your account — a downgrade only changes which missions you can fly, never what you have already flown.',
+        answer: 'Yes. Your progress, photos and scores stay on your account. A downgrade only changes which missions you can fly, never what you have already flown.',
     },
     {
         question: 'Is there a student discount?',

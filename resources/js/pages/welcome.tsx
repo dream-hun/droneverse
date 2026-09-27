@@ -26,7 +26,7 @@ function buildFeatures(missionCount: number) {
             icon: Code2,
             title: 'A real JavaScript API',
             description:
-                'takeoff, moveTo, turn, setAltitude — async/await against a real drone interface. Loops and conditionals work, because it is real code.',
+                'Use takeoff, moveTo, turn and setAltitude with async/await against a real drone interface. Loops and conditionals work, because it is real code.',
         },
         {
             icon: Gauge,
@@ -246,9 +246,9 @@ export default function Welcome({
                                 <p className="mb-6 leading-relaxed text-muted-foreground">
                                     Every mission hands you a starter script and
                                     the full drone API. Your code runs in a
-                                    sandboxed worker driving a real physics sim
-                                    — so a loop that reads a sensor and reacts
-                                    to it does exactly what it would on an
+                                    sandboxed worker driving a real physics sim,
+                                    so a loop that reads a sensor and reacts to
+                                    it does exactly what it would on an
                                     airframe.
                                 </p>
 
@@ -345,7 +345,7 @@ export default function Welcome({
                         </h3>
                         <p className="mb-8 max-w-xl leading-relaxed text-muted-foreground">
                             {firstCourse
-                                ? `Start with ${firstCourse.title} — no experience required, no hardware to buy, nothing to break.`
+                                ? `Start with ${firstCourse.title}. No experience required, no hardware to buy, nothing to break.`
                                 : 'No experience required, no hardware to buy, nothing to break.'}
                         </p>
                         <div className="flex flex-wrap gap-4">

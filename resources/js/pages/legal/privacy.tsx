@@ -45,7 +45,7 @@ export default function Privacy({ identity, updatedAt }: Props) {
                     <p>
                         DroneVerse is operated by the company below, which is
                         the <strong>data controller</strong> for the personal
-                        data described here — we decide what is collected and
+                        data described here. We decide what is collected and
                         why. This policy explains what that means in practice
                         and what you can require of us.
                     </p>
@@ -90,7 +90,7 @@ export default function Privacy({ identity, updatedAt }: Props) {
                         </>
                     ) : (
                         <p>
-                            <Missing label="EU representative" /> — Article 27
+                            <Missing label="EU representative" />. Article 27
                             requires a controller in our position to designate
                             one and to publish who they are.
                         </p>
@@ -107,8 +107,8 @@ export default function Privacy({ identity, updatedAt }: Props) {
                     <ul>
                         <li>
                             <strong>Account:</strong> your name, your email
-                            address, and your password — stored only as a hash,
-                            never in a form we can read.
+                            address, and your password (stored only as a hash,
+                            never in a form we can read).
                         </li>
                         <li>
                             <strong>Sign-in security:</strong> if you enable
@@ -130,9 +130,9 @@ export default function Privacy({ identity, updatedAt }: Props) {
                         </li>
                         <li>
                             <strong>Flight results:</strong> one record per run
-                            — score, stars, objectives hit, collisions, elapsed
+                            (score, stars, objectives hit, collisions, elapsed
                             time, whether you landed or timed out, and which
-                            drone you flew — plus your best result and attempt
+                            drone you flew), plus your best result and attempt
                             count per mission.
                         </li>
                         <li>
@@ -171,9 +171,8 @@ export default function Privacy({ identity, updatedAt }: Props) {
                         Kelviq what your plan includes, and remember its answer
                         for a short time.{' '}
                         <strong>
-                            We receive nothing at all about the card itself —
-                            not the number, not the brand, not the last four
-                            digits.
+                            We receive nothing at all about the card itself: not
+                            the number, not the brand, not the last four digits.
                         </strong>{' '}
                         Kelviq holds those, and its billing portal is the only
                         place they are shown to you.
@@ -182,10 +181,10 @@ export default function Privacy({ identity, updatedAt }: Props) {
                     <p>
                         The leaderboard shows your display name alongside your
                         points, stars and completed missions to other signed-in
-                        pilots. Nothing else on your account — not your email,
-                        your code, your photos or your billing details — is
-                        shown to anyone else. If you would rather not be
-                        identifiable there, change your display name in your{' '}
+                        pilots. Nothing else on your account (your email, your
+                        code, your photos or your billing details) is shown to
+                        anyone else. If you would rather not be identifiable
+                        there, change your display name in your{' '}
                         <a href={editProfile.url()}>profile settings</a>.
                     </p>
                 </>
@@ -230,10 +229,10 @@ export default function Privacy({ identity, updatedAt }: Props) {
                         that stop one account filling the disk or hammering an
                         endpoint.{' '}
                         <strong>
-                            Basis: legitimate interests, Article 6(1)(f)
+                            Basis: legitimate interests, Article 6(1)(f).
                         </strong>{' '}
-                        — keeping the service standing up and other pilots'
-                        accounts safe, which we consider does not override your
+                        Keeping the service running and other pilots' accounts
+                        safe does not, in our assessment, override your
                         interests given how little is retained and for how short
                         a time.
                     </p>
@@ -319,9 +318,9 @@ export default function Privacy({ identity, updatedAt }: Props) {
                             It is a notice and not a consent request, and it has
                             no accept or reject button
                         </strong>{' '}
-                        — because every cookie listed above is set whether or
-                        not you click anything, so asking your permission for
-                        them would be asking for something we do not need and
+                        because every cookie listed above is set whether or not
+                        you click anything, so asking your permission for them
+                        would be asking for something we do not need and
                         offering a refusal we could not honour. Dismissing it
                         stores a single flag in your browser's own local
                         storage, which is never sent to us. If we ever add
@@ -346,18 +345,18 @@ export default function Privacy({ identity, updatedAt }: Props) {
                     </p>
                     <ul>
                         <li>
-                            <strong>Hosting and database</strong> — the
+                            <strong>Hosting and database:</strong> the
                             infrastructure the application and its database run
                             on.
                         </li>
                         <li>
-                            <strong>Object storage</strong> — where your photo
+                            <strong>Object storage:</strong> where your photo
                             log is written. Those files are private and are
                             served only through links that expire after 30
                             minutes.
                         </li>
                         <li>
-                            <strong>Email delivery</strong> — for verification,
+                            <strong>Email delivery:</strong> for verification,
                             password reset and billing messages.
                         </li>
                         <li>
@@ -371,7 +370,7 @@ export default function Privacy({ identity, updatedAt }: Props) {
                     <p>
                         We may also disclose data where the law requires it, or
                         to establish or defend a legal claim. If our business is
-                        ever transferred, your data may move with it — you would
+                        ever transferred, your data may move with it. You would
                         be told first, and this policy would continue to apply
                         until you were told otherwise.
                     </p>
@@ -398,7 +397,7 @@ export default function Privacy({ identity, updatedAt }: Props) {
                         adequate protection where one applies, and otherwise
                         under the Commission's{' '}
                         <strong>Standard Contractual Clauses</strong>, together
-                        with the technical measures that back them up —
+                        with the technical measures that back them up:
                         encryption in transit, encryption at rest, access
                         limited to the people who need it. You can ask us for a
                         copy of the safeguards used for any particular transfer
@@ -414,28 +413,27 @@ export default function Privacy({ identity, updatedAt }: Props) {
                 <>
                     <ul>
                         <li>
-                            <strong>Your account and everything on it</strong> —
-                            your code, runs, quiz attempts and photo log — for
-                            as long as the account exists. Deleting the account
-                            deletes them.
+                            <strong>Your account and everything on it:</strong>{' '}
+                            your code, runs, quiz attempts and photo log are
+                            kept for as long as the account exists. Deleting the
+                            account deletes them.
                         </li>
                         <li>
-                            <strong>Session records</strong> — expired after two
+                            <strong>Session records:</strong> expired after two
                             hours of inactivity and cleared on sign-out.
                         </li>
                         <li>
-                            <strong>Server logs</strong> — 14 days, then
-                            deleted.
+                            <strong>Server logs:</strong> 14 days, then deleted.
                         </li>
                         <li>
-                            <strong>Billing and tax records</strong> — kept for
+                            <strong>Billing and tax records:</strong> kept for
                             as long as tax law requires, which is typically
                             between six and ten years depending on the country.
                             Most of this is held by Kelviq as merchant of
                             record.
                         </li>
                         <li>
-                            <strong>Support email</strong> — up to two years
+                            <strong>Support email:</strong> up to two years
                             after the matter is closed.
                         </li>
                     </ul>
@@ -461,7 +459,7 @@ export default function Privacy({ identity, updatedAt }: Props) {
                         </li>
                         <li>
                             <strong>Rectify</strong> anything inaccurate or
-                            incomplete — your name and email you can change
+                            incomplete. You can change your name and email
                             yourself in your{' '}
                             <a href={editProfile.url()}>profile settings</a>.
                         </li>
@@ -509,7 +507,7 @@ export default function Privacy({ identity, updatedAt }: Props) {
             title: 'Automated processing',
             body: (
                 <p>
-                    Your flights and quizzes are scored automatically — that is
+                    Your flights and quizzes are scored automatically. That is
                     what the simulator does, and the result decides your stars,
                     your progress and your place on the leaderboard. It does not
                     produce legal effects concerning you or similarly
@@ -528,7 +526,7 @@ export default function Privacy({ identity, updatedAt }: Props) {
             body: (
                 <p>
                     DroneVerse is not intended for children under 16, and you
-                    must be at least 16 to hold an account — see our{' '}
+                    must be at least 16 to hold an account. See our{' '}
                     <a href={terms.url()}>terms and conditions</a>. We do not
                     knowingly collect personal data from anyone under that age.
                     If you believe a child has given us their data, write to{' '}
@@ -565,8 +563,8 @@ export default function Privacy({ identity, updatedAt }: Props) {
             body: (
                 <>
                     <p>
-                        Come to us first at <MailLink email={privacyEmail} /> —
-                        it is usually the quickest way to fix something.
+                        Come to us first at <MailLink email={privacyEmail} />.
+                        It is usually the quickest way to fix something.
                     </p>
                     <p>
                         You also have the right to lodge a complaint with a data

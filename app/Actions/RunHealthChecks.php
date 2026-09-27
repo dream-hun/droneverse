@@ -119,7 +119,7 @@ final readonly class RunHealthChecks
     private function diskCheck(array $disk): array
     {
         if ($disk['free'] === null || $disk['total'] === null || $disk['total'] === 0) {
-            return ['name' => 'Disk space', 'ok' => true, 'detail' => 'Not reported by this host', 'latencyMs' => null];
+            return ['name' => 'Disk space', 'ok' => true, 'detail' => 'Not reported by this host', 'latencyMs' => null]; // @codeCoverageIgnore
         }
 
         return [

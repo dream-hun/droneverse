@@ -367,6 +367,119 @@ test('a payload naming no account here is acknowledged and creates nothing', fun
     $this->assertDatabaseCount('creem_customers', 0);
 });
 
+test('a subscription event naming no account here is acknowledged and records nothing', function (): void {
+    $anonymous = subscriptionEventPayload(1, 'subscription.active');
+    Arr::forget($anonymous, ['object.metadata', 'object.customer']);
+
+    postSigned($anonymous)->assertOk();
+
+    $this->assertDatabaseCount('creem_subscriptions', 0);
+});
+
+/**
+ * Metadata is signed, but it is still data. A type other than a pilot must
+ * not be read as a pilot's id, or a payload for some other kind of billable
+ * would grant whichever pilot happened to share its number.
+ */
+test('metadata naming something other than a pilot does not place the payload', function (): void {
+    $user = User::factory()->create(['email' => 'someone.else@example.test']);
+
+    $payload = subscriptionEventPayload($user->id, 'subscription.active');
+    Arr::set($payload, 'object.metadata.billable_type', 'organization');
+
+    postSigned($payload)->assertOk();
+
+    $this->assertDatabaseCount('creem_subscriptions', 0);
+    expect($user->fresh()?->plan())->toBe(Plan::Starter);
+});
+
+test('a subscription recorded against an account that is gone places nothing by itself', function (): void {
+    Subscription::factory()->create(['creem_id' => 'sub_900001', 'billable_id' => 404_404]);
+
+    $renewal = subscriptionEventPayload(1, 'subscription.paid');
+    Arr::forget($renewal, ['object.metadata', 'object.customer']);
+
+    postSigned($renewal)->assertOk();
+
+    $this->assertDatabaseCount('creem_orders', 0);
+    expect(Subscription::query()->sole()->billable_id)->toBe(404_404);
+});
+
+test('a renewal that carries its payment records it, whole cents sent as a float included', function (): void {
+    $user = User::factory()->create();
+    postSigned(checkoutCompletedPayload($user->id))->assertOk();
+
+    $renewal = subscriptionEventPayload($user->id, 'subscription.paid', [
+        'last_transaction' => [
+            'id' => 'tran_renewal',
+            'object' => 'transaction',
+            'amount_paid' => 1900,
+            'currency' => 'USD',
+            'status' => 'paid',
+            'type' => 'invoice',
+            'order' => 'ord_700001',
+            'subscription' => 'sub_900001',
+            'customer' => 'cust_800001',
+            'created_at' => 1_788_220_800_000,
+        ],
+    ]);
+    // json_encode() writes 1900.0 as 1900, so the float goes into the raw body.
+    $body = str_replace('"amount_paid":1900', '"amount_paid":1900.0', (string) json_encode($renewal));
+
+    $this->call('POST', route('creem.webhook'), server: [
+        'HTTP_CREEM_SIGNATURE' => hash_hmac('sha256', $body, WEBHOOK_SECRET),
+        'CONTENT_TYPE' => 'application/json',
+    ], content: $body)->assertOk();
+
+    $this->assertDatabaseHas('creem_orders', [
+        'creem_id' => 'tran_renewal',
+        'billable_id' => $user->id,
+        'amount' => 1900,
+    ]);
+});
+
+test('a checkout without a readable order grants the plan but writes no receipt', function (Closure $spoil): void {
+    $user = User::factory()->create();
+    $payload = checkoutCompletedPayload($user->id);
+    $spoil($payload);
+
+    postSigned($payload)->assertOk();
+
+    $this->assertDatabaseCount('creem_orders', 0);
+    expect($user->fresh()?->plan())->toBe(Plan::Pro);
+})->with([
+    'no order at all' => [function (array &$payload): void {
+        Arr::forget($payload, 'object.order');
+    }],
+    'an order with no id' => [function (array &$payload): void {
+        Arr::forget($payload, 'object.order.id');
+    }],
+    'an amount that is not whole cents' => [function (array &$payload): void {
+        Arr::set($payload, 'object.order.amount', '19.00');
+    }],
+]);
+
+test('a checkout that started no subscription is placed by its metadata and records only the receipt', function (): void {
+    $user = User::factory()->create();
+    $payload = checkoutCompletedPayload($user->id);
+    Arr::forget($payload, 'object.subscription');
+
+    postSigned($payload)->assertOk();
+
+    $this->assertDatabaseHas('creem_orders', ['creem_id' => 'ord_700001', 'billable_id' => $user->id]);
+    $this->assertDatabaseCount('creem_subscriptions', 0);
+});
+
+test('a checkout that names no customer of its own still records the receipt', function (): void {
+    $user = User::factory()->create();
+    $payload = checkoutCompletedPayload($user->id);
+    Arr::forget($payload, 'object.customer');
+
+    postSigned($payload)->assertOk();
+
+    $this->assertDatabaseHas('creem_orders', ['creem_id' => 'ord_700001', 'billable_id' => $user->id]);
+});
+
 /**
  * Metadata is the strongest way to place a payload but not the only one, and
  * the ones behind it are what make a subscription created in the Creem

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\RebuildRollups;
+use App\Actions\RollUpCourseTotals;
 use App\Enums\ChallengeStatus;
 use App\Models\Challenge;
 use App\Models\ChallengeRun;
@@ -15,6 +16,7 @@ use App\Queries\FlightLog;
 use App\Queries\Leaderboard;
 use Carbon\CarbonInterface;
 use Illuminate\Console\Command;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 
@@ -263,6 +265,91 @@ test('moving a mission between courses rebuilds both of them', function (): void
 
     expect(pointsFor($pilot, $from))->toBeNull('the old course kept points it no longer holds');
     expect(pointsFor($pilot, $to))->toBe(60);
+});
+
+test('editing a mission without moving or publishing it leaves the course totals alone', function (): void {
+    $course = Course::factory()->create();
+    $challenge = Challenge::factory()->for($course)->create(['max_score' => 100]);
+    $pilot = User::factory()->create();
+    rollupProgress($pilot, $challenge, points: 40);
+    PilotCourseTotals::query()->where('user_id', $pilot->id)->update(['points' => 999]);
+
+    $challenge->update(['title' => 'Renamed']);
+
+    expect(pointsFor($pilot, $course))->toBe(999, 'a copy edit recomputed the course totals');
+});
+
+test('deleting a progress row takes its points off the course total', function (): void {
+    $course = Course::factory()->create();
+    $kept = Challenge::factory()->for($course)->create(['max_score' => 100]);
+    $dropped = Challenge::factory()->for($course)->create(['max_score' => 100]);
+    $pilot = User::factory()->create();
+    rollupProgress($pilot, $kept, points: 30);
+    rollupProgress($pilot, $dropped, points: 50);
+
+    UserChallengeProgress::query()->where('challenge_id', $dropped->id)->sole()->delete();
+
+    expect(pointsFor($pilot, $course))->toBe(30);
+});
+
+test('a progress row that outlives its mission is deleted without a recompute', function (): void {
+    $course = Course::factory()->create();
+    $challenge = Challenge::factory()->for($course)->create();
+    $pilot = User::factory()->create();
+    rollupProgress($pilot, $challenge, points: 40);
+    $progress = UserChallengeProgress::query()->sole();
+    DB::table('challenges')->where('id', $challenge->id)->delete();
+    PilotCourseTotals::query()->where('user_id', $pilot->id)->update(['points' => 999]);
+
+    $progress->delete();
+
+    expect(pointsFor($pilot, $course))->toBe(999);
+});
+
+/**
+ * Delete the pilot's totals row straight after each upsert that creates it,
+ * the way a competing recompute or a scoped rebuild would, for the first
+ * `$times` upserts.
+ */
+function deleteTotalsAfterUpsert(User $pilot, int $times): void
+{
+    $remaining = $times;
+
+    DB::listen(function (QueryExecuted $query) use ($pilot, &$remaining): void {
+        // Matched without the table's quotes, which differ between drivers.
+        $isUpsert = str_starts_with($query->sql, 'insert into') && str_contains($query->sql, 'pilot_course_totals');
+
+        if ($remaining === 0 || ! $isUpsert) {
+            return;
+        }
+
+        $remaining--;
+        DB::table('pilot_course_totals')->where('user_id', $pilot->id)->delete();
+    });
+}
+
+test('a recompute whose row is deleted from under it tries again', function (): void {
+    $course = Course::factory()->create();
+    $challenge = Challenge::factory()->for($course)->create(['max_score' => 100]);
+    $pilot = User::factory()->create();
+    rollupProgress($pilot, $challenge, points: 40);
+    deleteTotalsAfterUpsert($pilot, times: 1);
+
+    resolve(RollUpCourseTotals::class)->handle($pilot->id, $course->id);
+
+    expect(pointsFor($pilot, $course))->toBe(40);
+});
+
+test('a recompute that keeps losing its row leaves the totals to a rebuild', function (): void {
+    $course = Course::factory()->create();
+    $challenge = Challenge::factory()->for($course)->create(['max_score' => 100]);
+    $pilot = User::factory()->create();
+    rollupProgress($pilot, $challenge, points: 40);
+    deleteTotalsAfterUpsert($pilot, times: 3);
+
+    resolve(RollUpCourseTotals::class)->handle($pilot->id, $course->id);
+
+    expect(pointsFor($pilot, $course))->toBeNull();
 });
 
 test('the read models never touch the raw tables for a total', function (): void {

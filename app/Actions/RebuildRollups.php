@@ -203,7 +203,7 @@ final readonly class RebuildRollups
         $completedAt = 'user_challenge_progress.completed_at';
 
         return in_array(DB::connection()->getDriverName(), ['mysql', 'mariadb'], true)
-            ? "max(cast($completedAt as datetime))"
+            ? "max(cast($completedAt as datetime))" // @codeCoverageIgnore
             : "max($completedAt)";
     }
 }

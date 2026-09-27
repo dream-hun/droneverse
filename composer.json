@@ -10,10 +10,10 @@
     "license": "MIT",
     "require": {
         "php": "^8.4",
-        "inertiajs/inertia-laravel": "^3.3.1",
+        "inertiajs/inertia-laravel": "^3.4.0",
         "laravel/chisel": "^0.1.1",
-        "laravel/fortify": "^1.38.0",
-        "laravel/framework": "^13.26.1",
+        "laravel/fortify": "^1.40.0",
+        "laravel/framework": "^13.33.0",
         "laravel/tinker": "^3.0.2",
         "laravel/wayfinder": "^0.1.21",
         "league/flysystem-aws-s3-v3": "^3.35.3",
@@ -21,20 +21,21 @@
         "spatie/laravel-permission": "^8.3"
     },
     "require-dev": {
-        "driftingly/rector-laravel": "^2.5",
+        "driftingly/rector-laravel": "^2.6.2",
         "fakerphp/faker": "^1.24.1",
-        "heyosseus/sloppy": "^1.1",
-        "larastan/larastan": "^3.10",
-        "laravel/boost": "^2.5.5",
+        "heyosseus/sloppy": "^1.1.1",
+        "larastan/larastan": "^3.12.2",
+        "laravel/boost": "^2.10.0",
         "laravel/pail": "^1.2.7",
-        "laravel/pao": "^1.1.4",
-        "laravel/pint": "^1.30.5",
-        "laravel/sail": "^1.67",
+        "laravel/pao": "^1.1.5",
+        "laravel/pint": "^1.32.1",
+        "laravel/sail": "^1.68",
         "mockery/mockery": "^1.6.15",
         "nunomaduro/collision": "^8.9.5",
-        "pestphp/pest": "^5.1.1",
-        "pestphp/pest-plugin-phpstan": "^5.1",
-        "rector/rector": "^2.6.3"
+        "pestphp/pest": "^5.2.1",
+        "pestphp/pest-plugin-phpstan": "^5.2.1",
+        "pestphp/pest-plugin-type-coverage": "^5.0",
+        "rector/rector": "^2.6.7"
     },
     "autoload": {
         "psr-4": {
@@ -61,8 +62,25 @@
             "Composer\\Config::disableProcessTimeout",
             "@php artisan dev"
         ],
+        "update:requirements": [
+            "composer bump",
+            "npx npm-check-updates u"
+        ],
         "lint": [
-            "pint --parallel"
+            "rector",
+            "pint --parallel",
+            "npm run lint"
+        ],
+        "test:type-coverage": "pest --type-coverage --min=100",
+        "test:lint": [
+            "pint --parallel --test",
+            "rector --dry-run",
+            "npm run lint:check"
+        ],
+        "test:unit": "XDEBUG_MODE=\"coverage\" pest --parallel --coverage --exactly=100.0 --no-progress",
+        "test:types": [
+            "phpstan",
+            "npm run types:check"
         ],
         "lint:check": [
             "pint --parallel --test"
@@ -84,7 +102,7 @@
             "@test"
         ],
         "types:check": [
-            "phpstan analyse --memory-limit=1G"
+            "phpstan analyse --memory-limit=1G --no-progress"
         ],
         "audit:check": [
             "@composer audit",
@@ -101,7 +119,9 @@
             "@php artisan package:discover --ansi"
         ],
         "post-update-cmd": [
-            "@php artisan vendor:publish --tag=laravel-assets --ansi --force"
+            "@php artisan vendor:publish --tag=laravel-assets --ansi --force",
+            "@php artisan clear",
+            "@update:requirements"
         ],
         "post-root-package-install": [
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
@@ -119,8 +139,7 @@
         "laravel": {
             "dont-discover": [],
             "installer": {
-                "post-create-project": [
-                ]
+                "post-create-project": []
             }
         }
     },

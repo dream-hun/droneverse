@@ -107,3 +107,39 @@ test('subscriptions can be narrowed to one status', function (): void {
             ->where('subscriptions.0.status', 'canceled')
             ->where('subscriptions.0.entitles', false));
 });
+
+test('an order names the plan and billing period its product sells', function (): void {
+    config(['plans.prices.pro.monthly' => 'prod_pro_monthly']);
+    $admin = User::factory()->admin()->create();
+    Order::factory()->create(['product_id' => 'prod_pro_monthly']);
+
+    $this->actingAs($admin)
+        ->get(route('admin.finance.orders'))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('orders.0.product', 'Pro · monthly'));
+});
+
+test('an amount in a currency the formatter cannot price falls back to the bare code', function (): void {
+    $admin = User::factory()->admin()->create();
+    Order::factory()->create(['currency' => 'US', 'amount' => 1900]);
+
+    $this->actingAs($admin)
+        ->get(route('admin.finance.orders'))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('orders.0.amount', 'US 19.00'));
+});
+
+test('a subscription to a product the price list does not describe adds nothing to recurring revenue', function (): void {
+    config()->set('plans.prices.pro.monthly', 'prod_pro_monthly');
+
+    $admin = User::factory()->admin()->create();
+
+    Subscription::factory()->selling('prod_pro_monthly')->create();
+    Subscription::factory()->selling('prod_retired_experiment')->create();
+
+    $this->actingAs($admin)
+        ->get(route('admin.finance'))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->loadDeferredProps(fn (AssertableInertia $reload): AssertableInertia => $reload
+                ->where('report.subscriptions.mrr', '$19.00')));
+});

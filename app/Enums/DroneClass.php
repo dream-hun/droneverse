@@ -31,18 +31,4 @@ enum DroneClass: string
             self::Endurance => 'Endurance',
         };
     }
-
-    /**
-     * The trade this class makes, in the words the picker shows.
-     */
-    public function tagline(): string
-    {
-        return match ($this) {
-            self::Trainer => 'Slow, steady, and hard to fly badly.',
-            self::Inspection => 'The all-rounder every mission is authored against.',
-            self::Racing => 'Everything traded for speed, including your margin for error.',
-            self::Cargo => 'Deliberate, heavy, and wide enough to notice.',
-            self::Endurance => 'Modest speed bought back as time in the air.',
-        };
-    }
 }

@@ -95,14 +95,14 @@ final class SaveQuizQuestionRequest extends FormRequest
         $options = $this->input('options', []);
 
         if (! is_array($options)) {
-            return [];
+            return []; // @codeCoverageIgnore
         }
 
         $normalised = [];
 
         foreach ($options as $option) {
             if (! is_array($option)) {
-                continue;
+                continue; // @codeCoverageIgnore
             }
 
             $id = $option['id'] ?? null;

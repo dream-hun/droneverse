@@ -304,6 +304,82 @@ test('one failure is reported without stopping the rest', function (): void {
     $this->assertDatabaseHas('creem_orders', ['creem_id' => 'tran_renewal']);
 });
 
+test('a payment carried on the subscription itself is recorded', function (): void {
+    [$user] = reconcileSubscriber();
+
+    fakeCreem(remoteSubscription(['last_transaction' => remoteTransaction('tran_renewal')]), []);
+
+    expect(Artisan::call('creem:reconcile'))->toBe(Command::SUCCESS);
+
+    $this->assertDatabaseHas('creem_orders', ['creem_id' => 'tran_renewal', 'billable_id' => $user->id]);
+});
+
+test('billing records whose account is gone are not asked about', function (): void {
+    Subscription::factory()->create(['billable_id' => 404_404]);
+    Customer::factory()->create(['billable_id' => 404_404]);
+    Http::fake();
+
+    expect(Artisan::call('creem:reconcile'))->toBe(Command::SUCCESS);
+
+    Http::assertNothingSent();
+});
+
+test('a customer whose payments cannot be listed is reported without stopping the subscriptions', function (): void {
+    [, $subscription] = reconcileSubscriber();
+
+    Http::fake([
+        'https://test-api.creem.io/v1/subscriptions*' => Http::response(remoteSubscription()),
+        'https://test-api.creem.io/v1/transactions/search*' => Http::response(['error' => 'unavailable'], 503),
+    ]);
+
+    expect(Artisan::call('creem:reconcile'))->toBe(Command::FAILURE);
+
+    expect($subscription->refresh()->current_period_end_at?->toDateString())->toBe('2026-09-01');
+});
+
+test('a payment belonging to no order or subscription is recorded on its own', function (): void {
+    [$user] = reconcileSubscriber();
+
+    Http::fake([
+        'https://test-api.creem.io/v1/subscriptions*' => Http::response(remoteSubscription()),
+        'https://test-api.creem.io/v1/transactions/search*' => Http::response([
+            'items' => [
+                'not a transaction',
+                remoteTransaction('tran_one_off', ['order' => null, 'subscription' => null, 'product' => 'prod_pro_monthly']),
+            ],
+            'pagination' => ['current_page' => 1, 'next_page' => null],
+        ]),
+    ]);
+
+    expect(Artisan::call('creem:reconcile'))->toBe(Command::SUCCESS);
+
+    $this->assertDatabaseHas('creem_orders', [
+        'creem_id' => 'tran_one_off',
+        'billable_id' => $user->id,
+        'subscription_id' => null,
+        'product_id' => 'prod_pro_monthly',
+    ]);
+});
+
+test('a payment that cannot be priced or placed is not recorded', function (?string $currency, int|float $amount, ?string $subscription): void {
+    reconcileSubscriber();
+
+    fakeCreem(remoteSubscription(), [remoteTransaction('tran_unreadable', [
+        'currency' => $currency,
+        'amount' => $amount,
+        'amount_paid' => $amount,
+        'subscription' => $subscription,
+    ])]);
+
+    expect(Artisan::call('creem:reconcile'))->toBe(Command::SUCCESS);
+
+    $this->assertDatabaseMissing('creem_orders', ['creem_id' => 'tran_unreadable']);
+})->with([
+    'no currency' => [null, 1900, 'sub_900001'],
+    'an amount that is not whole cents' => ['USD', 19.5, 'sub_900001'],
+    'no product and no subscription to borrow one from' => ['USD', 1900, null],
+]);
+
 test('an environment without creem does nothing', function (): void {
     config(['creem.api_key' => null]);
     Http::fake();

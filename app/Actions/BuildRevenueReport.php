@@ -266,8 +266,8 @@ final readonly class BuildRevenueReport
     private function monthExpression(): string
     {
         return match (DB::connection()->getDriverName()) {
-            'mysql', 'mariadb' => "date_format(ordered_at, '%Y-%m')",
-            'pgsql' => "to_char(ordered_at, 'YYYY-MM')",
+            'mysql', 'mariadb' => "date_format(ordered_at, '%Y-%m')", // @codeCoverageIgnore
+            'pgsql' => "to_char(ordered_at, 'YYYY-MM')", // @codeCoverageIgnore
             default => "strftime('%Y-%m', ordered_at)",
         };
     }

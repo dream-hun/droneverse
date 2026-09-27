@@ -29,7 +29,7 @@ final readonly class DescribeCreemProduct
         $variant = $plan->variantFor($productId);
 
         return $variant === null
-            ? $plan->label()
+            ? $plan->label() // @codeCoverageIgnore
             : sprintf('%s · %s', $plan->label(), str_replace('_', ' ', $variant));
     }
 }

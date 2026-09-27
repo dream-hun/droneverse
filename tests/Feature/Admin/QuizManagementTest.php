@@ -207,3 +207,41 @@ test('the course page lists its quizzes', function (): void {
             ->where('quizzes.0.slug', $quiz->slug)
             ->where('quizzes.0.questions', 3));
 });
+
+test('a quiz renamed from its own page follows it to the new slug', function (): void {
+    $admin = User::factory()->admin()->create();
+    $quiz = Quiz::factory()->create();
+
+    $this->actingAs($admin)
+        ->from(route('admin.courses.quizzes.show', [$quiz->course, $quiz]))
+        ->put(route('admin.courses.quizzes.update', [$quiz->course, $quiz]), quizPayload(['slug' => 'renamed-quiz']))
+        ->assertRedirect(route('admin.courses.quizzes.show', [$quiz->course, 'renamed-quiz']))
+        ->assertInertiaFlash('toast.message', 'Quiz updated.');
+
+    expect($quiz->fresh()?->slug)->toBe('renamed-quiz');
+});
+
+test('a quiz edited from its course page goes back there', function (): void {
+    $admin = User::factory()->admin()->create();
+    $quiz = Quiz::factory()->create();
+
+    $this->actingAs($admin)
+        ->from(route('admin.courses.show', $quiz->course))
+        ->put(route('admin.courses.quizzes.update', [$quiz->course, $quiz]), quizPayload(['pass_percentage' => 60]))
+        ->assertRedirect(route('admin.courses.show', $quiz->course));
+
+    expect($quiz->fresh()?->pass_percentage)->toBe(60);
+});
+
+test('deleting a question returns to its quiz', function (): void {
+    $admin = User::factory()->admin()->create();
+    $quiz = Quiz::factory()->create();
+    $question = QuizQuestion::factory()->for($quiz)->withOptions()->create();
+
+    $this->actingAs($admin)
+        ->delete(route('admin.courses.quizzes.questions.destroy', [$quiz->course, $quiz, $question]))
+        ->assertRedirect(route('admin.courses.quizzes.show', [$quiz->course, $quiz]))
+        ->assertInertiaFlash('toast.message', 'Question deleted.');
+
+    $this->assertModelMissing($question);
+});

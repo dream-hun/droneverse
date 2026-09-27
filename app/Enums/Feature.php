@@ -29,7 +29,7 @@ namespace App\Enums;
  *
  * A Python runtime left for the opposite reason — every paid tier granted it
  * and nothing behind it exists. A second language is a second worker sandbox, a
- * second grader and a second set of mission docs, which is a phase of work
+ * second-grader and a second set of mission docs, which is a phase of work
  * rather than a flag flipped when one lands. The platform teaches JavaScript;
  * if Python is ever built, the case comes back in the commit that builds it.
  */
@@ -83,8 +83,7 @@ enum Feature: string
             self::PrioritySupport, self::BetaAccess, self::AdvancedAnalytics, self::DroneConfigEditor => true,
             self::MissionBuilder,
             self::PremiumCertificates,
-            self::DownloadableProjects => false,
-            self::TeamManagement, self::ClassroomTools => false,
+            self::DownloadableProjects, self::TeamManagement, self::ClassroomTools => false,
         };
     }
 }

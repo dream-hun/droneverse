@@ -138,6 +138,30 @@ final readonly class RollUpCourseTotals
      * The pilot's row for this course, created if absent and held for the
      * rest of the transaction.
      *
+     * Retried because the row can be deleted between the two statements of
+     * {@see self::createAndLock()}, by a competing recompute that found
+     * nothing playable or by a scoped {@see RebuildRollups::courseTotals()}.
+     * Both hold their locks until they commit, so a retry sees whichever
+     * answer they settled on. The loop is that retry and nothing else: it
+     * runs the same pair of statements again rather than one per row, so
+     * there is nothing to gather into a single query.
+     */
+    private function lockedTotals(int $userId, int $courseId): ?PilotCourseTotals
+    {
+        for ($attempt = 0; $attempt < self::LOCK_ATTEMPTS; $attempt++) {
+            $totals = $this->createAndLock($userId, $courseId);
+
+            if ($totals instanceof PilotCourseTotals) {
+                return $totals;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * One attempt at making the row exist and locking it.
+     *
      * Created before it is read so that the read can lock it. Two of this
      * pilot's missions in the same course can be submitted at once, and each
      * transaction holds only its own mission's progress row — nothing there
@@ -152,36 +176,25 @@ final readonly class RollUpCourseTotals
      * and the second run for a pairing would abort the whole attempt on the
      * unique key.
      *
-     * Retried because the row can be deleted between the two statements, by a
-     * competing recompute that found nothing playable or by a scoped
-     * {@see RebuildRollups::courseTotals()}. Both hold their locks until they
-     * commit, so a retry sees whichever answer they settled on.
+     * Null when the row was deleted between the two statements.
      */
-    private function lockedTotals(int $userId, int $courseId): ?PilotCourseTotals
+    private function createAndLock(int $userId, int $courseId): ?PilotCourseTotals
     {
-        for ($attempt = 0; $attempt < self::LOCK_ATTEMPTS; $attempt++) {
-            PilotCourseTotals::query()->upsert(
-                [[
-                    'user_id' => $userId,
-                    'course_id' => $courseId,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]],
-                ['user_id', 'course_id'],
-                ['updated_at'],
-            );
+        PilotCourseTotals::query()->upsert(
+            [[
+                'user_id' => $userId,
+                'course_id' => $courseId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]],
+            ['user_id', 'course_id'],
+            ['updated_at'],
+        );
 
-            $totals = PilotCourseTotals::query()
-                ->where('user_id', $userId)
-                ->where('course_id', $courseId)
-                ->lockForUpdate()
-                ->first();
-
-            if ($totals instanceof PilotCourseTotals) {
-                return $totals;
-            }
-        }
-
-        return null;
+        return PilotCourseTotals::query()
+            ->where('user_id', $userId)
+            ->where('course_id', $courseId)
+            ->lockForUpdate()
+            ->first();
     }
 }

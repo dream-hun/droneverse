@@ -77,7 +77,7 @@ export function SolutionPanel({
                         <DialogTitle>Reference solution</DialogTitle>
                         <DialogDescription>
                             One complete flight plan that scores this mission.
-                            It is not the only way to fly it — compare it with
+                            It is not the only way to fly it, so compare it with
                             your own run.
                         </DialogDescription>
                     </DialogHeader>

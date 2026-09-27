@@ -127,7 +127,7 @@ export function QuestionFormDialog({
 
                         <fieldset className="grid gap-2">
                             <legend className="mb-1 text-sm font-medium">
-                                Answers — tick every correct one
+                                Answers: tick every correct one
                             </legend>
                             {rows.map((row, index) => (
                                 <div
@@ -196,8 +196,8 @@ export function QuestionFormDialog({
                                     {correct === 0
                                         ? 'No answer marked correct yet.'
                                         : correct === 1
-                                          ? 'One correct answer — pilots pick one.'
-                                          : `${correct} correct answers — pilots must tick all of them.`}
+                                          ? 'One correct answer: pilots pick one.'
+                                          : `${correct} correct answers: pilots must tick all of them.`}
                                 </p>
                                 <Button
                                     type="button"

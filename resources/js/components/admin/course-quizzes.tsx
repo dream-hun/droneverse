@@ -189,7 +189,7 @@ export function CourseQuizzes({ course, quizzes, plans }: CourseQuizzesProps) {
                 onOpenChange={(open) => !open && setDeleting(null)}
                 destructive
                 title={`Delete ${deleting?.title ?? 'this quiz'}?`}
-                description={`Its questions go with it, along with every attempt and pass recorded on it — ${formatCount(deleting?.pilots ?? 0)} pilot${deleting?.pilots === 1 ? '' : 's'} have taken it.`}
+                description={`Its questions go with it, along with every attempt and pass recorded on it. ${formatCount(deleting?.pilots ?? 0)} pilot${deleting?.pilots === 1 ? '' : 's'} have taken it.`}
                 confirmationText={deleting?.slug}
                 confirmLabel="Delete quiz"
                 pendingLabel="Deleting…"

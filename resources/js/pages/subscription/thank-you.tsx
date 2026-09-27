@@ -161,7 +161,7 @@ export default function ThankYou({ plan, highlights, pending }: Props) {
                         role="status"
                     >
                         {state === 'confirmed'
-                            ? 'Subscription active'
+                            ? 'Plan active'
                             : 'Payment received'}
                     </p>
 
@@ -176,7 +176,7 @@ export default function ThankYou({ plan, highlights, pending }: Props) {
                             <>
                                 Your payment went through and we are waiting on
                                 the confirmation from our payment provider. This
-                                usually takes a few seconds — this page updates
+                                usually takes a few seconds. This page updates
                                 itself, so there is nothing to reload.
                             </>
                         )}
@@ -194,10 +194,9 @@ export default function ThankYou({ plan, highlights, pending }: Props) {
 
                         {state === 'confirmed' && (
                             <>
-                                Thank you — your subscription is live and every
-                                mission it covers is unlocked on this account
-                                right now. A receipt is on its way to your
-                                inbox.
+                                Thank you. Your plan is live and every mission
+                                it covers is unlocked on this account right now.
+                                A receipt is on its way to your inbox.
                             </>
                         )}
                     </p>

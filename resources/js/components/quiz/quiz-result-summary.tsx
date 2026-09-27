@@ -49,7 +49,7 @@ export function QuizResultSummary({
                         </p>
                         <p className="text-sm text-muted-foreground">
                             {result.correctCount} of {result.questionCount}{' '}
-                            correct — {passPercentage}% needed to pass.
+                            correct. {passPercentage}% needed to pass.
                         </p>
                     </div>
 
@@ -76,7 +76,7 @@ export function QuizResultSummary({
                 {!passedThisTime && passedEver && (
                     <p className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Award aria-hidden="true" className="size-4 shrink-0" />
-                        You already passed this quiz — your best score of{' '}
+                        You already passed this quiz. Your best score of{' '}
                         {result.progress.bestScore}% still stands.
                     </p>
                 )}

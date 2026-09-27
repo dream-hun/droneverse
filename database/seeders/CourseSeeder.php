@@ -327,7 +327,7 @@ final class CourseSeeder extends Seeder
                 'slug' => 'gate-race',
                 'title' => 'Gate Race',
                 'difficulty' => 'intermediate',
-                'briefing' => "Race through all four gates in order, then land. Precision matters more than speed here — miss a gate and it won't count.",
+                'briefing' => "Race through all four gates in order, then land. Precision matters more than speed here: miss a gate and it won't count.",
                 'starter_code' => <<<'JS'
                     async function main(drone) {
                         await drone.takeoff();
@@ -538,7 +538,7 @@ final class CourseSeeder extends Seeder
                 'slug' => 'slalom-run',
                 'title' => 'Slalom Run',
                 'difficulty' => 'intermediate',
-                'briefing' => "Three pylons stand in a line down the course. Weave through the markers — right of the first pylon, left of the second, right of the third — then straighten out and land.\n\n`await drone.moveTo(x, y, z)` flies straight lines between points; brushing a pylon costs a star.",
+                'briefing' => "Three pylons stand in a line down the course. Weave through the markers (right of the first pylon, left of the second, right of the third), then straighten out and land.\n\n`await drone.moveTo(x, y, z)` flies straight lines between points; brushing a pylon costs a star.",
                 'starter_code' => <<<'JS'
                     async function main(drone) {
                         await drone.takeoff();
@@ -743,12 +743,12 @@ final class CourseSeeder extends Seeder
                 'slug' => 'wall-finder',
                 'title' => 'Wall Finder',
                 'difficulty' => 'advanced',
-                'briefing' => "A wall blocks the course somewhere ahead — don't trust your eyes, trust the rangefinder. Creep forward with `await drone.getDistanceAhead()` until the wall is close, then slide right past its edge and finish behind it.\n\nThe rangefinder reads up to 20 m along the drone's current heading.",
+                'briefing' => "A wall blocks the course somewhere ahead. Don't trust your eyes, trust the rangefinder. Creep forward with `await drone.getDistanceAhead()` until the wall is close, then slide right past its edge and finish behind it.\n\nThe rangefinder reads up to 20 m along the drone's current heading.",
                 'starter_code' => <<<'JS'
                     async function main(drone) {
                         await drone.takeoff();
 
-                        // Probe, step, repeat — stop before you hit the wall.
+                        // Probe, step, repeat. Stop before you hit the wall.
                         while (await drone.getDistanceAhead() > 2.5) {
                             await drone.moveForward(1);
                         }
@@ -878,7 +878,7 @@ final class CourseSeeder extends Seeder
                 'slug' => 'homing-run',
                 'title' => 'Homing Run',
                 'difficulty' => 'advanced',
-                'briefing' => "Fly the delivery loop as offsets, not fixed coordinates: 6 m east of wherever you are, then 6 m south of that, then straight home to the start pad.\n\n`await drone.getPosition()` returns `{ x, y, z }` — do the math on it and feed the result to `moveTo`.",
+                'briefing' => "Fly the delivery loop as offsets, not fixed coordinates: 6 m east of wherever you are, then 6 m south of that, then straight home to the start pad.\n\n`await drone.getPosition()` returns `{ x, y, z }`. Do the math on it and feed the result to `moveTo`.",
                 'starter_code' => <<<'JS'
                     async function main(drone) {
                         await drone.takeoff();
@@ -1026,7 +1026,7 @@ final class CourseSeeder extends Seeder
                         await drone.setAltitude(7);
                         await drone.moveForward(8);
 
-                        // You're over the roof — now get down to the street pad.
+                        // You're over the roof. Now get down to the street pad.
 
                         await drone.land();
                     }
@@ -1080,7 +1080,7 @@ final class CourseSeeder extends Seeder
                 'slug' => 'rush-hour',
                 'title' => 'Rush Hour',
                 'difficulty' => 'advanced',
-                'briefing' => "Four deliveries, one tight window. The stops zigzag across the block while support columns crowd the center line — plan diagonal legs that thread between them and keep moving.\n\nFinish fast enough and the speed star is yours.",
+                'briefing' => "Four deliveries, one tight window. The stops zigzag across the block while support columns crowd the center line, so plan diagonal legs that thread between them and keep moving.\n\nFinish fast enough and the speed star is yours.",
                 'starter_code' => <<<'JS'
                     async function main(drone) {
                         await drone.takeoff();
@@ -1159,24 +1159,24 @@ final class CourseSeeder extends Seeder
                 'slug' => 'downtown-gauntlet',
                 'title' => 'Downtown Gauntlet',
                 'difficulty' => 'advanced',
-                'briefing' => "The entry exam for city work. Four downtown towers box in a central avenue, and the manifest has stops at three heights: a street-level pickup in the avenue, a rooftop drop on the low block, and a curb-side delivery on the far service street — then home to the depot at the south end.\n\nNo single trick clears this. Plan the vertical profile (`setAltitude` / `moveTo` with a real y), climb above 8 m to clear the rooftop, feel your way around blind corners with `getDistanceAhead()`, and stay off the concrete — every clip costs a star. The streets below are parked up, so keep your lines clean. If you lose your bearings, `await drone.scan(30)` maps every tower around you.",
+                'briefing' => "The entry exam for city work. Four downtown towers box in a central avenue, and the manifest has stops at three heights: a street-level pickup in the avenue, a rooftop drop on the low block, and a curb-side delivery on the far service street, then home to the depot at the south end.\n\nNo single trick clears this. Plan the vertical profile (`setAltitude` / `moveTo` with a real y), climb above 8 m to clear the rooftop, feel your way around blind corners with `getDistanceAhead()`, and stay off the concrete: every clip costs a star. The streets below are parked up, so keep your lines clean. If you lose your bearings, `await drone.scan(30)` maps every tower around you.",
                 'starter_code' => <<<'JS'
                     async function main(drone) {
                         await drone.takeoff(2);
 
-                        // Stop 1 — pickup in the avenue mouth, between the first two towers.
+                        // Stop 1: pickup in the avenue mouth, between the first two towers.
                         await drone.moveTo(0, 2, -6);
 
-                        // Stop 2 — rooftop drop on the low NE block. Climb ABOVE the
+                        // Stop 2: rooftop drop on the low NE block. Climb ABOVE the
                         // roof before you slide over it, then settle on the marker.
                         await drone.setAltitude(9);
                         // await drone.moveTo(8, 9, -8);
 
-                        // Stop 3 — curb delivery on the east service street. Drop back
+                        // Stop 3: curb delivery on the east service street. Drop back
                         // to street level only once you're clear of the tower.
                         // Tip: probe with `await drone.getDistanceAhead()` before you commit.
 
-                        // Home — thread back to the central avenue and run south to the depot.
+                        // Home: thread back to the central avenue and run south to the depot.
 
                         await drone.land();
                     }
@@ -1259,7 +1259,7 @@ final class CourseSeeder extends Seeder
                 'slug' => 'street-sweep',
                 'title' => 'Street Sweep',
                 'difficulty' => 'advanced',
-                'briefing' => "Dispatch lost track of a delivery van somewhere in the block. Your airframe carries an object scanner: `await drone.scan(range)` reports every object within range — nearest first — as `{ kind, label, x, y, z, distance, bearingDeg }`. Parked cars, trees, buildings, everything. The van answers to the label `delivery-van`.\n\nFind it, fly to it, and document it: `await drone.takePhoto('delivery-van')` captures the nose camera and files the shot in your photo log. The photo only counts if you shoot it within 5 m of the van, so get close before you press the shutter. Then bring it home to the pad.",
+                'briefing' => "Dispatch lost track of a delivery van somewhere in the block. Your airframe carries an object scanner: `await drone.scan(range)` reports every object within range, nearest first, as `{ kind, label, x, y, z, distance, bearingDeg }`. Parked cars, trees, buildings, everything. The van answers to the label `delivery-van`.\n\nFind it, fly to it, and document it: `await drone.takePhoto('delivery-van')` captures the nose camera and files the shot in your photo log. The photo only counts if you shoot it within 5 m of the van, so get close before you press the shutter. Then bring it home to the pad.",
                 'starter_code' => <<<'JS'
                     async function main(drone) {
                         await drone.takeoff(2);
@@ -1364,7 +1364,7 @@ final class CourseSeeder extends Seeder
                 'slug' => 'wash-and-return',
                 'title' => 'Wash & Return',
                 'difficulty' => 'advanced',
-                'briefing' => "The morning survey runs low over the construction yard, and the airframe comes back caked in grit. Company policy is strict: no dirty drone lands on the depot pad.\n\nSweep both markers over the crate yard, then head for the DRONE WASH tunnel on the east side. Fly in one mouth and out the other — the wash beams at both ends have to see you pass, and the tunnel is solid, so line up straight and keep it low (the opening is 4.5 m wide and 3.5 m tall). Brushing a wall counts as a collision. Clean airframe, clean landing.",
+                'briefing' => "The morning survey runs low over the construction yard, and the airframe comes back caked in grit. Company policy is strict: no dirty drone lands on the depot pad.\n\nSweep both markers over the crate yard, then head for the DRONE WASH tunnel on the east side. Fly in one mouth and out the other. The wash beams at both ends have to see you pass, and the tunnel is solid, so line up straight and keep it low (the opening is 4.5 m wide and 3.5 m tall). Brushing a wall counts as a collision. Clean airframe, clean landing.",
                 'starter_code' => <<<'JS'
                     async function main(drone) {
                         await drone.takeoff();
@@ -1455,7 +1455,7 @@ final class CourseSeeder extends Seeder
                 'slug' => 'skyline-survey',
                 'title' => 'Skyline Survey',
                 'difficulty' => 'advanced',
-                'briefing' => "The city archive wants three survey photos, and every one lands in your photo log: the plaza fountain, the supply yard, and the HQ tower rooftop.\n\nEach beacon marks a shot. Park the drone inside the beacon's ring and call `await drone.takePhoto(label)` — the frame is captured from the nose camera, so face something worth framing first (`turn` is your tripod head). The rooftop shot is the catch: the HQ roof tops out at 8 m and the target ring is tight, so you must climb above the parapet and shoot from directly over the roof. The run also demands a 9 m ceiling somewhere along the way — the rooftop pass covers both if you fly it right.",
+                'briefing' => "The city archive wants three survey photos, and every one lands in your photo log: the plaza fountain, the supply yard, and the HQ tower rooftop.\n\nEach beacon marks a shot. Park the drone inside the beacon's ring and call `await drone.takePhoto(label)`. The frame is captured from the nose camera, so face something worth framing first (`turn` is your tripod head). The rooftop shot is the catch: the HQ roof tops out at 8 m and the target ring is tight, so you must climb above the parapet and shoot from directly over the roof. The run also demands a 9 m ceiling somewhere along the way, and the rooftop pass covers both if you fly it right.",
                 'starter_code' => <<<'JS'
                     async function main(drone) {
                         await drone.takeoff(2);
@@ -1557,7 +1557,7 @@ final class CourseSeeder extends Seeder
                 'slug' => 'full-shift',
                 'title' => 'Full Shift',
                 'difficulty' => 'advanced',
-                'briefing' => "One shift, every skill. The board reads like a whole day of city work:\n\n1. Street pickup in the avenue mouth between the towers.\n2. Rooftop drop on the low NE block — clear 9 m on the way over.\n3. Locate the van answering to `target-van` (scan for it), close to within 5 m, and photograph it.\n4. Run the DRONE WASH tunnel on the east service street.\n5. Land at the south depot before the clock dies.\n\nThe wind is up, the streets are parked full, and every clip costs a star. Chain everything you have: `scan`, `takePhoto`, `getDistanceAhead`, real 3D `moveTo` lines, and `setSpeed` when the corridor is clear. This is the graduation flight.",
+                'briefing' => "One shift, every skill. The board reads like a whole day of city work:\n\n1. Street pickup in the avenue mouth between the towers.\n2. Rooftop drop on the low NE block. Clear 9 m on the way over.\n3. Locate the van answering to `target-van` (scan for it), close to within 5 m, and photograph it.\n4. Run the DRONE WASH tunnel on the east service street.\n5. Land at the south depot before the clock dies.\n\nThe wind is up, the streets are parked full, and every clip costs a star. Chain everything you have: `scan`, `takePhoto`, `getDistanceAhead`, real 3D `moveTo` lines, and `setSpeed` when the corridor is clear. This is the graduation flight.",
                 'starter_code' => <<<'JS'
                     async function main(drone) {
                         await drone.takeoff(2);

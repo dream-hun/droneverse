@@ -165,7 +165,7 @@ export default function RolesIndex({
             cell: (role) =>
                 role.isAdmin ? (
                     <span className="text-muted-foreground">
-                        Every permission, always — including ones added later
+                        Every permission, always, including ones added later
                     </span>
                 ) : role.permissions.length > 0 ? (
                     <div className="flex flex-wrap gap-1">

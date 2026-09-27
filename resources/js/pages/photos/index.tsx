@@ -178,7 +178,7 @@ export default function PhotosIndex({
             <div className="space-y-6 p-4">
                 <PageHeader
                     title="Photo Log"
-                    description={`Every shot captured with drone.takePhoto() lands here${total > 0 ? ` — ${total} photo${total === 1 ? '' : 's'} so far` : ''}.`}
+                    description={`Every shot captured with drone.takePhoto() lands here${total > 0 ? `: ${total} photo${total === 1 ? '' : 's'} so far` : ''}.`}
                 />
 
                 <DataBoundary

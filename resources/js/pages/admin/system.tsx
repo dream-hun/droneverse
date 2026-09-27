@@ -88,7 +88,7 @@ function CheckRow({ check }: { check: HealthCheck }) {
                 <p className="text-sm font-medium">
                     {check.name}{' '}
                     <span className="font-normal text-muted-foreground">
-                        — {check.ok ? 'healthy' : 'needs attention'}
+                        ({check.ok ? 'healthy' : 'needs attention'})
                     </span>
                 </p>
                 <p className="text-xs break-words text-muted-foreground">

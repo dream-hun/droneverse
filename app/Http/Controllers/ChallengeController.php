@@ -10,6 +10,7 @@ use App\Actions\RecordChallengeAttempt;
 use App\Actions\ResolveMissionDrone;
 use App\Enums\Feature;
 use App\Http\Requests\StoreChallengeAttemptRequest;
+use App\Http\Resources\ChallengeAttemptResource;
 use App\Http\Resources\ChallengeDetailResource;
 use App\Http\Resources\ChallengeProgressResource;
 use App\Http\Resources\ChallengeSolutionResource;
@@ -116,14 +117,6 @@ final class ChallengeController extends Controller
 
         $progress = $recordAttempt->handle($user, $challenge, $result, $run['code'], $drone);
 
-        return response()->json([
-            'result' => $result,
-            'progress' => [
-                'status' => $progress->status,
-                'bestScore' => $progress->best_score,
-                'stars' => $progress->stars,
-                'attempts' => $progress->attempts,
-            ],
-        ]);
+        return response()->json(ChallengeAttemptResource::one($result, $progress));
     }
 }

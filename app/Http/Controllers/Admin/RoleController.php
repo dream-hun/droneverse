@@ -30,8 +30,7 @@ final class RoleController extends Controller
         $roles = Role::query()
             ->with('permissions')
             ->withCount('users')
-            ->orderByRaw('name = ? desc', [Role::ADMIN])
-            ->orderBy('name')
+            ->adminFirst()
             ->get();
 
         return Inertia::render('admin/roles/index', [

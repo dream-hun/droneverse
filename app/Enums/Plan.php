@@ -30,6 +30,19 @@ enum Plan: string
         return $user?->plan() ?? self::Starter;
     }
 
+    /**
+     * Every plan as a select option, in tier order.
+     *
+     * @return array<int, array{value: string, label: string}>
+     */
+    public static function options(): array
+    {
+        return array_map(
+            static fn (self $plan): array => ['value' => $plan->value, 'label' => $plan->label()],
+            self::cases(),
+        );
+    }
+
     public function label(): string
     {
         return match ($this) {

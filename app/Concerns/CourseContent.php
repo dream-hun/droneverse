@@ -69,7 +69,7 @@ trait CourseContent
      */
     public function isUnlockedFor(?User $user, Course $course): bool
     {
-        $plan = $user?->plan() ?? Plan::Starter;
+        $plan = Plan::forViewer($user);
 
         return $plan->covers($this->requiredPlanIn($course));
     }

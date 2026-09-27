@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Enums\ChallengeStatus;
 use App\Http\Resources\CourseCardResource;
 use App\Models\Course;
 use App\Models\User;
+use App\Queries\ContentProgress;
 use App\Queries\PilotProgress;
-use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -19,7 +18,7 @@ final class DashboardController extends Controller
     /**
      * Handle the incoming request.
      */
-    public function __invoke(Request $request, PilotProgress $progress): Response
+    public function __invoke(Request $request, PilotProgress $progress, ContentProgress $contentProgress): Response
     {
         /** @var User $user Route middleware requires an authenticated pilot. */
         $user = $request->user();
@@ -36,7 +35,7 @@ final class DashboardController extends Controller
                 $progress->completedCountsByCourse($user),
                 $user->plan(),
             )),
-            'continue' => $this->continueCard($user),
+            'continue' => $this->continueCard($user, $contentProgress),
             'stats' => $progress->statsFor($user),
         ]);
     }
@@ -52,36 +51,9 @@ final class DashboardController extends Controller
      *
      * @return array{courseSlug: string, challengeSlug: string, challengeTitle: string}|null
      */
-    private function continueCard(User $user): ?array
+    private function continueCard(User $user, ContentProgress $contentProgress): ?array
     {
-        /*
-         * Three narrow rows rather than three wide ones. A challenge carries
-         * its environment, success criteria, starter code and solution code
-         * — tens of kilobytes of JSON and source per row — and a progress row
-         * carries the pilot's saved editor buffer. This card renders two
-         * slugs and a title, and needs only the plan columns behind them to
-         * decide whether to render at all.
-         */
-        $progress = $user->challengeProgress()
-            ->select(['id', 'challenge_id'])
-            ->with(['challenge' => function (Relation $challenge): void {
-                $challenge->select(['id', 'course_id', 'title', 'slug', 'required_plan']);
-                $challenge->with(['course' => function (Relation $course): void {
-                    $course->select(['id', 'slug', 'required_plan']);
-                }]);
-            }])
-            // A progress row is only created once a pilot starts a mission,
-            // so `in_progress` is the only resumable state. An equality here
-            // also lets the dashboard use the `(user_id, status, updated_at)`
-            // index instead of scanning every completed mission a long-lived
-            // account has accumulated and then sorting the survivors.
-            ->where('status', ChallengeStatus::InProgress)
-            ->whereRelation('challenge', 'is_published', true)
-            ->whereRelation('challenge.course', 'is_published', true)
-            ->latest('updated_at')
-            ->first();
-
-        $challenge = $progress?->challenge;
+        $challenge = $contentProgress->latestInProgress($user)?->challenge;
 
         if ($challenge === null) {
             return null;

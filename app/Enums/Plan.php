@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Enums;
 
+use App\Models\User;
+
 /**
  * A subscription tier, as sold on the pricing page.
  *
@@ -19,6 +21,14 @@ enum Plan: string
 {
     case Starter = 'starter';
     case Pro = 'pro';
+
+    /**
+     * The plan a viewer is on. A guest is on Starter, like any unpaid pilot.
+     */
+    public static function forViewer(?User $user): self
+    {
+        return $user?->plan() ?? self::Starter;
+    }
 
     public function label(): string
     {

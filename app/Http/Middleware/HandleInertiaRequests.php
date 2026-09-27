@@ -46,7 +46,7 @@ final class HandleInertiaRequests extends Middleware
          * memo on the User instance is warm by the time a controller asks the
          * same question a moment later.
          */
-        $plan = $request->user()?->plan() ?? Plan::Starter;
+        $plan = Plan::forViewer($request->user());
 
         return [
             ...parent::share($request),

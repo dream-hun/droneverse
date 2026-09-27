@@ -25,7 +25,7 @@ final class PricingController extends Controller
         $user = $request->user();
 
         return Inertia::render('pricing', $catalog->handle(
-            $user?->plan() ?? Plan::Starter,
+            Plan::forViewer($user),
             $user === null,
             $kelviq->configured(),
         ));

@@ -13,7 +13,7 @@ use App\Http\Resources\QuizResultResource;
 use App\Models\Course;
 use App\Models\Quiz;
 use App\Models\User;
-use App\Models\UserQuizProgress;
+use App\Queries\ContentProgress;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -24,10 +24,9 @@ final class QuizController extends Controller
     /**
      * Display a quiz for the pilot to take.
      */
-    public function show(Request $request, Course $course, Quiz $quiz): Response
+    public function show(Request $request, Course $course, Quiz $quiz, ContentProgress $contentProgress): Response
     {
-        abort_unless($quiz->isAvailableIn($course), 404);
-        abort_unless($quiz->isUnlockedFor($request->user(), $course), 403);
+        $this->ensureReachable($quiz, $course, $request->user());
 
         return Inertia::render('quizzes/show', [
             'course' => [
@@ -41,7 +40,7 @@ final class QuizController extends Controller
              * with a skeleton where the thing they came to do belongs.
              */
             'quiz' => QuizDetailResource::one($quiz),
-            'progress' => QuizProgressResource::one($this->progressFor($request->user(), $quiz)),
+            'progress' => QuizProgressResource::one($contentProgress->forQuiz($request->user(), $quiz)),
         ]);
     }
 
@@ -53,12 +52,6 @@ final class QuizController extends Controller
      * client cannot post itself a pass. The graded outcome comes back in the
      * response, which is what the pilot is finally shown — and it is the only
      * moment the key travels at all.
-     *
-     * Both guards are repeated here rather than left to the page that
-     * normally precedes it, for the same reason the mission attempt endpoint
-     * repeats them: nothing stops a client posting straight at this endpoint,
-     * and a locked quiz that still accepts submissions is not locked — it
-     * just has no link.
      */
     public function store(
         StoreQuizAttemptRequest $request,
@@ -67,8 +60,7 @@ final class QuizController extends Controller
         GradeQuizSubmission $grade,
         RecordQuizAttempt $recordAttempt,
     ): JsonResponse {
-        abort_unless($quiz->isAvailableIn($course), 404);
-        abort_unless($quiz->isUnlockedFor($request->user(), $course), 403);
+        $this->ensureReachable($quiz, $course, $request->user());
 
         /** @var User $user */
         $user = $request->user();
@@ -77,15 +69,5 @@ final class QuizController extends Controller
         $progress = $recordAttempt->handle($user, $quiz, $result);
 
         return response()->json(QuizResultResource::one($result, $progress));
-    }
-
-    /**
-     * The viewer's progress row for this quiz, if they have taken it.
-     */
-    private function progressFor(?User $user, Quiz $quiz): ?UserQuizProgress
-    {
-        return $user?->quizProgress()
-            ->whereBelongsTo($quiz)
-            ->first();
     }
 }

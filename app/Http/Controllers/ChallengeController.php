@@ -18,7 +18,7 @@ use App\Models\Challenge;
 use App\Models\Course;
 use App\Models\DroneModel;
 use App\Models\User;
-use App\Models\UserChallengeProgress;
+use App\Queries\ContentProgress;
 use App\Queries\FlightLog;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\JsonResponse;
@@ -35,12 +35,12 @@ final class ChallengeController extends Controller
         Course $course,
         Challenge $challenge,
         FlightLog $flightLog,
+        ContentProgress $contentProgress,
         ResolveMissionDrone $resolveDrone,
     ): Response {
-        abort_unless($challenge->isAvailableIn($course), 404);
-        abort_unless($challenge->isUnlockedFor($user, $course), 403);
+        $this->ensureReachable($challenge, $course, $user);
 
-        $progress = $this->progressFor($user, $challenge);
+        $progress = $contentProgress->forChallenge($user, $challenge);
         $canConfigureDrone = $user->can(Feature::DroneConfigEditor->value);
 
         return Inertia::render('challenges/play', [
@@ -91,11 +91,6 @@ final class ChallengeController extends Controller
      * pilot cannot post themselves a perfect run. The graded outcome comes
      * back in the response, which is what the pilot is finally shown.
      *
-     * The plan check is repeated here rather than left to the page that
-     * normally precedes it. Nothing stops a client posting straight at this
-     * endpoint, and a locked mission that still accepts attempts is not
-     * locked — it just has no link.
-     *
      * The airframe is resolved from the pilot's saved selection rather than
      * read off the submission, for the same reason the score is. A run
      * carrying its own drone would let any client claim a Vector's envelope
@@ -113,8 +108,7 @@ final class ChallengeController extends Controller
         RecordChallengeAttempt $recordAttempt,
         ResolveMissionDrone $resolveDrone,
     ): JsonResponse {
-        abort_unless($challenge->isAvailableIn($course), 404);
-        abort_unless($challenge->isUnlockedFor($user, $course), 403);
+        $this->ensureReachable($challenge, $course, $user);
 
         $run = $request->run();
         $result = $grade->handle($reconstruct->handle($challenge, $run), $challenge);
@@ -131,15 +125,5 @@ final class ChallengeController extends Controller
                 'attempts' => $progress->attempts,
             ],
         ]);
-    }
-
-    /**
-     * The viewer's progress row for this mission, if they have flown it.
-     */
-    private function progressFor(User $user, Challenge $challenge): ?UserChallengeProgress
-    {
-        return $user->challengeProgress()
-            ->whereBelongsTo($challenge)
-            ->first();
     }
 }

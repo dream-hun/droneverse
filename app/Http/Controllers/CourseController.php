@@ -13,8 +13,7 @@ use App\Models\Challenge;
 use App\Models\Course;
 use App\Models\Quiz;
 use App\Models\User;
-use App\Models\UserChallengeProgress;
-use App\Models\UserQuizProgress;
+use App\Queries\ContentProgress;
 use App\Queries\PilotProgress;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -47,7 +46,7 @@ final class CourseController extends Controller
                 return CourseCatalogResource::collection(
                     Course::catalog()->get(),
                     $completedByCourse,
-                    $user?->plan() ?? Plan::Starter,
+                    Plan::forViewer($user),
                 );
             }),
         ]);
@@ -60,8 +59,12 @@ final class CourseController extends Controller
      * are rendered as locked rather than hidden, and the plan check that
      * actually matters lives on the mission routes.
      */
-    public function show(Request $request, Course $course, BuildCourseDocumentation $documentation): Response
-    {
+    public function show(
+        Request $request,
+        Course $course,
+        BuildCourseDocumentation $documentation,
+        ContentProgress $contentProgress,
+    ): Response {
         // Stays on the initial request: a 404 is the whole response, not a
         // section of it, and deferring it would render a page header for a
         // course that does not exist before taking it away again.
@@ -92,16 +95,16 @@ final class CourseController extends Controller
              * only the mission list waits. Both queries sit inside the closure
              * so the initial request does neither.
              */
-            'challenges' => Inertia::defer(function () use ($course, $user): array {
+            'challenges' => Inertia::defer(function () use ($course, $user, $contentProgress): array {
                 $challenges = $course->challenges()
                     ->published()
                     ->get(['id', 'title', 'slug', 'briefing', 'difficulty', 'required_plan']);
 
                 return ChallengeSummaryResource::collection(
                     $challenges,
-                    $this->progressByChallenge($user, $challenges->map(fn (Challenge $challenge): int => $challenge->id)),
+                    $contentProgress->byChallenge($user, $challenges->map(fn (Challenge $challenge): int => $challenge->id)),
                     $course,
-                    $user?->plan() ?? Plan::Starter,
+                    Plan::forViewer($user),
                 );
             }),
             /*
@@ -110,7 +113,7 @@ final class CourseController extends Controller
              * places, and a shared closure would make the missions — which
              * are what the page is for — wait on a count of quiz questions.
              */
-            'quizzes' => Inertia::defer(function () use ($course, $user): array {
+            'quizzes' => Inertia::defer(function () use ($course, $user, $contentProgress): array {
                 $quizzes = $course->quizzes()
                     ->published()
                     ->withCount('questions')
@@ -118,62 +121,11 @@ final class CourseController extends Controller
 
                 return QuizSummaryResource::collection(
                     $quizzes,
-                    $this->progressByQuiz($user, $quizzes->map(fn (Quiz $quiz): int => $quiz->id)),
+                    $contentProgress->byQuiz($user, $quizzes->map(fn (Quiz $quiz): int => $quiz->id)),
                     $course,
-                    $user?->plan() ?? Plan::Starter,
+                    Plan::forViewer($user),
                 );
             }),
         ]);
-    }
-
-    /**
-     * The viewer's progress on the given challenges, keyed by challenge id.
-     *
-     * One query for the whole page rather than one per row; a guest skips
-     * the trip entirely.
-     *
-     * Only the four columns the rows are rendered from. `last_code` is on
-     * this table too, and it is a longText holding the pilot's whole editor
-     * buffer — up to twenty kilobytes per mission. Selecting `*` read the
-     * saved code for every mission in the course, off disk and into a
-     * hydrated model, to render a status badge and a star count. The play
-     * page is where saved code is actually wanted, and it asks for one row.
-     *
-     * @param  Collection<int, int>  $challengeIds
-     * @return Collection<int, UserChallengeProgress>
-     */
-    private function progressByChallenge(?User $user, Collection $challengeIds): Collection
-    {
-        if (! $user instanceof User || $challengeIds->isEmpty()) {
-            return new Collection;
-        }
-
-        return $user->challengeProgress()
-            ->whereIn('challenge_id', $challengeIds)
-            ->get(['challenge_id', 'status', 'best_score', 'stars'])
-            ->keyBy(fn (UserChallengeProgress $progress): int => $progress->challenge_id);
-    }
-
-    /**
-     * The viewer's progress on the given quizzes, keyed by quiz id.
-     *
-     * One query for the whole page rather than one per row; a guest skips the
-     * trip entirely. `passed_at` is selected as well as the counters because
-     * {@see UserQuizProgress::status()} derives the row's state from it, and a
-     * row missing the column would read as never passed.
-     *
-     * @param  Collection<int, int>  $quizIds
-     * @return Collection<int, UserQuizProgress>
-     */
-    private function progressByQuiz(?User $user, Collection $quizIds): Collection
-    {
-        if (! $user instanceof User || $quizIds->isEmpty()) {
-            return new Collection;
-        }
-
-        return $user->quizProgress()
-            ->whereIn('quiz_id', $quizIds)
-            ->get(['quiz_id', 'best_score', 'attempts', 'passed_at'])
-            ->keyBy(fn (UserQuizProgress $progress): int => $progress->quiz_id);
     }
 }

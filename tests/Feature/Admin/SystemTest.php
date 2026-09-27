@@ -68,8 +68,8 @@ test('counts the watched tables in one query', function (): void {
         ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('report.tables.0.name', 'users')
             ->where('report.tables.0.rows', 3)
-            ->where('report.tables.9.name', 'failed_jobs')
-            ->where('report.tables.9.rows', 1));
+            ->where('report.tables.7.name', 'failed_jobs')
+            ->where('report.tables.7.rows', 1));
 
     // Quoted by the connection's own grammar: MySQL's CI job runs this too.
     $grammar = DB::getQueryGrammar();

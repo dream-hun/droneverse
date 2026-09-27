@@ -5,9 +5,7 @@ declare(strict_types=1);
 use App\Models\Challenge;
 use App\Models\ChallengeRun;
 use App\Models\Course;
-use App\Models\Customer;
 use App\Models\DroneModel;
-use App\Models\Order;
 use App\Models\PilotCourseTotals;
 use App\Models\PilotMissionStats;
 use App\Models\Quiz;
@@ -86,23 +84,14 @@ test('a record resolves the owner it was built for', function (bool $resolvesToO
 
         return $stats->challenge?->is($challenge) === true;
     }],
-    "a pilot's Creem customer" => [function (): bool {
-        $user = User::factory()->create();
-        $customer = Customer::factory()->billable($user)->create();
-
-        return $user->customer?->is($customer) === true;
-    }],
 ]);
 
-test("a pilot's orders and quiz attempts are theirs alone", function (): void {
+test("a pilot's quiz attempts are theirs alone", function (): void {
     $user = User::factory()->create();
-    $order = Order::factory()->billable($user)->create();
     $attempt = QuizAttempt::factory()->create(['user_id' => $user->id]);
-    Order::factory()->create();
     QuizAttempt::factory()->create();
 
-    expect($user->orders->modelKeys())->toBe([$order->id])
-        ->and($user->quizAttempts->modelKeys())->toBe([$attempt->id]);
+    expect($user->quizAttempts->modelKeys())->toBe([$attempt->id]);
 });
 
 test('courses, missions and quizzes are addressed by slug', function (Course|Challenge|Quiz $record): void {

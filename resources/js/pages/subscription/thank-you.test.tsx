@@ -4,7 +4,6 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ThankYou from '@/pages/subscription/thank-you';
-import type { SubscriptionConfirmation } from '@/types/billing';
 
 /**
  * The poll, held open so a test can drive it.
@@ -43,14 +42,6 @@ vi.mock('@inertiajs/react', () => ({
     },
 }));
 
-const SUBSCRIPTION: SubscriptionConfirmation = {
-    planLabel: 'Pro',
-    variant: 'yearly',
-    onTrial: false,
-    trialEndsAt: null,
-    renewsAt: '2027-08-21T00:00:00+00:00',
-};
-
 beforeEach(() => {
     poll.start.mockClear();
     poll.stop.mockClear();
@@ -59,11 +50,10 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('ThankYou', () => {
-    it('waits, and says so, while the webhook is still in flight', () => {
+    it('waits, and says so, while Kelviq has not granted the plan yet', () => {
         render(
             <ThankYou
                 plan={{ value: 'starter', label: 'Starter', isPaid: false }}
-                subscription={null}
                 highlights={[]}
                 pending
             />,
@@ -83,7 +73,6 @@ describe('ThankYou', () => {
         render(
             <ThankYou
                 plan={{ value: 'starter', label: 'Starter', isPaid: false }}
-                subscription={null}
                 highlights={[]}
                 pending
             />,
@@ -92,11 +81,10 @@ describe('ThankYou', () => {
         expect(screen.getByRole('status').textContent).toBe('Payment received');
     });
 
-    it('names the plan and stops polling once the webhook has landed', () => {
+    it('names the plan and stops polling once Kelviq has granted it', () => {
         render(
             <ThankYou
                 plan={{ value: 'pro', label: 'Pro', isPaid: true }}
-                subscription={SUBSCRIPTION}
                 highlights={['Every course and every mission']}
                 pending={false}
             />,
@@ -105,12 +93,6 @@ describe('ThankYou', () => {
         expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
             'Welcome to Pro',
         );
-        expect(screen.getByText('Billed yearly')).toBeDefined();
-        /*
-         * No "paid with" line to assert: Creem publishes no card brand or last
-         * four on any payload, so the page has nothing to say about the card
-         * and the billing portal is where a buyer sees it.
-         */
         expect(
             screen.getByText('Every course and every mission'),
         ).toBeDefined();
@@ -119,13 +101,13 @@ describe('ThankYou', () => {
     });
 
     /**
-     * A webhook that has not arrived in a minute is not going to be waited out
+     * A grant that has not arrived in a minute is not going to be waited out
      * by a browser. The page stops asking and says where the plan will show up
      * instead, rather than spinning at the buyer indefinitely.
      *
      * What it must not do is fall through to the confirmed state: that state
      * names a tier off the resolved plan, and the resolved plan of somebody
-     * whose webhook is still in flight is Starter. Greeting a pilot who has
+     * whose grant is still in flight is Starter. Greeting a pilot who has
      * just paid for Pro with "Welcome to Starter" would be worse than the
      * spinner.
      */
@@ -133,7 +115,6 @@ describe('ThankYou', () => {
         render(
             <ThankYou
                 plan={{ value: 'starter', label: 'Starter', isPaid: false }}
-                subscription={null}
                 highlights={[]}
                 pending
             />,

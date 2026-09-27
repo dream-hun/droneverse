@@ -1,13 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import {
-    CircleSlash,
-    CreditCard,
-    ListChecks,
-    PlaneTakeoff,
-    Repeat,
-    Undo2,
-    UserPlus,
-} from 'lucide-react';
+import { ListChecks, PlaneTakeoff, UserPlus } from 'lucide-react';
 import { PilotLink } from '@/components/admin/pilot-link';
 import { formatDateTime, formatRelative } from '@/lib/admin-format';
 import type { ActivityItem, ActivityKind } from '@/types/admin';
@@ -17,27 +9,19 @@ export const ACTIVITY_LABELS: Record<ActivityKind, string> = {
     signup: 'Sign-ups',
     run: 'Mission runs',
     quiz: 'Quiz attempts',
-    order: 'Orders',
-    refund: 'Refunds',
-    subscription: 'New subscriptions',
-    cancellation: 'Cancellations',
 };
 
 const ICONS: Record<ActivityKind, LucideIcon> = {
     signup: UserPlus,
     run: PlaneTakeoff,
     quiz: ListChecks,
-    order: CreditCard,
-    refund: Undo2,
-    subscription: Repeat,
-    cancellation: CircleSlash,
 };
 
 /**
  * The platform's recent events as a single list, newest first.
  *
  * Each row's kind is carried by an icon *and* its title's verb — "Flew",
- * "Paid", "Refunded" — so nothing depends on recognising an icon alone.
+ * "Took", "Opened" — so nothing depends on recognising an icon alone.
  */
 export function ActivityList({ items }: { items: ActivityItem[] }) {
     return (

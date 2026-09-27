@@ -18,6 +18,8 @@ use App\Models\Role;
 use App\Models\User;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -42,7 +44,7 @@ final class UserController extends Controller
         $role = mb_trim((string) $request->string('role'));
 
         $users = User::query()
-            ->with(['roles', 'subscriptions'])
+            ->with('roles')
             ->withCount('challengeRuns')
             ->when($search !== '', fn (Builder $query): Builder => $query->where(
                 fn (Builder $match): Builder => $match
@@ -105,10 +107,21 @@ final class UserController extends Controller
     {
         Gate::authorize('delete', $user);
 
-        if (! $delete->handle($user)) {
+        try {
+            $deleted = $delete->handle($user);
+        } catch (RequestException|ConnectionException) {
             Inertia::flash('toast', [
                 'type' => 'error',
-                'message' => __('This account still has a subscription Creem is billing. Cancel it from the account page first, then delete the account.'),
+                'message' => __("Kelviq could not be reached to check this account's subscription, so nothing was deleted. Please try again."),
+            ]);
+
+            return back();
+        }
+
+        if (! $deleted) {
+            Inertia::flash('toast', [
+                'type' => 'error',
+                'message' => __('This account still has a subscription Kelviq is billing. Cancel it in the Kelviq dashboard first, then delete the account.'),
             ]);
 
             return back();

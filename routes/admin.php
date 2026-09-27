@@ -7,15 +7,11 @@ use App\Http\Controllers\Admin\ChallengeController;
 use App\Http\Controllers\Admin\CourseController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\FailedJobController;
-use App\Http\Controllers\Admin\FinanceController;
-use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\QuizController;
 use App\Http\Controllers\Admin\QuizQuestionController;
 use App\Http\Controllers\Admin\RoleController;
-use App\Http\Controllers\Admin\SubscriptionController;
 use App\Http\Controllers\Admin\SystemController;
 use App\Http\Controllers\Admin\UserController;
-use App\Http\Controllers\Admin\UserSubscriptionController;
 use App\Http\Controllers\Admin\UserVerificationController;
 use Illuminate\Support\Facades\Route;
 
@@ -47,11 +43,6 @@ Route::middleware(['auth', 'verified', 'can:access_admin'])
 
             Route::post('users/{user}/verification', [UserVerificationController::class, 'store'])
                 ->name('users.verification.store');
-
-            // A live call to Creem, throttled the way checkout is.
-            Route::delete('users/{user}/subscription', [UserSubscriptionController::class, 'destroy'])
-                ->middleware(['can:view_finance', 'throttle:20,1'])
-                ->name('users.subscription.destroy');
         });
 
         Route::middleware('can:manage_roles')->group(function (): void {
@@ -101,12 +92,6 @@ Route::middleware(['auth', 'verified', 'can:access_admin'])
                 Route::delete('courses/{course:slug}/quizzes/{quiz:slug}/questions/{question}', [QuizQuestionController::class, 'destroy'])
                     ->name('courses.quizzes.questions.destroy');
             });
-        });
-
-        Route::middleware('can:view_finance')->group(function (): void {
-            Route::get('finance', FinanceController::class)->name('finance');
-            Route::get('finance/orders', OrderController::class)->name('finance.orders');
-            Route::get('finance/subscriptions', SubscriptionController::class)->name('finance.subscriptions');
         });
 
         /*

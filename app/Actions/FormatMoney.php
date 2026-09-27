@@ -10,7 +10,7 @@ use NumberFormatter;
  * Turn an amount in minor units into money a person can read.
  *
  * Every price in this application is stored and transmitted in minor units —
- * config/plans.php quotes them, Creem reports them — because an integer number
+ * config/plans.php quotes them, Kelviq charges them — because an integer number
  * of cents is the only representation of money that survives arithmetic. This
  * is the one place that turns them back into a string, so a page never divides
  * by a hundred on its way to rendering something.
@@ -92,7 +92,7 @@ final readonly class FormatMoney
 
     private function locale(): string
     {
-        $locale = config('creem.currency_locale');
+        $locale = config('plans.currency_locale');
 
         return is_string($locale) && $locale !== '' ? $locale : 'en';
     }

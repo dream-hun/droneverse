@@ -353,57 +353,17 @@ the code building the link can never disagree about where the log is.
 
 ## Billing
 
-These three models mirror what Creem holds, kept in step by the webhook and read by every
-screen that shows a pilot their billing. Creem is the record and these are the copy, so
-nothing in the application writes one except the actions the webhook drives — which is what
-lets the whole billing page render without a network call, in an environment with no
-credentials at all. They are reached through the billable trait on the user, and they are
-polymorphic rather than keyed to users so that a future classroom can be billed too.
+There are no billing models. Kelviq is the merchant of record and the only record of who has
+paid for what, and the application reads it rather than mirroring it: which plan a pilot is
+on is asked of Kelviq's entitlements API on the server, cached for a minute, with the last
+good answer kept to fall back on while Kelviq cannot be reached — see
+`App\Queries\KelviqEntitlements`. A pilot's Kelviq customer is their `uuid`, so nothing
+needs storing to connect an account to its customer.
 
-**Customer: this stores the link between an account and its customer record at the payment
-provider.**
-
-The polymorphic owner — always a user here — the provider's customer identifier and the
-email it was created with. Written by the webhook rather than by checkout, because Creem
-names the customer when the payment succeeds. It outlives every subscription the pilot ever
-holds, which is what makes it the right thing to mint a billing-portal link against:
-somebody whose subscription ended last month still has invoices to download.
-
-**Subscription: this stores what a pilot is currently paying for.**
-
-The owner, a name allowing more than one subscription per account, the provider's
-identifier, its customer, and a status — active, trialing, scheduled to cancel, past due,
-unpaid, incomplete, paused, expired or cancelled.
-
-The important value is the product, which identifies the exact thing being sold. A Creem
-product carries its own price and billing period, so one product is one purchasable price:
-there is no separate price object and, unlike the Paddle integration two providers ago, no
-subscription-items table. The question "which price is this pilot subscribed to?" is one
-column and no join, and entitlement resolution maps that value back to a plan through
-configuration.
-
-A unit count sits beside it for the classroom seats that are not built yet, since Creem
-bills seats as a quantity against one product rather than as a second subscription.
-
-The rest is dates, and they are stored as the provider reports them rather than reduced to
-a single "ends" column, because which one ends a subscription depends on how it is ending:
-when a trial ends, when the next charge falls, when the current period started and ends,
-and when somebody cancelled. The model derives the one date a page actually shows from
-those. There is no card brand and no last four, because Creem publishes neither — the
-billing portal is the only place a pilot sees the card being charged.
-
-**Order: this stores one completed purchase, and together they are the billing history.**
-
-Each row holds who paid, the provider's identifiers for the order, the checkout, the
-customer and the subscription it belongs to, what was bought as a product, and the money:
-an amount in minor units and its currency. It also records the order's status, whether and
-when it was refunded and for how much — Creem allows partial refunds, so the amount matters
-as well as the flag — and when the order was placed, which is distinct from when the row
-was written.
-
-There is no receipt URL, because Creem publishes none: invoices live behind the customer
-portal, reached by a magic link minted per request, so the billing page links to the portal
-once rather than carrying a document link per row.
+The one billing value the database holds is the plan override on the user, which is how an
+account is granted a plan by hand and which outranks Kelviq whenever it is set. What is for
+sale lives in `kelviq.config.ts`, pushed to Kelviq with its CLI; the amounts the pricing page
+quotes live in `config/plans.php` and are kept in step with it.
 
 ---
 

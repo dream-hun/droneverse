@@ -12,7 +12,6 @@ describe('planLabel', () => {
     it('names every plan the server can send', () => {
         expect(planLabel('starter')).toBe('Starter');
         expect(planLabel('pro')).toBe('Pro');
-        expect(planLabel('team')).toBe('Team');
     });
 });
 
@@ -23,7 +22,6 @@ describe('tierLabel', () => {
 
     it('names a paid tier after the plan that includes it', () => {
         expect(tierLabel('pro')).toBe('Pro');
-        expect(tierLabel('team')).toBe('Team');
     });
 });
 
@@ -31,7 +29,6 @@ describe('isPaidTier', () => {
     it('is false only for the tier that costs nothing', () => {
         expect(isPaidTier('starter')).toBe(false);
         expect(isPaidTier('pro')).toBe(true);
-        expect(isPaidTier('team')).toBe(true);
     });
 });
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Concerns;
 
+use App\Actions\ResolveFeaturesForUser;
 use App\Actions\ResolvePlanForUser;
 use App\Enums\Feature;
 use App\Enums\Plan;
@@ -22,28 +23,36 @@ trait HasPlan
      * A fresh User is hydrated per request, so the memo lives exactly as long
      * as it should and there is nothing to invalidate when a subscription
      * changes mid-flight. `forgetPlan()` covers the one case that needs it:
-     * code that changes the user's billing state and then asks again.
+     * code that learns the user's billing state has changed and asks again.
      */
     private ?Plan $resolvedPlan = null;
+
+    /** @var array<int, Feature>|null */
+    private ?array $resolvedFeatures = null;
 
     public function plan(): Plan
     {
         return $this->resolvedPlan ??= resolve(ResolvePlanForUser::class)->handle($this);
     }
 
+    /**
+     * Asked of the feature itself rather than of the plan: a Kelviq subscriber
+     * holds what Kelviq's entitlements grant, feature by feature. See
+     * App\Actions\ResolveFeaturesForUser.
+     */
     public function hasFeature(Feature $feature): bool
     {
-        return $this->plan()->hasFeature($feature);
+        return in_array($feature, $this->features(), true);
     }
 
     /**
-     * Every feature the user's plan unlocks.
+     * Every feature the user may use right now.
      *
      * @return array<int, Feature>
      */
     public function features(): array
     {
-        return $this->plan()->features();
+        return $this->resolvedFeatures ??= resolve(ResolveFeaturesForUser::class)->handle($this);
     }
 
     public function onPaidPlan(): bool
@@ -65,6 +74,7 @@ trait HasPlan
     public function forgetPlan(): static
     {
         $this->resolvedPlan = null;
+        $this->resolvedFeatures = null;
 
         return $this;
     }

@@ -5,10 +5,7 @@ declare(strict_types=1);
 use App\Enums\AdminPermission;
 use App\Models\Challenge;
 use App\Models\ChallengeRun;
-use App\Models\Order;
-use App\Models\Subscription;
 use App\Models\User;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia;
 
@@ -76,49 +73,18 @@ test('the daily chart fills quiet days with zero', function (): void {
                 ->where('overview.daily.13.date', now()->toDateString())));
 });
 
-test('staff without view_finance see no money in the activity feed', function (): void {
+test('the activity feed reads accounts, runs and quizzes, and nothing about money', function (): void {
     $support = User::factory()->withPermissions([AdminPermission::AccessAdmin])->create();
-    Order::factory()->create();
 
     $this->actingAs($support)
         ->get(route('admin.activity'))
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->component('admin/activity')
-            ->where('kinds', ['signup', 'run', 'quiz'])
-            ->where('activity.items', fn (Collection $items): bool => $items->every(
-                fn (array $item): bool => $item['kind'] !== 'order',
-            )));
+            ->where('kinds', ['signup', 'run', 'quiz']));
 });
 
-test('staff with view_finance see orders in the activity feed', function (): void {
-    $finance = User::factory()->withPermissions([AdminPermission::AccessAdmin, AdminPermission::ViewFinance])->create();
-    Order::factory()->create(['amount' => 1900, 'currency' => 'USD']);
-
-    $this->actingAs($finance)
-        ->get(route('admin.activity', ['type' => 'order']))
-        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
-            ->where('type', 'order')
-            ->has('activity.items', 1)
-            ->where('activity.items.0.kind', 'order')
-            ->where('activity.items.0.title', 'Paid $19.00'));
-});
-
-test('a cancellation in the feed says when access ends, where it does', function (): void {
-    $this->travelTo('2026-09-27 12:00:00');
-    $finance = User::factory()->withPermissions([AdminPermission::AccessAdmin, AdminPermission::ViewFinance])->create();
-    Subscription::factory()->canceled(now()->subDays(2))->create();
-    Subscription::factory()->create(['canceled_at' => now()->subDays(5)]);
-
-    $this->actingAs($finance)
-        ->get(route('admin.activity', ['type' => 'cancellation']))
-        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
-            ->has('activity.items', 2)
-            ->where('activity.items.0.meta', 'Access ends Sep 25, 2026')
-            ->where('activity.items.1.meta', null));
-});
-
-test('a money filter from somebody without view_finance falls back to everything', function (): void {
+test('a filter the feed does not know falls back to everything', function (): void {
     $support = User::factory()->withPermissions([AdminPermission::AccessAdmin])->create();
 
     $this->actingAs($support)

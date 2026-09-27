@@ -12,7 +12,6 @@ import type { PlanValue } from '@/types/auth';
 const PLAN_LABEL: Record<PlanValue, string> = {
     starter: 'Starter',
     pro: 'Pro',
-    team: 'Team',
 };
 
 export function planLabel(plan: PlanValue): string {
@@ -86,9 +85,7 @@ export function missionCostSummary(tiers: PlanValue[]): string | null {
         return 'Every mission free';
     }
 
-    // The first paid tier names them all. A course mixing Pro and Team
-    // missions is not a shape the catalogue sells, and naming the cheaper of
-    // the two is the error that leaves a buyer able to fly what they paid for.
+    // The first paid tier names them all: Pro is the only one there is.
     const plan = planLabel(paid[0]);
 
     if (paid.length === tiers.length) {

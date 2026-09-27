@@ -1,18 +1,6 @@
-import { Head, router, setLayoutProps } from '@inertiajs/react';
-import {
-    Camera,
-    CheckCircle2,
-    CircleSlash,
-    ListChecks,
-    Target,
-} from 'lucide-react';
-import { useState } from 'react';
-import {
-    orderColumns,
-    subscriptionColumns,
-} from '@/components/admin/finance-columns';
+import { Head, setLayoutProps } from '@inertiajs/react';
+import { Camera, CheckCircle2, ListChecks, Target } from 'lucide-react';
 import { useUserActions } from '@/components/admin/user-actions';
-import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { PageHeader } from '@/components/page-header';
 import { RowActions } from '@/components/row-actions';
@@ -31,17 +19,9 @@ import {
     formatRelative,
 } from '@/lib/admin-format';
 import type { ColumnDef } from '@/lib/data-table';
-import { visitAsPromise } from '@/lib/inertia-promise';
-import type { RowAction } from '@/lib/row-actions';
 import { dashboard } from '@/routes/admin';
 import { index, show } from '@/routes/admin/users';
-import { destroy as cancelSubscription } from '@/routes/admin/users/subscription';
-import type {
-    AdminOrder,
-    AdminSubscription,
-    AdminUser,
-    UserFormOptions,
-} from '@/types/admin';
+import type { AdminUser, UserFormOptions } from '@/types/admin';
 
 type RecentRun = {
     uuid: string;
@@ -64,14 +44,6 @@ type UserShowProps = UserFormOptions & {
         lastRunAt: string | null;
     };
     recentRuns: RecentRun[];
-    /** Null for staff without `view_finance`. */
-    subscriptions: AdminSubscription[] | null;
-    /**
-     * Whether the viewer can cancel a subscription that is still billing —
-     * the step that has to come before deleting a paying account.
-     */
-    canCancelSubscription: boolean;
-    orders: AdminOrder[] | null;
 };
 
 const runColumns: ColumnDef<RecentRun>[] = [
@@ -158,9 +130,6 @@ export default function UserShow({
     account,
     stats,
     recentRuns,
-    subscriptions,
-    canCancelSubscription,
-    orders,
     roles,
     plans,
     can,
@@ -174,24 +143,7 @@ export default function UserShow({
     });
 
     const { actionsFor, dialogs } = useUserActions({ roles, plans, can });
-    const [cancelling, setCancelling] = useState(false);
-
-    const accountActions = actionsFor(account, { includeView: false });
-    const cancelAction: RowAction = {
-        label: 'Cancel subscription',
-        icon: <CircleSlash />,
-        group: 'billing',
-        onSelect: () => setCancelling(true),
-    };
-
-    // Billing sits between the edits and the delete, which stays last.
-    const actions = canCancelSubscription
-        ? [
-              ...accountActions.filter((action) => action.group !== 'danger'),
-              cancelAction,
-              ...accountActions.filter((action) => action.group === 'danger'),
-          ]
-        : accountActions;
+    const actions = actionsFor(account, { includeView: false });
 
     return (
         <>
@@ -281,65 +233,9 @@ export default function UserShow({
                         }
                     />
                 </Section>
-
-                {subscriptions && (
-                    <Section title="Subscriptions">
-                        <DataTable
-                            caption={`${account.name}'s subscriptions`}
-                            columns={subscriptionColumns({ withPilot: false })}
-                            rows={subscriptions}
-                            rowKey={(row) => row.creemId}
-                            empty={
-                                <Empty
-                                    title="Never subscribed"
-                                    description="This account has not bought a plan."
-                                />
-                            }
-                        />
-                    </Section>
-                )}
-
-                {orders && (
-                    <Section title="Orders">
-                        <DataTable
-                            caption={`${account.name}'s orders`}
-                            columns={orderColumns({ withPilot: false })}
-                            rows={orders}
-                            rowKey={(row) => row.creemId}
-                            empty={
-                                <Empty
-                                    title="No orders"
-                                    description="Payments this account makes are listed here."
-                                />
-                            }
-                        />
-                    </Section>
-                )}
             </div>
 
             {dialogs}
-
-            <ConfirmDialog
-                open={cancelling}
-                onOpenChange={setCancelling}
-                destructive
-                title={`Cancel ${account.name}'s subscription?`}
-                description="Creem stops the next charge. They keep everything until the end of the period they have paid for, and the account can then be deleted."
-                confirmLabel="Cancel subscription"
-                cancelLabel="Keep it"
-                pendingLabel="Cancelling…"
-                onConfirm={() =>
-                    visitAsPromise(
-                        (options) =>
-                            router.delete(
-                                cancelSubscription.url(account.uuid),
-                                options,
-                            ),
-                        {},
-                        'The subscription was not cancelled',
-                    )
-                }
-            />
         </>
     );
 }

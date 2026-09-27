@@ -316,7 +316,10 @@ function deleteTotalsAfterUpsert(User $pilot, int $times): void
     $remaining = $times;
 
     DB::listen(function (QueryExecuted $query) use ($pilot, &$remaining): void {
-        if ($remaining === 0 || ! str_starts_with($query->sql, 'insert into "pilot_course_totals"')) {
+        // Matched without the table's quotes, which differ between drivers.
+        $isUpsert = str_starts_with($query->sql, 'insert into') && str_contains($query->sql, 'pilot_course_totals');
+
+        if ($remaining === 0 || ! $isUpsert) {
             return;
         }
 

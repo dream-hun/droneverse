@@ -76,6 +76,52 @@ jobs:
       - name: Tests
         run: php artisan test
 
+  # The 100% line-coverage gate, `composer test:unit`. Its own job because it
+  # needs Xdebug, which the matrix above deliberately leaves off, and once
+  # rather than once per PHP version. Xdebug rather than PCOV so the numbers
+  # are the ones a developer gets from the same script locally.
+  coverage:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.5'
+          tools: composer:v2
+          coverage: xdebug
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install Node Dependencies
+        run: npm ci
+
+      - name: Install Dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Copy Environment File
+        run: cp .env.example .env
+
+      - name: Generate Application Key
+        run: php artisan key:generate
+
+      # The Blade root view resolves the Vite manifest, so every page test
+      # needs the built assets.
+      - name: Build Assets
+        run: npm run build
+
+      - name: Tests with coverage
+        run: composer test:unit
+
   # vitest.config.ts leaves out the Vite plugins that shell out to artisan,
   # but the components under test still import the generated route helpers
   # (`@/routes`), which are gitignored. PHP is here to generate those and

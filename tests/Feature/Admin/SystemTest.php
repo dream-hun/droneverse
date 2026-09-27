@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 use App\Enums\AdminPermission;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia;
 
@@ -47,6 +49,24 @@ test('reports live checks and the failed jobs', function (): void {
             ->where('report.failedJobs.0.job', 'App\\Jobs\\SendReceipt')
             ->where('report.failedJobs.0.exception', 'RuntimeException: Mail server refused')
             ->where('logViewerUrl', null));
+});
+
+test('a figure that cannot be read shows as unknown and reports why', function (): void {
+    Exceptions::fake();
+    config([
+        'queue.default' => 'database',
+        'queue.connections.database.table' => 'missing_jobs',
+    ]);
+    $admin = User::factory()->admin()->create();
+
+    $this->actingAs($admin)
+        ->get(route('admin.system'))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('report.queue.pending', null)
+            ->where('report.queue.oldestPendingSeconds', null));
+
+    Exceptions::assertReported(QueryException::class);
 });
 
 test('links the log viewer only for people its own allowlist admits', function (): void {

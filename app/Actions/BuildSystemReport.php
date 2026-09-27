@@ -27,7 +27,8 @@ use Throwable;
  * were fine is worse than no page. Each probe is also contained: one that
  * throws becomes a failed check on the page instead of a 500 in place of it,
  * since the moment somebody opens this screen is the moment something is
- * most likely to be broken.
+ * most likely to be broken. The figures around the checks fall back to null
+ * the same way, and report what threw so the cause outlives the page.
  *
  * What it does not do is keep history. There is no metrics store behind this
  * and adding one is a dependency decision, not a page; the queue backlog, the
@@ -254,14 +255,16 @@ final readonly class BuildSystemReport
                 $pending = (clone $jobs)->count();
                 $available = (clone $jobs)->min('available_at');
                 $oldest = is_numeric($available) ? max(0, CarbonImmutable::now()->getTimestamp() - (int) $available) : null;
-            } catch (Throwable) {
+            } catch (Throwable $throwable) {
+                report($throwable);
                 $pending = null;
             }
         }
 
         try {
             $failed = $this->failer instanceof CountableFailedJobProvider ? $this->failer->count() : null;
-        } catch (Throwable) {
+        } catch (Throwable $throwable) {
+            report($throwable);
             $failed = null;
         }
 
@@ -284,7 +287,9 @@ final readonly class BuildSystemReport
                 ->orderByDesc('id')
                 ->limit(self::FAILED_JOB_LIMIT)
                 ->get(['uuid', 'connection', 'queue', 'payload', 'exception', 'failed_at']);
-        } catch (Throwable) {
+        } catch (Throwable $throwable) {
+            report($throwable);
+
             return [];
         }
 
@@ -327,7 +332,8 @@ final readonly class BuildSystemReport
 
                 $sizes[$table['name']] = is_numeric($table['size'] ?? null) ? (int) $table['size'] : null;
             }
-        } catch (Throwable) {
+        } catch (Throwable $throwable) {
+            report($throwable);
             $sizes = [];
         }
 
@@ -340,7 +346,8 @@ final readonly class BuildSystemReport
 
             try {
                 $rows = DB::table($name)->count();
-            } catch (Throwable) {
+            } catch (Throwable $throwable) {
+                report($throwable);
                 $rows = null;
             }
 
@@ -364,7 +371,9 @@ final readonly class BuildSystemReport
             return DB::table($this->configString('session.table', 'sessions'))
                 ->where('last_activity', '>=', $since->getTimestamp())
                 ->count();
-        } catch (Throwable) {
+        } catch (Throwable $throwable) {
+            report($throwable);
+
             return null;
         }
     }

@@ -97,7 +97,7 @@ export function CommandList({ commands }: { commands: CommandDoc[] }) {
                             {command.notes.map((note) => (
                                 <li
                                     key={note}
-                                    className="relative pl-4 text-pretty before:absolute before:left-0 before:text-primary before:content-['—']"
+                                    className="relative pl-4 text-pretty before:absolute before:left-0 before:text-primary before:content-['•']"
                                 >
                                     <Prose text={note} />
                                 </li>

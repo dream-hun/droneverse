@@ -38,11 +38,11 @@ pest()->extend(TestCase::class)
 |
 | The suite runs with no Kelviq key — phpunit.xml blanks it — so nothing
 | reaches Kelviq unless a test asks. fakeKelviq() configures a sandbox key,
-| refuses any request it was not told about, and answers the edge
-| entitlements API from `$entitlements`, which maps a customer id (a pilot's
-| uuid) to the feature identifiers Kelviq grants them. `$responses` is passed
-| to Http::fake() ahead of that, for the endpoints a test is about, and wins
-| over it for the same URL pattern.
+| refuses any request it was not told about, accepts every customer update,
+| and answers the edge entitlements API from `$entitlements`, which maps a
+| customer id (a pilot's uuid) to the feature identifiers Kelviq grants them.
+| `$responses` is passed to Http::fake() ahead of that, for the endpoints a
+| test is about, and wins over it for the same URL pattern.
 |
 */
 
@@ -61,6 +61,7 @@ function fakeKelviq(array $entitlements = [], array $responses = []): void
     Http::preventStrayRequests();
 
     Http::fake($responses + [
+        'https://sandboxapi.kelviq.com/api/v1/customers/*' => Http::response(),
         'edge.sandboxapi.kelviq.com/api/v1/entitlements*' => function (Request $request) use ($entitlements): PromiseInterface {
             $customerId = $request->data()['customer_id'] ?? null;
             $granted = is_string($customerId) ? $entitlements[$customerId] ?? [] : [];

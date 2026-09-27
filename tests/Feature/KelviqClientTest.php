@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Enums\KelviqEnvironment;
 use App\Http\Integrations\Kelviq;
 use App\Http\Integrations\WebhookVerificationError;
+use GuzzleHttp\Promise\PromiseInterface;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
@@ -65,6 +66,36 @@ test('a checkout session is minted with the bearer key and the sdk body', functi
         && $request->hasHeader('Authorization', 'Bearer kq_sandbox_test_key')
         && $request['plan_identifier'] === 'pro');
 });
+
+test('a customer kelviq holds is updated in place', function (): void {
+    fakeKelviq();
+
+    resolve(Kelviq::class)->syncCustomer('pilot-uuid', 'Ada Pilot', 'pilot@example.com');
+
+    Http::assertSentCount(1);
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://sandboxapi.kelviq.com/api/v1/customers/pilot-uuid/'
+        && $request->method() === 'PATCH'
+        && $request->hasHeader('Authorization', 'Bearer kq_sandbox_test_key')
+        && $request->data() === ['name' => 'Ada Pilot', 'email' => 'pilot@example.com']);
+});
+
+test('a customer kelviq has never seen is created', function (): void {
+    fakeKelviq(responses: ['https://sandboxapi.kelviq.com/api/v1/customers/*' => fn (Request $request): PromiseInterface => $request->method() === 'PATCH'
+        ? Http::response(['detail' => 'Not found.'], 404)
+        : Http::response(['customerId' => 'pilot-uuid'], 201)]);
+
+    resolve(Kelviq::class)->syncCustomer('pilot-uuid', 'Ada Pilot', 'pilot@example.com');
+
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://sandboxapi.kelviq.com/api/v1/customers/'
+        && $request->method() === 'POST'
+        && $request->data() === ['customer_id' => 'pilot-uuid', 'name' => 'Ada Pilot', 'email' => 'pilot@example.com']);
+});
+
+test('a customer kelviq refuses is an error', function (): void {
+    fakeKelviq(responses: ['https://sandboxapi.kelviq.com/api/v1/customers/*' => Http::response(['email' => ['Enter a valid email address.']], 400)]);
+
+    resolve(Kelviq::class)->syncCustomer('pilot-uuid', 'Ada Pilot', 'not-an-email');
+})->throws(RequestException::class);
 
 test('production keys are sent to the production host', function (): void {
     config(['kelviq.server_api_key' => 'kq_live_key', 'kelviq.environment' => 'production', 'kelviq.timeout' => 'soon']);

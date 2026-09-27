@@ -58,6 +58,35 @@ final readonly class Kelviq
     }
 
     /**
+     * `customers.update()`, or `customers.create()` for a customer Kelviq has
+     * never seen: make its record carry this name and email address.
+     *
+     * The checkout payload has no field for either. A checkout names a
+     * customer by id, and Kelviq's hosted page reads the name and email from
+     * that customer's record. A record Kelviq creates for itself when a checkout
+     * names an unknown id has the id as its name and no email at all.
+     *
+     * @throws ConnectionException|RequestException|RuntimeException
+     */
+    public function syncCustomer(string $customerId, string $name, string $email): void
+    {
+        $response = $this->request()->patch(sprintf('/customers/%s/', rawurlencode($customerId)), [
+            'name' => $name,
+            'email' => $email,
+        ]);
+
+        if ($response->notFound()) {
+            $response = $this->request()->post('/customers/', [
+                'customer_id' => $customerId,
+                'name' => $name,
+                'email' => $email,
+            ]);
+        }
+
+        $response->throw();
+    }
+
+    /**
      * `checkout.createSession()`: mint a hosted checkout.
      *
      * `$payload` is sent as the body, so it speaks the API's vocabulary —

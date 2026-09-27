@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Payment;
 use App\Models\User;
 use Illuminate\Cache\ArrayStore;
 use Illuminate\Cache\Repository;
@@ -50,6 +51,9 @@ test('every event about a customer drops their cached entitlements', function (s
     'subscription.updated',
     'subscription.plan_changed',
     'subscription.cancelled',
+    'order.created',
+    'order.updated',
+    'order.refunded',
 ]);
 
 test('an event this application does not handle is received and ignored', function (): void {
@@ -130,6 +134,111 @@ test('a delivery that fails is handled again when kelviq retries it', function (
     expect(Cache::has('kelviq:entitlements:'.$this->pilot->uuid))->toBeFalse('The retry should have been handled.');
 });
 
+test('an order is recorded as a payment for the pilot who made it', function (): void {
+    postKelviqWebhook($this, kelviqOrderEvent('order.created', $this->pilot->uuid))->assertOk();
+
+    $payment = Payment::query()->sole();
+
+    expect($payment->kelviq_order_id)->toBe('ORD-20260927100000-AB3K9')
+        ->and($payment->user_id)->toBe($this->pilot->id)
+        ->and($payment->kelviq_customer_id)->toBe($this->pilot->uuid)
+        ->and($payment->kelviq_subscription_id)->toBe('sub-uuid')
+        ->and($payment->status)->toBe('COMPLETE')
+        ->and($payment->billing_type)->toBe('SUBSCRIPTION')
+        ->and($payment->is_renewal)->toBeFalse()
+        ->and($payment->plan_identifier)->toBe('pro')
+        ->and($payment->amount_units)->toBe(1200)
+        ->and($payment->currency)->toBe('USD')
+        ->and($payment->paid_at?->toIso8601String())->toBe('2026-09-27T10:00:00+00:00')
+        ->and($payment->kelviq_updated_at?->toIso8601String())->toBe('2026-09-27T10:00:05+00:00')
+        ->and($this->pilot->payments()->count())->toBe(1);
+});
+
+test('a refund updates the payment it refunds rather than adding one', function (): void {
+    postKelviqWebhook($this, kelviqOrderEvent('order.created', $this->pilot->uuid))->assertOk();
+    postKelviqWebhook($this, kelviqOrderEvent('order.refunded', $this->pilot->uuid, [
+        'status' => 'REFUNDED',
+        'modified_on' => '2026-09-28T09:00:00Z',
+    ]))->assertOk();
+
+    expect(Payment::query()->sole()->status)->toBe('REFUNDED');
+});
+
+/**
+ * Webhooks are not delivered in order, and a late description of an order
+ * must not undo a newer one.
+ */
+test('an older description of an order does not overwrite a newer one', function (): void {
+    postKelviqWebhook($this, kelviqOrderEvent('order.refunded', $this->pilot->uuid, [
+        'status' => 'REFUNDED',
+        'modified_on' => '2026-09-28T09:00:00Z',
+    ]))->assertOk();
+    postKelviqWebhook($this, kelviqOrderEvent('order.created', $this->pilot->uuid))->assertOk();
+
+    expect(Payment::query()->sole()->status)->toBe('REFUNDED');
+});
+
+test('an order with no modification time of its own is dated by the event', function (): void {
+    postKelviqWebhook($this, kelviqOrderEvent('order.created', $this->pilot->uuid, ['modified_on' => 'not a date']))->assertOk();
+
+    expect(Payment::query()->sole()->kelviq_updated_at?->toIso8601String())->toBe('2026-09-27T10:00:10+00:00');
+});
+
+test('an order with no time at all is still recorded, and keeps what it had', function (): void {
+    postKelviqWebhook($this, kelviqOrderEvent('order.created', $this->pilot->uuid))->assertOk();
+
+    $event = kelviqOrderEvent('order.updated', $this->pilot->uuid, ['modified_on' => null, 'status' => 'PARTIAL_REFUND']);
+    unset($event['created_at']);
+    postKelviqWebhook($this, $event)->assertOk();
+
+    $payment = Payment::query()->sole();
+
+    expect($payment->status)->toBe('PARTIAL_REFUND')
+        ->and($payment->kelviq_updated_at?->toIso8601String())->toBe('2026-09-27T10:00:05+00:00');
+});
+
+test('an order for a customer with no account is recorded without a pilot', function (): void {
+    postKelviqWebhook($this, kelviqOrderEvent('order.created', 'dashboard-sale'))->assertOk();
+
+    expect(Payment::query()->sole())
+        ->user_id->toBeNull()
+        ->kelviq_customer_id->toBe('dashboard-sale');
+});
+
+test('an order with fields of the wrong shape keeps only what it can read', function (): void {
+    postKelviqWebhook($this, kelviqOrderEvent('order.created', $this->pilot->uuid, [
+        'subscription_id' => '',
+        'is_renewal' => 'no',
+        'plan' => null,
+        'amount_total_units' => -5,
+        'currency' => 'dollars',
+        'paid_at' => 12,
+    ]))->assertOk();
+
+    expect(Payment::query()->sole())
+        ->kelviq_subscription_id->toBeNull()
+        ->is_renewal->toBeNull()
+        ->plan_identifier->toBeNull()
+        ->amount_units->toBeNull()
+        ->currency->toBeNull()
+        ->paid_at->toBeNull();
+});
+
+test('an order with no id or status is not recorded', function (string $field, ?string $value): void {
+    postKelviqWebhook($this, kelviqOrderEvent('order.created', $this->pilot->uuid, [$field => $value]))->assertOk();
+
+    expect(Payment::query()->count())->toBe(0);
+})->with([
+    'no id' => ['id', null],
+    'no status' => ['status', ''],
+]);
+
+test('an event that is not about an order records no payment', function (): void {
+    postKelviqWebhook($this, kelviqEvent('checkout.completed', $this->pilot->uuid))->assertOk();
+
+    expect(Payment::query()->count())->toBe(0);
+});
+
 /**
  * @return array<string, mixed>
  */
@@ -140,6 +249,38 @@ function kelviqEvent(string $type, string $customerId): array
         'type' => $type,
         'created_at' => now()->toIso8601String(),
         'data' => ['object' => ['customer' => ['id' => 'kvq-uuid', 'customer_id' => $customerId, 'email' => 'pilot@example.com']]],
+    ];
+}
+
+/**
+ * An `order.*` event shaped as Kelviq's webhook guide shows it.
+ *
+ * @param  array<string, mixed>  $overrides  merged over `data.object`
+ * @return array<string, mixed>
+ */
+function kelviqOrderEvent(string $type, string $customerId, array $overrides = []): array
+{
+    return [
+        'id' => 'evt_'.fake()->uuid(),
+        'type' => $type,
+        'created_at' => '2026-09-27T10:00:10Z',
+        'data' => ['object' => array_merge([
+            'id' => 'ORD-20260927100000-AB3K9',
+            'object' => 'order',
+            'status' => 'COMPLETE',
+            'billing_type' => 'SUBSCRIPTION',
+            'customer_id' => 'kvq-uuid',
+            'customer' => ['id' => 'kvq-uuid', 'customer_id' => $customerId, 'email' => 'pilot@example.com'],
+            'is_renewal' => false,
+            'paid_at' => '2026-09-27T10:00:00Z',
+            'amount_total' => '12.00',
+            'amount_total_units' => 1200,
+            'currency' => 'usd',
+            'subscription_id' => 'sub-uuid',
+            'plan' => ['name' => 'Pro', 'version' => 1, 'identifier' => 'pro'],
+            'created_on' => '2026-09-27T10:00:00Z',
+            'modified_on' => '2026-09-27T10:00:05Z',
+        ], $overrides)],
     ];
 }
 

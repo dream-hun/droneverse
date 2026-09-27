@@ -353,17 +353,25 @@ the code building the link can never disagree about where the log is.
 
 ## Billing
 
-There are no billing models. Kelviq is the merchant of record and the only record of who has
-paid for what, and the application reads it rather than mirroring it: which plan a pilot is
-on is asked of Kelviq's entitlements API on the server, cached for a minute, with the last
-good answer kept to fall back on while Kelviq cannot be reached — see
+Kelviq is the merchant of record and decides who may use what: which plan a pilot is on is
+asked of Kelviq's entitlements API on the server, cached for a minute, with the last good
+answer kept to fall back on while Kelviq cannot be reached — see
 `App\Queries\KelviqEntitlements`. A pilot's Kelviq customer is their `uuid`, so nothing
 needs storing to connect an account to its customer.
 
-The one billing value the database holds is the plan override on the user, which is how an
-account is granted a plan by hand and which outranks Kelviq whenever it is set. What is for
-sale lives in `kelviq.config.ts`, pushed to Kelviq with its CLI; the amounts the pricing page
-quotes live in `config/plans.php` and are kept in step with it.
+What was paid is recorded locally, in `payments`: one row per Kelviq order — a first
+checkout, a lifetime purchase or a renewal — written by the `order.created`,
+`order.updated` and `order.refunded` webhooks through `App\Actions\RecordKelviqOrder`, and
+backfilled from Kelviq's `/orders/` API by `php artisan kelviq:sync-payments`. Rows are keyed
+on Kelviq's order id, amounts are kept in minor units with their currency, and an older
+description of an order never overwrites a newer one. The row keeps the pilot's customer id
+when their account is closed, and its `user_id` goes null. It is a ledger only; nothing
+reads it to decide access.
+
+The one other billing value the database holds is the plan override on the user, which is
+how an account is granted a plan by hand and which outranks Kelviq whenever it is set. What
+is for sale lives in `kelviq.config.ts`, pushed to Kelviq with its CLI; the amounts the
+pricing page quotes live in `config/plans.php` and are kept in step with it.
 
 ---
 

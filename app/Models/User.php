@@ -152,6 +152,19 @@ final class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     }
 
     /**
+     * What this pilot has paid Kelviq, as recorded by the `order.*` webhooks.
+     *
+     * A ledger only: what they may use is still Kelviq's answer, through
+     * {@see \App\Queries\KelviqEntitlements}.
+     *
+     * @return HasMany<Payment, $this>
+     */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>

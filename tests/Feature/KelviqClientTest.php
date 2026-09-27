@@ -168,6 +168,31 @@ test("a customer's subscriptions are listed a page of a hundred at a time", func
     Http::assertSent(fn (Request $request): bool => $request['customer_id'] === 'pilot-uuid' && $request['page_size'] === 100);
 });
 
+test("every customer's orders are listed a page of a hundred at a time", function (): void {
+    fakeKelviq(responses: ['sandboxapi.kelviq.com/api/v1/orders/*' => Http::response([
+        'count' => 101,
+        'next' => 'https://sandboxapi.kelviq.com/api/v1/orders/?page=3',
+        'results' => [['id' => 'ORD-1', 'status' => 'COMPLETE'], 'junk'],
+    ])]);
+
+    expect(resolve(Kelviq::class)->listOrders(2))->toBe([
+        'orders' => [['id' => 'ORD-1', 'status' => 'COMPLETE']],
+        'hasMore' => true,
+    ]);
+
+    Http::assertSent(fn (Request $request): bool => $request['page'] === 2 && $request['page_size'] === 100);
+});
+
+test('the last page of orders says there are no more', function (array|string $body): void {
+    fakeKelviq(responses: ['sandboxapi.kelviq.com/api/v1/orders/*' => Http::response($body)]);
+
+    expect(resolve(Kelviq::class)->listOrders(1))->toBe(['orders' => [], 'hasMore' => false]);
+})->with([
+    'no next page' => [['next' => null, 'results' => []]],
+    'an empty next page' => [['next' => '', 'results' => []]],
+    'not an object' => ['not json'],
+]);
+
 describe('validateEvent', function (): void {
     beforeEach(function (): void {
         $this->body = (string) json_encode(['id' => 'evt_1', 'type' => 'subscription.created']);

@@ -9,11 +9,16 @@ use App\Queries\KelviqEntitlements;
 /**
  * Act on one verified Kelviq event.
  *
- * Kelviq is the source of truth for who has paid for what, and every page reads
- * it through App\Queries\KelviqEntitlements, so there is no local billing copy
- * for an event to update. What every event about a customer does do is drop
- * that customer's cached entitlements, so the change shows on their next page
- * rather than up to a minute later.
+ * Kelviq is the source of truth for what a pilot may use, and every page reads
+ * it through App\Queries\KelviqEntitlements. What every event about a customer
+ * does is drop that customer's cached entitlements, so the change shows on
+ * their next page rather than up to a minute later.
+ *
+ * The `order.*` events also keep the `payments` table, the local record of
+ * every checkout, lifetime purchase and renewal that took money. Kelviq raises
+ * an order for each of those, carrying the amount, the plan and whether it is
+ * a renewal, and updates the same order when it is refunded;
+ * `checkout.completed` covers the first payment only.
  *
  * The customer is the merchant-supplied id at `data.object.customer.customer_id`
  * — the pilot's uuid — which is consistent across checkout, subscription and
@@ -21,8 +26,10 @@ use App\Queries\KelviqEntitlements;
  */
 final readonly class HandleKelviqWebhook
 {
-    public function __construct(private KelviqEntitlements $entitlements)
-    {
+    public function __construct(
+        private KelviqEntitlements $entitlements,
+        private RecordKelviqOrder $orders,
+    ) {
         //
     }
 
@@ -36,6 +43,14 @@ final readonly class HandleKelviqWebhook
 
         if (! is_string($customerId) || $customerId === '') {
             return;
+        }
+
+        if (in_array($type, ['order.created', 'order.updated', 'order.refunded'], true)) {
+            /** @var array<string, mixed> $order */
+            $order = data_get($event, 'data.object');
+            $eventAt = $event['created_at'] ?? null;
+
+            $this->orders->fromWebhook($order, is_string($eventAt) ? $eventAt : null);
         }
 
         match ($type) {
@@ -64,7 +79,15 @@ final readonly class HandleKelviqWebhook
              * TODO: the subscription has actually ended, not merely been
              * scheduled to. Entitlements are already gone on Kelviq's side.
              */
-            'subscription.cancelled' => $this->entitlements->forget($customerId),
+            'subscription.cancelled',
+            /*
+             * A payment was taken, changed or refunded, and recorded above. A
+             * refund can end a lifetime purchase's access, so the entitlements
+             * are asked again too.
+             */
+            'order.created',
+            'order.updated',
+            'order.refunded' => $this->entitlements->forget($customerId),
             default => null,
         };
     }

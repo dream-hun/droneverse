@@ -176,6 +176,32 @@ final readonly class Kelviq
     }
 
     /**
+     * `GET /orders/`: one page of every order the organisation holds, for
+     * every customer, a hundred at a time.
+     *
+     * The SDK does not wrap this endpoint, so the shape is the API
+     * reference's: camelCased orders under `results`, and `next` set while
+     * there is another page to ask for. Kelviq never lists an order still in
+     * PENDING.
+     *
+     * @return array{orders: array<int, array<string, mixed>>, hasMore: bool}
+     *
+     * @throws ConnectionException|RequestException|RuntimeException
+     */
+    public function listOrders(int $page): array
+    {
+        $response = $this->request()
+            ->get('/orders/', ['page' => $page, 'page_size' => 100])
+            ->throw()
+            ->json();
+
+        return [
+            'orders' => $this->listOf(is_array($response) ? ($response['results'] ?? null) : null),
+            'hasMore' => is_array($response) && is_string($response['next'] ?? null) && $response['next'] !== '',
+        ];
+    }
+
+    /**
      * `validateEvent()`: prove a webhook body came from Kelviq, and decode it.
      *
      * The signature is a hex HMAC-SHA256 under the endpoint's signing secret of

@@ -10,8 +10,12 @@ use App\Models\Challenge;
 use App\Models\Course;
 use App\Models\Quiz;
 use App\Models\User;
+use App\Queries\KelviqEntitlements;
+use Illuminate\Cache\Events\CacheHit;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 use Inertia\Testing\AssertableInertia;
@@ -182,6 +186,46 @@ test('entitlements are shared with the front end', function (): void {
             ->where('auth.plan.isPaid', true)
             ->where('auth.features', fn (Collection $features): bool => $features->contains('drone_config_editor')
                 && $features->doesntContain('mission_builder')));
+});
+
+test('a request reads the kelviq answer once for both the plan and the features', function (): void {
+    /*
+     * The shared props ask for the plan and for the feature list, and both
+     * are built from the same answer. Read separately, that was one cache
+     * fetch each on every signed-in page.
+     */
+    $user = User::factory()->create();
+    fakeKelviq([$user->uuid => KELVIQ_PRO]);
+
+    $this->actingAs($user)->get(route('pricing'))->assertOk();
+
+    $reads = 0;
+    Event::listen(CacheHit::class, function (CacheHit $event) use (&$reads, $user): void {
+        if ($event->key === 'kelviq:entitlements:'.$user->uuid) {
+            $reads++;
+        }
+    });
+
+    $this->actingAs(User::query()->findOrFail($user->id))
+        ->get(route('pricing'))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('auth.plan.value', 'pro')
+            ->where('auth.features', fn (Collection $features): bool => $features->contains('drone_config_editor')));
+
+    expect($reads)->toBe(1);
+});
+
+test('forgetting the plan forgets the kelviq answer it was built from', function (): void {
+    $user = User::factory()->create();
+    fakeKelviq([$user->uuid => KELVIQ_PRO]);
+    Cache::put('kelviq:entitlements:'.$user->uuid, [], 60);
+
+    expect($user->kelviqEntitlements())->toBe([]);
+
+    resolve(KelviqEntitlements::class)->forget($user->uuid);
+
+    expect($user->kelviqEntitlements())->toBe([], 'The memo should outlive the cache entry it was read from.')
+        ->and($user->forgetPlan()->kelviqEntitlements())->toBe(KELVIQ_PRO);
 });
 
 test('guests are shared the starter plan', function (): void {

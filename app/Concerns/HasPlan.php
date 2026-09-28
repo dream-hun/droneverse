@@ -9,6 +9,7 @@ use App\Actions\ResolvePlanForUser;
 use App\Enums\Feature;
 use App\Enums\Plan;
 use App\Models\User;
+use App\Queries\KelviqEntitlements;
 
 /**
  * Entitlement questions, answered on the User model.
@@ -29,6 +30,9 @@ trait HasPlan
 
     /** @var array<int, Feature>|null */
     private ?array $resolvedFeatures = null;
+
+    /** @var array<int, string>|null */
+    private ?array $resolvedEntitlements = null;
 
     public function plan(): Plan
     {
@@ -55,6 +59,23 @@ trait HasPlan
         return $this->resolvedFeatures ??= resolve(ResolveFeaturesForUser::class)->handle($this);
     }
 
+    /**
+     * The Kelviq feature identifiers the user holds, read once per instance.
+     *
+     * Both plan() and features() are derived from this one answer, and every
+     * signed-in page asks both — the shared Inertia props carry the plan and
+     * the feature list. Read separately, that was the same cache entry fetched
+     * twice on every request, and with the database cache store each fetch is
+     * a query. Memoised here, beside the two answers built from it, so that
+     * `forgetPlan()` retires all three together.
+     *
+     * @return array<int, string>
+     */
+    public function kelviqEntitlements(): array
+    {
+        return $this->resolvedEntitlements ??= resolve(KelviqEntitlements::class)->for($this);
+    }
+
     public function onPaidPlan(): bool
     {
         return $this->plan()->isPaid();
@@ -75,6 +96,7 @@ trait HasPlan
     {
         $this->resolvedPlan = null;
         $this->resolvedFeatures = null;
+        $this->resolvedEntitlements = null;
 
         return $this;
     }

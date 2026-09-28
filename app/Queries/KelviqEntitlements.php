@@ -16,8 +16,10 @@ use Throwable;
  *
  * The port of the SDK's `entitlements.hasAccess()`, including its cache, and
  * the one place in the application that asks Kelviq what anybody has paid
- * for. App\Actions\ResolvePlanForUser and App\Actions\ResolveFeaturesForUser
- * read it; nothing else should.
+ * for. It is read through App\Concerns\HasPlan::kelviqEntitlements(), which
+ * asks once per User instance and hands the answer to
+ * App\Actions\ResolvePlanForUser and App\Actions\ResolveFeaturesForUser;
+ * nothing else should read it.
  *
  * The customer is the pilot's `uuid`, the identifier the application already
  * uses for them in public. It is always read from the signed-in user on the

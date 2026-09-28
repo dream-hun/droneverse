@@ -21,7 +21,8 @@
     /*
      * Google Tag Manager, for a visitor who accepted analytics on the consent
      * banner, and in production only — HandleInertiaRequests decides both.
-     * Anyone who has not chosen, or chose no, gets no Google script at all.
+     * Anyone who has not chosen, or chose no, gets nothing from Google at all:
+     * neither the script in the <head> nor the iframe after <body>.
      */
     $tagManagerId = ($page['props']['tagManager']['consent'] ?? null) === 'granted'
         ? ($page['props']['tagManager']['containerId'] ?? null)
@@ -128,6 +129,18 @@
         </x-inertia::head>
     </head>
     <body class="font-sans antialiased">
+        {{--
+            Google's second snippet, for browsers with JavaScript off, behind
+            the same choice as the one in the <head>. The banner needs
+            JavaScript to be answered, so this only ever fires for a visitor
+            who accepted and has since switched JavaScript off.
+        --}}
+        @if ($tagManagerId)
+            <!-- Google Tag Manager (noscript) -->
+            <noscript><iframe src="https://www.googletagmanager.com/ns.html?id={{ $tagManagerId }}"
+            height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+            <!-- End Google Tag Manager (noscript) -->
+        @endif
         <x-inertia::app />
     </body>
 </html>

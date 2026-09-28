@@ -27,6 +27,7 @@ test('the container loads in production for a visitor who accepted analytics', f
 
     $response->assertSee("'https://www.googletagmanager.com/gtm.js?id='", false);
     $response->assertSee("'script','dataLayer','GTM-TEST123'", false);
+    $response->assertSee('<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TEST123"', false);
 });
 
 dataset('no consent', [

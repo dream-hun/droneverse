@@ -23,3 +23,14 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+# Vite fingerprints every script, stylesheet, font and WebAssembly module it
+# writes to build/assets, so a file there never changes under the same name.
+# Browsers can keep them for a year without asking again. The only other files
+# in public/ with these extensions are Log Viewer's, when published, and it
+# puts a version in the query string of every URL it links them by.
+<IfModule mod_headers.c>
+    <FilesMatch "\.(css|js|wasm|woff2)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+</IfModule>

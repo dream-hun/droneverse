@@ -8,6 +8,7 @@ use App\Enums\AdminPermission;
 use App\Enums\Feature;
 use App\Enums\Plan;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -71,7 +72,15 @@ final class HandleInertiaRequests extends Middleware
      * The same kind of rendering hint as the features below: the sidebar
      * shows the admin sections a member of staff can open, and every admin
      * route still asks the Gate for itself. Empty for a guest and for almost
-     * every pilot, which is the common case and costs one roles lookup.
+     * every pilot, which is the common case and costs one query.
+     *
+     * That one query is the point of the check below. Asking the Gate loads
+     * the pilot's roles and their direct permissions, two queries on every
+     * signed-in page, only to learn there is nothing there. An admin
+     * permission can only come from one of those two relations — the
+     * `admin` role's blanket grant included, since holding it is a role — so
+     * a single EXISTS over both settles the empty case, and only staff go on
+     * to ask the Gate.
      *
      * @return array<int, string>
      */
@@ -80,6 +89,15 @@ final class HandleInertiaRequests extends Middleware
         $user = $request->user();
 
         if (! $user instanceof User) {
+            return [];
+        }
+
+        $holdsAny = User::query()
+            ->whereKey($user->getKey())
+            ->where(static fn (Builder $query): Builder => $query->has('roles')->orHas('permissions'))
+            ->exists();
+
+        if (! $holdsAny) {
             return [];
         }
 

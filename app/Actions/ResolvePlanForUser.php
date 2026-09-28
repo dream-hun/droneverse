@@ -6,15 +6,9 @@ namespace App\Actions;
 
 use App\Enums\Plan;
 use App\Models\User;
-use App\Queries\KelviqEntitlements;
 
 final readonly class ResolvePlanForUser
 {
-    public function __construct(private KelviqEntitlements $entitlements)
-    {
-        //
-    }
-
     /**
      * Work out which plan a user is entitled to right now.
      *
@@ -64,7 +58,7 @@ final readonly class ResolvePlanForUser
      */
     private function fromKelviq(User $user): ?Plan
     {
-        $granted = $this->entitlements->for($user);
+        $granted = $user->kelviqEntitlements();
 
         return array_find(
             array_reverse(Plan::cases()),

@@ -11,7 +11,6 @@ use App\Models\DroneModel;
 use App\Models\User;
 use App\Models\UserChallengeProgress;
 use App\Queries\FlightLog;
-use App\Queries\Leaderboard;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -19,10 +18,7 @@ final readonly class RecordChallengeAttempt
 {
     private const int MAX_STARS = 3;
 
-    public function __construct(
-        private Leaderboard $leaderboard,
-        private FlightLog $flightLog,
-    ) {}
+    public function __construct(private FlightLog $flightLog) {}
 
     /**
      * Log a simulator run and merge it into the user's per-challenge progress.
@@ -120,15 +116,18 @@ final readonly class RecordChallengeAttempt
         });
 
         /*
-         * This run may have moved the pilot up this course's board and the
-         * overall one, and it is a new point on their own curve. Both read
-         * models are told what moved rather than told to forget everything:
-         * a run here says nothing about another course's ranking or another
-         * pilot's analytics, and retiring those too meant the busiest
-         * mission on the site decided how often every other cached slice was
-         * rebuilt.
+         * This run is a new point on the pilot's own curve, so the analytics
+         * slices it could have moved are retired — and only those: a run here
+         * says nothing about another pilot's analytics, and retiring those too
+         * meant the busiest mission on the site decided how often every other
+         * cached slice was rebuilt.
+         *
+         * The leaderboard is not retired here. Saving the progress row above
+         * already did it, through the rollup the board is read from — see
+         * {@see RollUpCourseTotals::retireBoard()} — and a second flush from
+         * here only bumped the same two generation counters again, doubling
+         * the cache writes on the busiest write path in the application.
          */
-        $this->leaderboard->forgetCourse($challenge->course_id);
         $this->flightLog->forget($user, $challenge);
 
         return $progress;

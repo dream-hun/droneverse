@@ -6,6 +6,7 @@ use App\Models\Challenge;
 use App\Models\Course;
 use App\Models\User;
 use App\Models\UserChallengeProgress;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia;
 
@@ -64,6 +65,44 @@ test('recording a run puts the pilot on the board immediately', function (): voi
             ->where('standings.0.name', 'Grace')
             ->where('standings.0.points', 100)
             ->where('pilotCount', 2));
+});
+
+test('recording a run retires each board it moves exactly once', function (): void {
+    /*
+     * The rollup write retires the board after it commits. The recording
+     * action used to retire it again on its way out, which bumped the same
+     * two counters twice for every run flown — double the cache writes on
+     * the busiest write path, for no board that the first bump had missed.
+     */
+    $course = Course::factory()->create();
+    $challenge = Challenge::factory()->for($course)->create(['max_score' => 100]);
+    $pilot = User::factory()->create();
+
+    $generations = fn (): array => [
+        Cache::integer('leaderboard:generation:all'),
+        Cache::integer('leaderboard:generation:course:'.$course->id),
+    ];
+
+    $fly = fn () => $this->actingAs($pilot)->postJson(
+        route('challenges.attempts.store', [$course, $challenge]),
+        [
+            'code' => 'async function main(drone) {}',
+            'collisions' => 0,
+            'photos' => [],
+            'path' => [
+                ['t' => 0, 'x' => 0, 'y' => 0.15, 'z' => 0],
+                ['t' => 1, 'x' => 0, 'y' => 1.5, 'z' => 0],
+                ['t' => 2, 'x' => 0, 'y' => 0.15, 'z' => 0],
+            ],
+        ],
+    )->assertOk();
+
+    $fly();
+    [$overall, $courseBoard] = $generations();
+
+    $fly();
+
+    expect($generations())->toBe([$overall + 1, $courseBoard + 1]);
 });
 
 /**

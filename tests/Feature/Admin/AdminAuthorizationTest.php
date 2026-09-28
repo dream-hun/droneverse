@@ -5,6 +5,9 @@ declare(strict_types=1);
 use App\Enums\AdminPermission;
 use App\Models\Role;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Inertia\Testing\AssertableInertia;
+use Spatie\Permission\Models\Permission;
 
 test('guests are sent to sign in', function (): void {
     $this->get(route('admin.users.index'))->assertRedirect(route('login'));
@@ -81,4 +84,58 @@ test('an admin cannot delete their own account from the admin area', function ()
     $this->actingAs($admin)->delete(route('admin.users.destroy', $admin))->assertForbidden();
 
     $this->assertModelExists($admin);
+});
+
+test('the sidebar is shared the admin permissions a member of staff holds', function (): void {
+    $support = User::factory()
+        ->withPermissions([AdminPermission::AccessAdmin, AdminPermission::ManageUsers], 'support')
+        ->create();
+
+    $this->actingAs($support)
+        ->get(route('dashboard'))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('auth.permissions', [AdminPermission::AccessAdmin->value, AdminPermission::ManageUsers->value]));
+});
+
+test('the sidebar is shared every admin permission for the admin role', function (): void {
+    $this->actingAs(User::factory()->admin()->create())
+        ->get(route('dashboard'))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('auth.permissions', AdminPermission::values()));
+});
+
+test('a permission granted to the account directly still reaches the sidebar', function (): void {
+    /*
+     * The application only grants through roles today, but the check that
+     * skips the Gate for pilots reads both relations, so a direct grant is
+     * never mistaken for holding nothing.
+     */
+    $staff = User::factory()->create();
+    $staff->givePermissionTo(Permission::findOrCreate(AdminPermission::AccessAdmin->value));
+
+    $this->actingAs($staff)
+        ->get(route('dashboard'))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('auth.permissions', [AdminPermission::AccessAdmin->value]));
+});
+
+test('a pilot is shared no admin permissions for a single query', function (): void {
+    $pilot = User::factory()->create();
+
+    $this->actingAs($pilot)->get(route('pricing'))->assertOk();
+
+    // A fresh instance, so no relation loaded by the request above is reused.
+    $this->actingAs(User::query()->findOrFail($pilot->id));
+
+    DB::enableQueryLog();
+
+    $this->get(route('pricing'))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('auth.permissions', []));
+
+    $queries = collect(DB::getQueryLog())->pluck('query');
+
+    expect($queries)->toHaveCount(1)
+        ->and($queries->first())->toContain('model_has_roles')
+        ->and($queries->first())->toContain('model_has_permissions');
 });

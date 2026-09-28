@@ -7,15 +7,9 @@ namespace App\Actions;
 use App\Enums\Feature;
 use App\Enums\Plan;
 use App\Models\User;
-use App\Queries\KelviqEntitlements;
 
 final readonly class ResolveFeaturesForUser
 {
-    public function __construct(private KelviqEntitlements $entitlements)
-    {
-        //
-    }
-
     /**
      * Every capability a user may use right now.
      *
@@ -45,7 +39,7 @@ final readonly class ResolveFeaturesForUser
             return $override->features();
         }
 
-        $granted = $this->entitlements->for($user);
+        $granted = $user->kelviqEntitlements();
 
         return array_values(array_filter(
             Feature::cases(),

@@ -8,7 +8,9 @@ use App\Models\Payment;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Carbon\Exceptions\InvalidFormatException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
@@ -169,6 +171,13 @@ final readonly class RecordKelviqOrder
      * offset it arrived with, a time is written as that offset's wall-clock
      * reading and comes back wrong by the offset — early enough, at `+02:00`,
      * for a later refund to look older than the payment it refunds.
+     *
+     * A time Carbon cannot read is kept as no time at all, like any other
+     * field here that arrives in the wrong shape, but it is logged. Kelviq
+     * signs what it sends, so an unreadable time means its format has changed,
+     * and an unreadable `modified_on` quietly weakens the ordering guard. Only
+     * that failure is caught: anything else is a bug, and answering it with
+     * "no time" would hide it behind a result that looks like bad input.
      */
     private function time(mixed $value): ?CarbonImmutable
     {
@@ -178,7 +187,12 @@ final readonly class RecordKelviqOrder
 
         try {
             return CarbonImmutable::parse($value)->utc();
-        } catch (Throwable) {
+        } catch (InvalidFormatException $invalidFormatException) {
+            Log::warning('Kelviq sent a time that could not be read; recording it as absent.', [
+                'value' => $value,
+                'exception' => $invalidFormatException->getMessage(),
+            ]);
+
             return null;
         }
     }

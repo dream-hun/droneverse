@@ -9,6 +9,7 @@ use Illuminate\Cache\Repository;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Testing\TestResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Tests\TestCase;
@@ -272,6 +273,11 @@ test('a delivery that loses the race to create its order is still recorded', fun
 });
 
 test('an order with no modification time of its own is dated by the event', function (): void {
+    // Kept as absent, but not silently: an unreadable time means Kelviq's format has changed.
+    Log::shouldReceive('warning')
+        ->once()
+        ->withArgs(fn (string $message, array $context): bool => str_contains($message, 'could not be read') && ($context['value'] ?? null) === 'not a date');
+
     postKelviqWebhook($this, kelviqOrderEvent('order.created', $this->pilot->uuid, ['modified_on' => 'not a date']))->assertOk();
 
     expect(Payment::query()->sole()->kelviq_updated_at?->toIso8601String())->toBe('2026-09-27T10:00:10+00:00');

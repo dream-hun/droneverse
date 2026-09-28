@@ -6,6 +6,7 @@ namespace App\Models;
 
 use Carbon\CarbonInterface;
 use Database\Factories\PaymentFactory;
+use Illuminate\Database\Eloquent\Attributes\DateFormat;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -18,6 +19,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * webhooks and from `kelviq:sync-payments`. It is a record of what was paid,
  * never an answer to what a pilot may use: that is still
  * {@see \App\Queries\KelviqEntitlements}.
+ *
+ * Dates are stored to the microsecond. `kelviq_updated_at` is what keeps an
+ * older description of an order from overwriting a newer one, and Kelviq's
+ * times carry microseconds: cut to the second, two changes made within one
+ * second could not be told apart.
  *
  * @property int $id
  * @property string $kelviq_order_id
@@ -36,6 +42,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property CarbonInterface|null $updated_at
  * @property-read User|null $user
  */
+#[DateFormat('Y-m-d H:i:s.u')]
 final class Payment extends Model
 {
     /** @use HasFactory<PaymentFactory> */

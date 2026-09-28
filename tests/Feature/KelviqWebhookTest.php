@@ -6,7 +6,9 @@ use App\Models\Payment;
 use App\Models\User;
 use Illuminate\Cache\ArrayStore;
 use Illuminate\Cache\Repository;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Tests\TestCase;
@@ -176,6 +178,97 @@ test('an older description of an order does not overwrite a newer one', function
     postKelviqWebhook($this, kelviqOrderEvent('order.created', $this->pilot->uuid))->assertOk();
 
     expect(Payment::query()->sole()->status)->toBe('REFUNDED');
+});
+
+/**
+ * Kelviq dates each change to the microsecond, and an order is routinely
+ * created and paid for within the same second. Kept to whole seconds, the two
+ * descriptions tied, and whichever was delivered last won.
+ */
+test('descriptions of an order from the same second are told apart', function (string $first, string $second): void {
+    $descriptions = [
+        'pending' => kelviqOrderEvent('order.created', $this->pilot->uuid, [
+            'status' => 'PENDING',
+            'paid_at' => null,
+            'modified_on' => '2026-09-27T10:00:05.200000Z',
+        ]),
+        'paid' => kelviqOrderEvent('order.updated', $this->pilot->uuid, [
+            'modified_on' => '2026-09-27T10:00:05.800000Z',
+        ]),
+    ];
+
+    postKelviqWebhook($this, $descriptions[$first])->assertOk();
+    postKelviqWebhook($this, $descriptions[$second])->assertOk();
+
+    $payment = Payment::query()->sole();
+
+    expect($payment->status)->toBe('COMPLETE')
+        ->and($payment->paid_at?->toIso8601String())->toBe('2026-09-27T10:00:00+00:00')
+        ->and($payment->kelviq_updated_at?->format('Y-m-d H:i:s.u'))->toBe('2026-09-27 10:00:05.800000');
+})->with([
+    'delivered in order' => ['pending', 'paid'],
+    'delivered out of order' => ['paid', 'pending'],
+]);
+
+/**
+ * An offset is part of the moment it qualifies. Stored as the wall-clock time
+ * it reads as, `+02:00` came back two hours late, and a refund made after the
+ * payment looked older than it and was dropped.
+ */
+test('a time sent with an offset is recorded as the moment it names', function (): void {
+    postKelviqWebhook($this, kelviqOrderEvent('order.created', $this->pilot->uuid, [
+        'paid_at' => '2026-09-27T12:00:00+02:00',
+        'modified_on' => '2026-09-27T12:00:05+02:00',
+    ]))->assertOk();
+    postKelviqWebhook($this, kelviqOrderEvent('order.refunded', $this->pilot->uuid, [
+        'status' => 'REFUNDED',
+        'modified_on' => '2026-09-27T11:00:00Z',
+    ]))->assertOk();
+
+    $payment = Payment::query()->sole();
+
+    expect($payment->status)->toBe('REFUNDED')
+        ->and($payment->paid_at?->toIso8601String())->toBe('2026-09-27T10:00:00+00:00');
+});
+
+/**
+ * Kelviq delivers concurrently, and the claim on the event id only stops one
+ * event being handled twice: an `order.created` and the `order.updated` close
+ * behind it are two events about one order. Whichever loses the race to create
+ * the row has to be recorded against it rather than fail on the unique key.
+ *
+ * The other delivery's row is landed straight after this one looks the order
+ * up, which is the window a read followed by an insert leaves open.
+ */
+test('a delivery that loses the race to create its order is still recorded', function (): void {
+    $raced = false;
+
+    DB::listen(function (QueryExecuted $query) use (&$raced): void {
+        $sql = mb_strtolower($query->sql);
+
+        if ($raced || ! str_starts_with($sql, 'select') || ! str_contains($sql, 'payments') || ! str_contains($sql, 'kelviq_order_id')) {
+            return;
+        }
+
+        $raced = true;
+
+        DB::table('payments')->insert([
+            'kelviq_order_id' => 'ORD-20260927100000-AB3K9',
+            'kelviq_customer_id' => $this->pilot->uuid,
+            'status' => 'PENDING',
+            'kelviq_updated_at' => '2026-09-27 10:00:05.200000',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    });
+
+    postKelviqWebhook($this, kelviqOrderEvent('order.updated', $this->pilot->uuid, [
+        'modified_on' => '2026-09-27T10:00:05.800000Z',
+    ]))->assertOk();
+
+    expect(Payment::query()->sole())
+        ->status->toBe('COMPLETE')
+        ->user_id->toBe($this->pilot->id);
 });
 
 test('an order with no modification time of its own is dated by the event', function (): void {

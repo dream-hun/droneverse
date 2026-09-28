@@ -13,6 +13,7 @@ use Illuminate\Console\Command;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use RuntimeException;
+use Throwable;
 
 /**
  * Copy every order Kelviq holds into `payments`.
@@ -37,7 +38,7 @@ final class SyncKelviqPaymentsCommand extends Command
     private const int MAX_PAGES = 1_000;
 
     /**
-     * @throws ConnectionException|RequestException|RuntimeException
+     * @throws ConnectionException|RequestException|RuntimeException|Throwable
      */
     public function handle(Kelviq $kelviq, RecordKelviqOrder $orders): int
     {

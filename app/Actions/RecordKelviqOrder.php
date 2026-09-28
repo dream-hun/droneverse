@@ -8,6 +8,7 @@ use App\Models\Payment;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\DB;
 use Throwable;
 
 /**
@@ -36,6 +37,8 @@ final readonly class RecordKelviqOrder
      * carries no `modified_on` of its own.
      *
      * @param  array<string, mixed>  $order
+     *
+     * @throws Throwable
      */
     public function fromWebhook(array $order, ?string $eventAt = null): ?Payment
     {
@@ -61,6 +64,8 @@ final readonly class RecordKelviqOrder
      * modification time, so the moment it was read stands in for one.
      *
      * @param  array<string, mixed>  $order
+     *
+     * @throws Throwable
      */
     public function fromApi(array $order, CarbonInterface $readAt): ?Payment
     {
@@ -85,7 +90,17 @@ final readonly class RecordKelviqOrder
      * Null when the order names no id, no customer or no status, which is
      * nothing a row can be kept for.
      *
+     * Two deliveries about one order can land at once. Kelviq sends events
+     * concurrently, and an `order.created` and the `order.updated` close
+     * behind it are two events, so the webhook's claim on the event id does not
+     * keep them apart. Read first and written after, the loser of that race
+     * either failed on the unique key or wrote over the winner without having
+     * compared against it. So the unique key elects which delivery creates the
+     * row, and every other one compares and writes under the row's lock.
+     *
      * @param  array<string, mixed>  $attributes
+     *
+     * @throws Throwable
      */
     private function record(mixed $orderId, mixed $customerId, array $attributes, ?CarbonInterface $updatedAt): ?Payment
     {
@@ -96,19 +111,37 @@ final readonly class RecordKelviqOrder
             return null;
         }
 
-        $payment = Payment::query()->firstOrNew(['kelviq_order_id' => $orderId]);
+        $attributes['kelviq_customer_id'] = $customerId;
+        $attributes['user_id'] = User::query()->where('uuid', $customerId)->first(['id'])?->id;
 
-        if ($payment->exists && $updatedAt instanceof CarbonInterface && $payment->kelviq_updated_at?->isAfter($updatedAt)) {
+        // Outside the transaction below, as in RecordChallengeAttempt: an insert
+        // that loses on the unique key inside one keeps a shared lock on the row
+        // it hit, and two such deliveries asking to upgrade it would deadlock.
+        $payment = Payment::query()->createOrFirst(
+            ['kelviq_order_id' => $orderId],
+            [...$attributes, 'kelviq_updated_at' => $updatedAt],
+        );
+
+        if ($payment->wasRecentlyCreated) {
             return $payment;
         }
 
-        $payment->fill($attributes);
-        $payment->kelviq_customer_id = $customerId;
-        $payment->user_id = User::query()->where('uuid', $customerId)->first(['id'])?->id;
-        $payment->kelviq_updated_at = $updatedAt ?? $payment->kelviq_updated_at;
-        $payment->save();
+        return DB::transaction(function () use ($orderId, $attributes, $updatedAt): Payment {
+            $payment = Payment::query()
+                ->where('kelviq_order_id', $orderId)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        return $payment;
+            if ($updatedAt instanceof CarbonInterface && $payment->kelviq_updated_at?->isAfter($updatedAt)) {
+                return $payment;
+            }
+
+            $payment->fill($attributes);
+            $payment->kelviq_updated_at = $updatedAt ?? $payment->kelviq_updated_at;
+            $payment->save();
+
+            return $payment;
+        });
     }
 
     private function string(mixed $value): ?string
@@ -131,6 +164,12 @@ final readonly class RecordKelviqOrder
         return is_string($value) && mb_strlen($value) === 3 ? mb_strtoupper($value) : null;
     }
 
+    /**
+     * Moved to UTC, the zone stored times are read back in. Kept at whatever
+     * offset it arrived with, a time is written as that offset's wall-clock
+     * reading and comes back wrong by the offset — early enough, at `+02:00`,
+     * for a later refund to look older than the payment it refunds.
+     */
     private function time(mixed $value): ?CarbonImmutable
     {
         if (! is_string($value) || $value === '') {
@@ -138,7 +177,7 @@ final readonly class RecordKelviqOrder
         }
 
         try {
-            return CarbonImmutable::parse($value);
+            return CarbonImmutable::parse($value)->utc();
         } catch (Throwable) {
             return null;
         }

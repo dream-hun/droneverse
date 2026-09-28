@@ -364,7 +364,9 @@ checkout, a lifetime purchase or a renewal — written by the `order.created`,
 `order.updated` and `order.refunded` webhooks through `App\Actions\RecordKelviqOrder`, and
 backfilled from Kelviq's `/orders/` API by `php artisan kelviq:sync-payments`. Rows are keyed
 on Kelviq's order id, amounts are kept in minor units with their currency, and an older
-description of an order never overwrites a newer one. The row keeps the pilot's customer id
+description of an order never overwrites a newer one — which is why its times are stored to
+the microsecond, as Kelviq sends them: an order is often created and paid for within the
+same second. The row keeps the pilot's customer id
 when their account is closed, and its `user_id` goes null. It is a ledger only; nothing
 reads it to decide access.
 

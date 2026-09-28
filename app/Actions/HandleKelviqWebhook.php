@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Queries\KelviqEntitlements;
+use Throwable;
 
 /**
  * Act on one verified Kelviq event.
@@ -35,6 +36,8 @@ final readonly class HandleKelviqWebhook
 
     /**
      * @param  array<string, mixed>  $event
+     *
+     * @throws Throwable
      */
     public function handle(array $event): void
     {

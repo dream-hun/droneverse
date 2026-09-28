@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Actions\BuildPageHead;
 use App\Actions\ResolveFleetDefault;
 use App\Http\Resources\CourseMarketingResource;
 use App\Http\Resources\DroneModelResource;
@@ -26,7 +27,7 @@ final class WelcomeController extends Controller
      * is resolved through the same action the cockpit falls back to, which is
      * what makes "the drone they would be handed" a fact rather than a claim.
      */
-    public function __invoke(ResolveFleetDefault $fleetDefault): Response
+    public function __invoke(ResolveFleetDefault $fleetDefault, BuildPageHead $head): Response
     {
         $courses = CourseMarketingResource::collection(Course::catalog()->get());
 
@@ -34,6 +35,11 @@ final class WelcomeController extends Controller
             'courses' => $courses,
             'missionCount' => array_sum(array_column($courses, 'challengesCount')),
             'drone' => $this->heroDrone($fleetDefault),
+            'head' => $head->handle(
+                title: 'Learn drone programming in your browser',
+                description: 'Learn drone programming in your browser. Write JavaScript, fly a physics-simulated quadcopter through real missions, and get every run scored. Start free.',
+                path: route('home', absolute: false),
+            ),
         ]);
     }
 

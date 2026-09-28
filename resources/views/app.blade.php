@@ -17,12 +17,31 @@
         || str_starts_with($page['component'] ?? '', 'courses/');
 
     $resolvedAppearance = $alwaysDark ? 'dark' : ($appearance ?? 'system');
+
+    /*
+     * Google Tag Manager, for a visitor who accepted analytics on the consent
+     * banner, and in production only — HandleInertiaRequests decides both.
+     * Anyone who has not chosen, or chose no, gets no Google script at all.
+     */
+    $tagManagerId = ($page['props']['tagManager']['consent'] ?? null) === 'granted'
+        ? ($page['props']['tagManager']['containerId'] ?? null)
+        : null;
 @endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" @class(['dark' => $resolvedAppearance === 'dark'])>
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+
+        @if ($tagManagerId)
+            <!-- Google Tag Manager -->
+            <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+            new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+            j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+            'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+            })(window,document,'script','dataLayer',@js($tagManagerId));</script>
+            <!-- End Google Tag Manager -->
+        @endif
 
         {{-- Inline script to detect system dark mode preference and apply it immediately --}}
         <script>
@@ -89,8 +108,23 @@
 
         @viteReactRefresh
         @vite(['resources/css/app.css', 'resources/js/app.tsx', "resources/js/pages/{$page['component']}.tsx"])
+        {{--
+            The page's title, description, canonical link, robots directive,
+            social card and structured data, printed from the `head` prop so
+            they are in the HTML itself. Without an SSR server, crawlers and
+            link unfurlers that never run JavaScript read nothing else. Each
+            element is finished, escaped markup from
+            App\Actions\BuildPageHead; `serverHead` in resources/js/app.tsx
+            hands the same list to Inertia, which keeps it current on every
+            client-side visit. With SSR running, the server-rendered head
+            carries these elements instead, and this fallback is skipped.
+        --}}
         <x-inertia::head>
-            <title>{{ config('app.name', 'Laravel') }}</title>
+            @forelse ($page['props']['head'] ?? [] as $element)
+                {!! $element !!}
+            @empty
+                <title>{{ config('app.name', 'Laravel') }}</title>
+            @endforelse
         </x-inertia::head>
     </head>
     <body class="font-sans antialiased">

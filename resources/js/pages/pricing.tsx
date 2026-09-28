@@ -1,4 +1,4 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { Check, Minus } from 'lucide-react';
 import { useId, useState } from 'react';
 import CheckoutController from '@/actions/App/Http/Controllers/CheckoutController';
@@ -233,8 +233,6 @@ export default function Pricing({ plans, comparison }: PricingProps) {
 
     return (
         <>
-            <Head title="Pricing" />
-
             <div className="theme-droneverse dark min-h-screen bg-background font-sans text-foreground selection:bg-primary selection:text-primary-foreground">
                 <SiteHeader current="pricing" />
 

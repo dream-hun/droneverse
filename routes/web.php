@@ -7,6 +7,8 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocsController;
 use App\Http\Controllers\LeaderboardController;
 use App\Http\Controllers\PrivacyController;
+use App\Http\Controllers\RobotsController;
+use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TermsController;
 use App\Http\Controllers\WelcomeController;
 use App\Http\Controllers\WithdrawalFormController;
@@ -18,6 +20,21 @@ Route::get('terms', TermsController::class)->name('terms');
 Route::get('privacy', PrivacyController::class)->name('privacy');
 Route::get('terms/withdrawal-form.pdf', WithdrawalFormController::class)
     ->name('withdrawal-form');
+
+/*
+ * Read by crawlers, never by a person in a browser, so the `web` group is
+ * dropped: no session row written for every bot that asks, no cookies, no
+ * CSRF token. Cached for an hour with an ETag, since crawlers ask for both
+ * often and neither changes from one request to the next.
+ */
+Route::get('robots.txt', RobotsController::class)
+    ->withoutMiddleware('web')
+    ->middleware('cache.headers:public;max_age=3600;etag')
+    ->name('robots');
+Route::get('sitemap.xml', SitemapController::class)
+    ->withoutMiddleware('web')
+    ->middleware('cache.headers:public;max_age=3600;etag')
+    ->name('sitemap');
 
 Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('dashboard', DashboardController::class)->name('dashboard');

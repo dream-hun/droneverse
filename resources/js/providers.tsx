@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
-import { CookieNotice } from '@/components/cookie-notice';
+import { CookieConsent } from '@/components/cookie-consent';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useFlashToast } from '@/hooks/use-flash-toast';
+import type { TagManager } from '@/types/consent';
 
 /**
  * The providers every page renders inside, and the one listener that turns a
@@ -23,7 +24,19 @@ import { useFlashToast } from '@/hooks/use-flash-toast';
  * left mounted and unreachable, and — on the simulator — a discarded canvas
  * that took its WebGL context down half a second later.
  */
-export function Providers({ children }: { children: ReactNode }) {
+export function Providers({
+    children,
+    tagManager,
+}: {
+    children: ReactNode;
+    /**
+     * From the page the app booted on, because this tree sits outside the
+     * Inertia page and cannot read props for itself. The container never
+     * changes between pages, and after boot the banner keeps the visitor's
+     * choice in its own state.
+     */
+    tagManager: TagManager;
+}) {
     useFlashToast();
 
     return (
@@ -34,9 +47,9 @@ export function Providers({ children }: { children: ReactNode }) {
              * Beside the toaster rather than in a layout, for the same reason
              * the toaster is: the marketing and legal pages render with no
              * layout at all, and those are exactly the pages a first-time
-             * visitor lands on — which is the visit the notice exists for.
+             * visitor lands on, which is the visit the banner exists for.
              */}
-            <CookieNotice />
+            <CookieConsent {...tagManager} />
         </TooltipProvider>
     );
 }

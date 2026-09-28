@@ -1,4 +1,4 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { TriangleAlert } from 'lucide-react';
 import { CodeExample } from '@/components/docs/code-example';
 import { CommandList } from '@/components/docs/command-reference';
@@ -247,10 +247,6 @@ export default function Docs({ manual }: DocsProps) {
 
     return (
         <MarketingShell current="docs">
-            <Head title="Documentation">
-                <meta name="description" content={manual.tagline} />
-            </Head>
-
             <MarketingPageHeader
                 eyebrow="Documentation"
                 title="The flight manual"

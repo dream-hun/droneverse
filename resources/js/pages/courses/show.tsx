@@ -1,4 +1,4 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { CardGrid } from '@/components/card-grid';
 import { ChallengeRow, ChallengeRowSkeleton } from '@/components/challenge-row';
 import {
@@ -75,10 +75,6 @@ export default function CourseShow({
 
     return (
         <MarketingShell current="courses">
-            <Head title={course.title}>
-                <meta name="description" content={course.description} />
-            </Head>
-
             <MarketingPageHeader
                 eyebrow="Course"
                 title={course.title}

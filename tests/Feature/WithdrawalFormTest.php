@@ -15,6 +15,16 @@ test('guests can download the model withdrawal form', function (): void {
     );
 });
 
+/**
+ * The terms link to it, so crawlers find it, but a blank form answers nothing
+ * anybody searches for, and the terms page is where they should land.
+ */
+test('the form is kept out of search results', function (): void {
+    $response = $this->get(route('withdrawal-form'));
+
+    $response->assertHeader('X-Robots-Tag', 'noindex');
+});
+
 test('the download is a pdf', function (): void {
     $pdf = $this->get(route('withdrawal-form'))->getContent();
 

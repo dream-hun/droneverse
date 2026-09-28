@@ -1,3 +1,4 @@
+import { CookieSettingsButton } from '@/components/cookie-consent';
 import {
     IdentityBlock,
     LegalPage,
@@ -160,6 +161,12 @@ export default function Privacy({ identity, updatedAt }: Props) {
                             which may include an IP address and the page or
                             endpoint involved.
                         </li>
+                        <li>
+                            <strong>Analytics, only if you accept it:</strong>{' '}
+                            the pages you visit and how you use them, measured
+                            by Google as described under{' '}
+                            <a href="#cookies">Cookies</a>.
+                        </li>
                     </ul>
                     <h3>What we get from payment</h3>
                     <p>
@@ -254,6 +261,16 @@ export default function Privacy({ identity, updatedAt }: Props) {
                             Basis: legitimate interests, Article 6(1)(f).
                         </strong>
                     </p>
+                    <h3>Measuring how the site is used</h3>
+                    <p>
+                        Counting visits and seeing which pages and courses are
+                        read and where visitors arrive from, through Google Tag
+                        Manager and the analytics tags it loads, and only if you
+                        accept analytics on the cookie banner.{' '}
+                        <strong>Basis: consent, Article 6(1)(a),</strong>{' '}
+                        withdrawable at any time from Cookie settings without
+                        affecting what was measured before.
+                    </p>
                     <h3>Marketing</h3>
                     <p>
                         We do not send marketing email unless you have asked for
@@ -273,12 +290,14 @@ export default function Privacy({ identity, updatedAt }: Props) {
                 <>
                     <p>
                         <strong>
-                            We set no advertising cookies and run no third-party
-                            analytics or tracking scripts.
+                            We set no advertising cookies, and analytics runs
+                            only if you allow it.
                         </strong>{' '}
-                        There is nothing here that follows you between sites.
+                        Nothing is loaded from Google until you choose Accept on
+                        the cookie banner.
                     </p>
-                    <p>The cookies we do set are the ones the site needs:</p>
+                    <h3>The cookies the site needs</h3>
+                    <p>These are set whatever you choose:</p>
                     <ul>
                         <li>
                             A <strong>session cookie</strong> that keeps you
@@ -301,6 +320,11 @@ export default function Privacy({ identity, updatedAt }: Props) {
                             or collapsed, so the page you return to looks like
                             the one you left.
                         </li>
+                        <li>
+                            Your <strong>cookie choice</strong> itself, so we do
+                            not ask on every page. It lasts six months, and then
+                            we ask again.
+                        </li>
                     </ul>
                     <p>
                         These are strictly necessary to provide a service you
@@ -311,22 +335,36 @@ export default function Privacy({ identity, updatedAt }: Props) {
                         cookies as merchant of record; that is covered by their
                         policy.
                     </p>
+                    <h3>Analytics, only with your consent</h3>
                     <p>
-                        On your first visit a short notice says the same thing
-                        in one paragraph and links back here.{' '}
-                        <strong>
-                            It is a notice and not a consent request, and it has
-                            no accept or reject button
-                        </strong>{' '}
-                        because every cookie listed above is set whether or not
-                        you click anything, so asking your permission for them
-                        would be asking for something we do not need and
-                        offering a refusal we could not honour. Dismissing it
-                        stores a single flag in your browser's own local
-                        storage, which is never sent to us. If we ever add
-                        anything that does require consent, this section, that
-                        notice and the date at the top of this page all change
-                        together.
+                        If you accept, we load{' '}
+                        <strong>Google Tag Manager</strong> and the analytics
+                        tags we manage through it, such as{' '}
+                        <strong>Google Analytics</strong>, both provided by
+                        Google Ireland Limited. They may set cookies whose names
+                        begin with <code>_ga</code>, which last up to two years,
+                        and they send Google your IP address, details of your
+                        browser and device, the pages you visit and how you
+                        arrived at them. We see the result as aggregate reports.
+                        We use it to learn which pages and courses people use,
+                        not to advertise to you.
+                    </p>
+                    <p>
+                        If you reject, or make no choice, none of it loads. You
+                        can change your mind at any time:{' '}
+                        <CookieSettingsButton className="cursor-pointer underline underline-offset-4">
+                            change your cookie choice
+                        </CookieSettingsButton>
+                        , or use Cookie settings in the site footer or your
+                        account menu. Withdrawing deletes Google's cookies from
+                        this site and stops the tags loading.
+                    </p>
+                    <p>
+                        On your first visit a short banner asks the question,
+                        with Reject and Accept buttons of the same size, one
+                        click each. If what we set ever changes again, this
+                        section, that banner and the date at the top of this
+                        page change together.
                     </p>
                 </>
             ),
@@ -366,6 +404,13 @@ export default function Privacy({ identity, updatedAt }: Props) {
                             controller and applies its own privacy notice, not
                             this one.
                         </li>
+                        <li>
+                            <strong>Google:</strong> only if you accept
+                            analytics. Google runs Google Tag Manager and Google
+                            Analytics for us as a processor, under its data
+                            processing terms, and receives what the{' '}
+                            <a href="#cookies">cookies section</a> describes.
+                        </li>
                     </ul>
                     <p>
                         We may also disclose data where the law requires it, or
@@ -390,6 +435,12 @@ export default function Privacy({ identity, updatedAt }: Props) {
                         )}
                         . If you are in the EU or EEA, that means your personal
                         data is transferred outside it.
+                    </p>
+                    <p>
+                        If you accept analytics, Google may process that data in
+                        the United States. Google LLC is certified under the
+                        EU-US Data Privacy Framework, which the European
+                        Commission has decided provides adequate protection.
                     </p>
                     <p>
                         We make those transfers under Chapter V GDPR: to
@@ -424,6 +475,13 @@ export default function Privacy({ identity, updatedAt }: Props) {
                         </li>
                         <li>
                             <strong>Server logs:</strong> 14 days, then deleted.
+                        </li>
+                        <li>
+                            <strong>Analytics, if you accepted it:</strong>{' '}
+                            Google's cookies last up to two years in your
+                            browser, or until you withdraw consent, which
+                            deletes them. The data in Google Analytics is kept
+                            for no more than 14 months.
                         </li>
                         <li>
                             <strong>Billing and tax records:</strong> kept for

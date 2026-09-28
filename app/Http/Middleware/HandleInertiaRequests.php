@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Actions\BuildPageHead;
 use App\Enums\AdminPermission;
 use App\Enums\Feature;
 use App\Enums\Plan;
@@ -22,6 +23,8 @@ final class HandleInertiaRequests extends Middleware
      * @var string
      */
     protected $rootView = 'app';
+
+    public function __construct(private readonly BuildPageHead $pageHead) {}
 
     /**
      * Determines the current asset version.
@@ -63,7 +66,52 @@ final class HandleInertiaRequests extends Middleware
                 'permissions' => $this->heldPermissions($request),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            /*
+             * The `<head>` of a page that does not describe itself: the site
+             * name as its title, and noindex. A public page replaces it with
+             * its own — see App\Actions\BuildPageHead — so being found is
+             * something a page opts into, and a new screen behind the sign-in
+             * cannot end up in search results by being forgotten.
+             */
+            'head' => fn (): array => $this->pageHead->handle(),
+            /*
+             * Whether Google Tag Manager may load, and what the visitor chose.
+             *
+             * The choice lives in a cookie the consent banner writes in the
+             * browser, so the server knows it before anything renders: the
+             * root template prints the container's snippet at the top of the
+             * <head> for a visitor who accepted, which is where Google asks
+             * for it, and the banner is told whether it still has a question
+             * to ask. The container is withheld outside production, so that
+             * nobody's local clicking lands in the real reports.
+             */
+            'tagManager' => [
+                'containerId' => $this->tagManagerContainer(),
+                'consent' => $this->analyticsConsent($request),
+            ],
         ];
+    }
+
+    private function tagManagerContainer(): ?string
+    {
+        $containerId = config('services.google_tag_manager.container_id');
+
+        return app()->isProduction() && is_string($containerId) && $containerId !== '' ? $containerId : null;
+    }
+
+    /**
+     * What the visitor chose on the consent banner, or null if they have not.
+     *
+     * Anything but the two values the banner writes counts as no choice, so a
+     * hand-edited cookie gets the question asked again rather than a guess.
+     *
+     * @return 'granted'|'denied'|null
+     */
+    private function analyticsConsent(Request $request): ?string
+    {
+        $consent = $request->cookie('analytics_consent');
+
+        return in_array($consent, ['granted', 'denied'], true) ? $consent : null;
     }
 
     /**

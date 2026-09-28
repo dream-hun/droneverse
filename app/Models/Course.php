@@ -26,6 +26,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read int|null $published_challenges_count
  * @property-read int|null $quizzes_count
  * @property-read string|null $mission_plan
+ * @property-read string|null $challenges_max_updated_at
+ * @property-read string|null $quizzes_max_updated_at
  */
 final class Course extends Model
 {

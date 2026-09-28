@@ -1,4 +1,4 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import {
     Camera,
     Code2,
@@ -120,8 +120,6 @@ export default function Welcome({
 
     return (
         <>
-            <Head title="DroneVerse | Learn Drone Programming" />
-
             <div className="theme-droneverse dark min-h-screen bg-background font-sans text-foreground selection:bg-primary selection:text-primary-foreground">
                 <SiteHeader />
 

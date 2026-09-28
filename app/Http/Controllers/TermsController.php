@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\BuildLegalIdentity;
+use App\Actions\BuildPageHead;
 use Illuminate\Support\Facades\Date;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -25,7 +26,7 @@ final class TermsController extends Controller
      * pilot in Dublin, a pilot in Warsaw and the server that pre-rendered the
      * page for either of them.
      */
-    public function __invoke(BuildLegalIdentity $identity): Response
+    public function __invoke(BuildLegalIdentity $identity, BuildPageHead $head): Response
     {
         $effective = Date::parse(config()->string('legal.effective.terms'));
 
@@ -35,6 +36,11 @@ final class TermsController extends Controller
                 'iso' => $effective->toDateString(),
                 'label' => $effective->translatedFormat('j F Y'),
             ],
+            'head' => $head->handle(
+                title: 'Terms and conditions',
+                description: 'The agreement between you and DroneVerse: what the service is, what a subscription costs, how to withdraw or cancel, and the rights you keep.',
+                path: route('terms', absolute: false),
+            ),
         ]);
     }
 }

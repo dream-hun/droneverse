@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Link } from '@inertiajs/react';
 import { Lock, TriangleAlert } from 'lucide-react';
 import { CodeExample } from '@/components/docs/code-example';
 import { CommandReference } from '@/components/docs/command-reference';
@@ -230,10 +230,6 @@ export default function CourseDocs({
 
     return (
         <MarketingShell current="courses">
-            <Head title={`${course.title} documentation`}>
-                <meta name="description" content={documentation.tagline} />
-            </Head>
-
             <MarketingPageHeader
                 eyebrow="Documentation"
                 title={`${course.title} guide`}

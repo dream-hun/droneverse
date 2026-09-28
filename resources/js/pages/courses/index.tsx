@@ -1,4 +1,4 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { Check, Lock } from 'lucide-react';
 import { CardGrid } from '@/components/card-grid';
 import {
@@ -235,10 +235,6 @@ export default function CoursesIndex({ courses }: CoursesIndexProps) {
 
     return (
         <MarketingShell current="courses">
-            <Head title="Courses">
-                <meta name="description" content={LEDE} />
-            </Head>
-
             <MarketingPageHeader
                 eyebrow="Flight school"
                 title="Every course, ground up"

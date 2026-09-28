@@ -89,8 +89,23 @@
 
         @viteReactRefresh
         @vite(['resources/css/app.css', 'resources/js/app.tsx', "resources/js/pages/{$page['component']}.tsx"])
+        {{--
+            The page's title, description, canonical link, robots directive,
+            social card and structured data, printed from the `head` prop so
+            they are in the HTML itself. Without an SSR server, crawlers and
+            link unfurlers that never run JavaScript read nothing else. Each
+            element is finished, escaped markup from
+            App\Actions\BuildPageHead; `serverHead` in resources/js/app.tsx
+            hands the same list to Inertia, which keeps it current on every
+            client-side visit. With SSR running, the server-rendered head
+            carries these elements instead, and this fallback is skipped.
+        --}}
         <x-inertia::head>
-            <title>{{ config('app.name', 'Laravel') }}</title>
+            @forelse ($page['props']['head'] ?? [] as $element)
+                {!! $element !!}
+            @empty
+                <title>{{ config('app.name', 'Laravel') }}</title>
+            @endforelse
         </x-inertia::head>
     </head>
     <body class="font-sans antialiased">

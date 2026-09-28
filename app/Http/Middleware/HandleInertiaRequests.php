@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Actions\BuildPageHead;
 use App\Enums\AdminPermission;
 use App\Enums\Feature;
 use App\Enums\Plan;
@@ -22,6 +23,8 @@ final class HandleInertiaRequests extends Middleware
      * @var string
      */
     protected $rootView = 'app';
+
+    public function __construct(private readonly BuildPageHead $pageHead) {}
 
     /**
      * Determines the current asset version.
@@ -63,6 +66,14 @@ final class HandleInertiaRequests extends Middleware
                 'permissions' => $this->heldPermissions($request),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            /*
+             * The `<head>` of a page that does not describe itself: the site
+             * name as its title, and noindex. A public page replaces it with
+             * its own — see App\Actions\BuildPageHead — so being found is
+             * something a page opts into, and a new screen behind the sign-in
+             * cannot end up in search results by being forgotten.
+             */
+            'head' => fn (): array => $this->pageHead->handle(),
         ];
     }
 

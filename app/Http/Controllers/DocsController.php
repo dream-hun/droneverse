@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\BuildDroneManual;
+use App\Actions\BuildPageHead;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -31,10 +32,15 @@ final class DocsController extends Controller
      * round trip — and a reference that arrives in pieces is a reference
      * somebody scrolls past the top of.
      */
-    public function __invoke(BuildDroneManual $manual): Response
+    public function __invoke(BuildDroneManual $manual, BuildPageHead $head): Response
     {
         return Inertia::render('docs', [
             'manual' => $manual->handle(),
+            'head' => $head->handle(
+                title: 'Drone programming docs and API reference',
+                description: 'Every command the drone understands, worked JavaScript examples from every course, and exactly how a flight is scored. Free to read, no account needed.',
+                path: route('docs', absolute: false),
+            ),
         ]);
     }
 }

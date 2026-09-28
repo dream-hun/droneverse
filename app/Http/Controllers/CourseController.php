@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\BuildCourseDocumentation;
+use App\Actions\BuildPageHead;
 use App\Enums\Plan;
 use App\Http\Resources\ChallengeSummaryResource;
 use App\Http\Resources\CourseCatalogResource;
@@ -17,6 +18,7 @@ use App\Queries\ContentProgress;
 use App\Queries\PilotProgress;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -25,7 +27,7 @@ final class CourseController extends Controller
     /**
      * Display a listing of the published courses.
      */
-    public function index(Request $request, PilotProgress $progress): Response
+    public function index(Request $request, PilotProgress $progress, BuildPageHead $head): Response
     {
         $user = $request->user();
 
@@ -49,6 +51,11 @@ final class CourseController extends Controller
                     Plan::forViewer($user),
                 );
             }),
+            'head' => $head->handle(
+                title: 'Drone programming courses',
+                description: 'Drone programming courses from first takeoff to city operations: write JavaScript, fly a simulated quadcopter in your browser, and get every mission scored.',
+                path: route('courses.index', absolute: false),
+            ),
         ]);
     }
 
@@ -64,6 +71,7 @@ final class CourseController extends Controller
         Course $course,
         BuildCourseDocumentation $documentation,
         ContentProgress $contentProgress,
+        BuildPageHead $head,
     ): Response {
         // Stays on the initial request: a 404 is the whole response, not a
         // section of it, and deferring it would render a page header for a
@@ -71,6 +79,7 @@ final class CourseController extends Controller
         abort_unless($course->is_published, 404);
 
         $user = $request->user();
+        $path = route('courses.show', $course, absolute: false);
 
         return Inertia::render('courses/show', [
             'course' => [
@@ -126,6 +135,15 @@ final class CourseController extends Controller
                     Plan::forViewer($user),
                 );
             }),
+            'head' => $head->handle(
+                title: sprintf('%s: %s drone programming course', $course->title, $course->difficulty),
+                description: Str::limit($course->description, 160, '…', preserveWords: true),
+                path: $path,
+                breadcrumbs: [
+                    route('courses.index', absolute: false) => 'Courses',
+                    $path => $course->title,
+                ],
+            ),
         ]);
     }
 }

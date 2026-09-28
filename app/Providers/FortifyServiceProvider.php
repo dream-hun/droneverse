@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Actions\BuildPageHead;
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -47,12 +48,21 @@ final class FortifyServiceProvider extends ServiceProvider
 
     /**
      * Configure Fortify views.
+     *
+     * Signing in and signing up are the two screens here a search engine is
+     * told about, because they are the two a visitor searches for by name.
+     * The rest are steps inside a flow and keep the shared noindex head.
      */
     private function configureViews(): void
     {
         Fortify::loginView(fn (Request $request) => Inertia::render('auth/login', [
             'canResetPassword' => Features::enabled(Features::resetPasswords()),
             'status' => $request->session()->get('status'),
+            'head' => $this->app->make(BuildPageHead::class)->handle(
+                title: 'Log in',
+                description: 'Log in to DroneVerse and pick up your drone programming courses where you left off.',
+                path: route('login', absolute: false),
+            ),
         ]));
 
         Fortify::resetPasswordView(fn (Request $request) => Inertia::render('auth/reset-password', [
@@ -71,6 +81,11 @@ final class FortifyServiceProvider extends ServiceProvider
 
         Fortify::registerView(fn () => Inertia::render('auth/register', [
             'passwordRules' => Password::defaults()->toPasswordRulesString(),
+            'head' => $this->app->make(BuildPageHead::class)->handle(
+                title: 'Create your free account',
+                description: 'Create a free DroneVerse account and start learning drone programming in your browser. The Starter plan costs nothing and never expires.',
+                path: route('register', absolute: false),
+            ),
         ]));
 
         Fortify::twoFactorChallengeView(fn () => Inertia::render('auth/two-factor-challenge'));

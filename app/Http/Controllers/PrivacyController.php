@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\BuildLegalIdentity;
+use App\Actions\BuildPageHead;
 use Illuminate\Support\Facades\Date;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -23,7 +24,7 @@ final class PrivacyController extends Controller
      * same server-side date — so the two documents cannot drift into being
      * built differently.
      */
-    public function __invoke(BuildLegalIdentity $identity): Response
+    public function __invoke(BuildLegalIdentity $identity, BuildPageHead $head): Response
     {
         $effective = Date::parse(config()->string('legal.effective.privacy'));
 
@@ -33,6 +34,11 @@ final class PrivacyController extends Controller
                 'iso' => $effective->toDateString(),
                 'label' => $effective->translatedFormat('j F Y'),
             ],
+            'head' => $head->handle(
+                title: 'Privacy policy',
+                description: 'What DroneVerse collects, why we are allowed to, who else sees it, how long we keep it, and the rights you can exercise over it under the GDPR.',
+                path: route('privacy', absolute: false),
+            ),
         ]);
     }
 }

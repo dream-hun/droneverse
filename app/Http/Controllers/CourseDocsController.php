@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\BuildCourseDocumentation;
+use App\Actions\BuildPageHead;
 use App\Models\Challenge;
 use App\Models\Course;
 use Illuminate\Http\Request;
@@ -26,13 +27,15 @@ final class CourseDocsController extends Controller
      * A course with no authored guide 404s rather than rendering an empty
      * shell, and the course page only offers the link when there is one.
      */
-    public function __invoke(Request $request, Course $course, BuildCourseDocumentation $documentation): Response
+    public function __invoke(Request $request, Course $course, BuildCourseDocumentation $documentation, BuildPageHead $head): Response
     {
         abort_unless($course->is_published, 404);
 
         $documented = $documentation->handle($course);
 
         abort_if($documented === null, 404);
+
+        $path = route('courses.docs', $course, absolute: false);
 
         return Inertia::render('courses/docs', [
             'course' => [
@@ -68,6 +71,20 @@ final class CourseDocsController extends Controller
                     'locked' => ! $challenge->isUnlockedFor($request->user(), $course),
                 ])
                 ->all()),
+            'head' => $head->handle(
+                title: sprintf('%s guide: commands and examples', $course->title),
+                description: mb_trim(sprintf(
+                    '%s The drone commands %s builds on, worked JavaScript examples, and the mistakes to avoid.',
+                    $documented['tagline'],
+                    $course->title,
+                )),
+                path: $path,
+                breadcrumbs: [
+                    route('courses.index', absolute: false) => 'Courses',
+                    route('courses.show', $course, absolute: false) => $course->title,
+                    $path => 'Guide',
+                ],
+            ),
         ]);
     }
 }

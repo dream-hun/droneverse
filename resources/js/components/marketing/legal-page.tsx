@@ -1,4 +1,3 @@
-import { Head } from '@inertiajs/react';
 import type { ReactNode } from 'react';
 import {
     MarketingPageHeader,
@@ -122,10 +121,6 @@ export function LegalPage({
 }) {
     return (
         <>
-            <Head title={title}>
-                <meta name="description" content={lede} />
-            </Head>
-
             <MarketingShell>
                 <MarketingPageHeader
                     eyebrow="Legal"

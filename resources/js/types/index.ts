@@ -1,5 +1,6 @@
 export type * from './auth';
 export type * from './billing';
+export type * from './consent';
 export type * from './legal';
 export type * from './navigation';
 export type * from './simulator';

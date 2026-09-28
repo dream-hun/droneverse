@@ -18,7 +18,7 @@ const { routerOn } = vi.hoisted(() => ({
 
 /*
  * `Link` is stubbed as well as the router because the tree mounts the cookie
- * notice, which links to the privacy policy. It is an anchor here rather than
+ * consent banner, which links to the privacy policy. It is an anchor here rather than
  * the real component: this file is testing what Providers mounts, and the
  * real Link wants an Inertia app around it to resolve a visit against.
  */
@@ -56,7 +56,7 @@ afterEach(() => {
 describe('Providers', () => {
     it('renders the page it wraps', () => {
         render(
-            <Providers>
+            <Providers tagManager={{ containerId: null, consent: null }}>
                 <p>Mission control</p>
             </Providers>,
         );
@@ -74,7 +74,7 @@ describe('Providers', () => {
      */
     it('subscribes to the flash event Inertia raises', () => {
         render(
-            <Providers>
+            <Providers tagManager={{ containerId: null, consent: null }}>
                 <p>Mission control</p>
             </Providers>,
         );

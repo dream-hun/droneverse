@@ -1,4 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
+import { CookieSettingsButton } from '@/components/cookie-consent';
 import { Wordmark } from '@/components/marketing/site-header';
 import {
     dashboard,
@@ -118,6 +119,9 @@ export function SiteFooter({ courses = [] }: { courses?: MarketingCourse[] }) {
                                 </Link>
                             </li>
                         ))}
+                        <li>
+                            <CookieSettingsButton className="cursor-pointer tracking-widest uppercase transition-colors hover:text-primary" />
+                        </li>
                     </ul>
                 </div>
             </div>

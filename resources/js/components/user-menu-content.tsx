@@ -1,5 +1,5 @@
 import { Link, router } from '@inertiajs/react';
-import { LogOut, Settings } from 'lucide-react';
+import { Cookie, LogOut, Settings } from 'lucide-react';
 import {
     DropdownMenuGroup,
     DropdownMenuItem,
@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { UserInfo } from '@/components/user-info';
 import { useMobileNavigation } from '@/hooks/use-mobile-navigation';
+import { openCookieSettings } from '@/lib/analytics-consent';
 import { logout } from '@/routes';
 import { edit } from '@/routes/profile';
 import type { User } from '@/types';
@@ -43,6 +44,21 @@ export function UserMenuContent({ user }: Props) {
                         <Settings className="mr-2" />
                         Settings
                     </Link>
+                </DropdownMenuItem>
+                {/*
+                 * The signed-in pages have no marketing footer, so this is
+                 * where a pilot changes their analytics choice from inside
+                 * the app. It reopens the consent banner.
+                 */}
+                <DropdownMenuItem
+                    className="cursor-pointer"
+                    onSelect={() => {
+                        cleanup();
+                        openCookieSettings();
+                    }}
+                >
+                    <Cookie className="mr-2" />
+                    Cookie settings
                 </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />

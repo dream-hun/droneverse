@@ -41,8 +41,8 @@ createInertiaApp({
         }
     },
     strictMode: true,
-    withApp(app) {
-        return <Providers>{app}</Providers>;
+    withApp(app, { page }) {
+        return <Providers tagManager={page.props.tagManager}>{app}</Providers>;
     },
     progress: {
         color: '#4B5563',

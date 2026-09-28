@@ -1,4 +1,5 @@
 import type { Auth } from '@/types/auth';
+import type { TagManager } from '@/types/consent';
 
 declare module 'react' {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -13,6 +14,7 @@ declare module '@inertiajs/core' {
             name: string;
             auth: Auth;
             sidebarOpen: boolean;
+            tagManager: TagManager;
             [key: string]: unknown;
         };
     }
